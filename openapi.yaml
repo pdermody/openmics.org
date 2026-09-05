@@ -1,0 +1,2984 @@
+openapi: 3.0.3
+info:
+  title: Open Mic API
+  version: 1.0.0
+  description: Canonical API contract. All paths are relative to the /api base URL.
+servers:
+  - url: https://api.openmics.org/api
+    description: Production
+
+tags:
+  - name: Auth
+  - name: Accounts
+  - name: Profiles
+  - name: Handles
+  - name: Open Mics
+  - name: Events
+  - name: Registrations
+  - name: Performances
+  - name: Media
+  - name: Reviews
+  - name: Comments
+  - name: Messages
+  - name: Suggestions
+  - name: Notifications
+  - name: Admin
+
+paths:
+  /openapi.json:
+    get:
+      tags: [Auth]
+      operationId: getOpenApiDocument
+      summary: Get the canonical OpenAPI document
+      responses:
+        "200":
+          description: OpenAPI document
+          content: { application/json: { schema: { type: object } } }
+  /auth/sign-up:
+    post:
+      tags: [Auth]
+      operationId: signUp
+      requestBody: { $ref: "#/components/requestBodies/SignUp" }
+      responses:
+        {
+          "202": { $ref: "#/components/responses/AccountResponse" },
+          "400": { $ref: "#/components/responses/ValidationError" },
+        }
+  /auth/sign-in:
+    post:
+      tags: [Auth]
+      operationId: signIn
+      requestBody: { $ref: "#/components/requestBodies/SignIn" }
+      responses:
+        {
+          "200": { $ref: "#/components/responses/AccountResponse" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+        }
+  /auth/refresh-token:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      requestBody: { $ref: "#/components/requestBodies/RefreshToken" }
+      responses: { "200": { $ref: "#/components/responses/TokenResponse" } }
+  /auth/profile:
+    get:
+      tags: [Auth]
+      operationId: getAuthProfile
+      security: [{ bearerAuth: [] }]
+      responses:
+        {
+          "200": { $ref: "#/components/responses/AccountResponse" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+        }
+
+  /me:
+    get:
+      tags: [Accounts]
+      operationId: getMe
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AccountResponse" } }
+  /me/permissions:
+    get:
+      tags: [Accounts]
+      operationId: getMyPermissions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/ProfileQuery" }]
+      responses:
+        { "200": { $ref: "#/components/responses/PermissionResponse" } }
+  /accounts/{id}:
+    put:
+      tags: [Accounts]
+      operationId: updateAccount
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/AccountUpdate" }
+      responses:
+        {
+          "200": { $ref: "#/components/responses/AccountResponse" },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+        }
+  /accounts/{id}/profiles:
+    get:
+      tags: [Accounts]
+      operationId: listAccountProfiles
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/ProfileListResponse" } }
+  /accounts/{id}/current-profile:
+    put:
+      tags: [Accounts]
+      operationId: setCurrentProfile
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/CurrentProfile" }
+      responses: { "200": { $ref: "#/components/responses/ProfileResponse" } }
+  /me/claimable-registrations:
+    get:
+      tags: [Registrations]
+      operationId: listClaimableRegistrations
+      security: [{ bearerAuth: [] }]
+      responses:
+        { "200": { $ref: "#/components/responses/RegistrationListResponse" } }
+  /me/following/upcoming-events:
+    get:
+      tags: [Profiles]
+      operationId: listFollowedUpcomingEvents
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Limit" },
+          { $ref: "#/components/parameters/From" },
+          { $ref: "#/components/parameters/To" },
+        ]
+      responses: { "200": { $ref: "#/components/responses/EventListResponse" } }
+  /me/home/upcoming-events:
+    get:
+      tags: [Events]
+      operationId: listPersonalUpcomingEvents
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Near" },
+          { $ref: "#/components/parameters/Limit" },
+        ]
+      responses: { "200": { $ref: "#/components/responses/EventListResponse" } }
+  /me/home/notable-open-mics:
+    get:
+      tags: [Open Mics]
+      operationId: listPersonalNotableOpenMics
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Near" },
+          { $ref: "#/components/parameters/Limit" },
+        ]
+      responses:
+        { "200": { $ref: "#/components/responses/OpenMicListResponse" } }
+
+  /profiles:
+    get:
+      tags: [Profiles]
+      operationId: listProfiles
+      parameters:
+        [
+          { $ref: "#/components/parameters/Page" },
+          { $ref: "#/components/parameters/PageSize" },
+        ]
+      responses:
+        { "200": { $ref: "#/components/responses/ProfileListResponse" } }
+    post:
+      tags: [Profiles]
+      operationId: createProfile
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/ProfileCreate" }
+      responses:
+        {
+          "201": { $ref: "#/components/responses/ProfileResponse" },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "409": { $ref: "#/components/responses/HandleConflict" },
+        }
+  /profiles/slug-available:
+    get:
+      tags: [Profiles]
+      operationId: checkProfileSlug
+      parameters: [{ $ref: "#/components/parameters/Slug" }]
+      responses:
+        { "200": { $ref: "#/components/responses/AvailabilityResponse" } }
+  /profiles/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Profiles]
+      operationId: getProfile
+      responses:
+        {
+          "200": { $ref: "#/components/responses/ProfileResponse" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        }
+    put:
+      tags: [Profiles]
+      operationId: updateProfile
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/ProfileUpdate" }
+      responses:
+        {
+          "200": { $ref: "#/components/responses/ProfileResponse" },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+        }
+    delete:
+      tags: [Profiles]
+      operationId: deleteProfile
+      security: [{ bearerAuth: [] }]
+      responses:
+        {
+          "204": { description: Profile soft-deleted },
+          "403": { $ref: "#/components/responses/Forbidden" },
+        }
+  /profiles/{id}/follow:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Profiles]
+      operationId: followProfile
+      security: [{ bearerAuth: [] }]
+      responses: { "201": { $ref: "#/components/responses/FollowResponse" } }
+    delete:
+      tags: [Profiles]
+      operationId: unfollowProfile
+      security: [{ bearerAuth: [] }]
+      responses: { "204": { description: Unfollowed } }
+  /profiles/{id}/followers:
+    get:
+      tags: [Profiles]
+      operationId: listProfileFollowers
+      parameters:
+        [
+          { $ref: "#/components/parameters/Id" },
+          { $ref: "#/components/parameters/Page" },
+          { $ref: "#/components/parameters/PageSize" },
+        ]
+      responses:
+        { "200": { $ref: "#/components/responses/ProfileListResponse" } }
+  /profiles/{id}/following:
+    get:
+      tags: [Profiles]
+      operationId: listProfileFollowing
+      parameters:
+        [
+          { $ref: "#/components/parameters/Id" },
+          { $ref: "#/components/parameters/Page" },
+          { $ref: "#/components/parameters/PageSize" },
+        ]
+      responses:
+        { "200": { $ref: "#/components/responses/ProfileListResponse" } }
+  /profiles/{id}/roles:
+    get:
+      tags: [Profiles]
+      operationId: getProfileRoles
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { $ref: "#/components/responses/RoleListResponse" } }
+  /profiles/{id}/members:
+    get:
+      tags: [Profiles]
+      operationId: listProfileMembers
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/RoleAssignmentListResponse" } }
+  /profiles/{id}/invitations:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Profiles]
+      operationId: listProfileInvitations
+      security: [{ bearerAuth: [] }]
+      responses:
+        { "200": { $ref: "#/components/responses/InvitationListResponse" } }
+    post:
+      tags: [Profiles]
+      operationId: inviteProfileMember
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/InvitationCreate" }
+      responses:
+        { "201": { $ref: "#/components/responses/InvitationResponse" } }
+  /profiles/{id}/members/{accountId}:
+    delete:
+      tags: [Profiles]
+      operationId: removeProfileMember
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Id" },
+          { $ref: "#/components/parameters/AccountId" },
+        ]
+      responses: { "204": { description: Member removed } }
+  /profiles/{id}/members/{accountId}/role:
+    put:
+      tags: [Profiles]
+      operationId: changeProfileMemberRole
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Id" },
+          { $ref: "#/components/parameters/AccountId" },
+        ]
+      requestBody: { $ref: "#/components/requestBodies/RoleAssignment" }
+      responses:
+        { "200": { $ref: "#/components/responses/RoleAssignmentResponse" } }
+  /invitations/{id}:
+    put:
+      tags: [Profiles]
+      operationId: respondToInvitation
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/InvitationResponse" }
+      responses:
+        { "200": { $ref: "#/components/responses/InvitationResponse" } }
+  /profiles/{id}/media:
+    get:
+      tags: [Media]
+      operationId: listProfileMedia
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { $ref: "#/components/responses/MediaListResponse" } }
+    post:
+      tags: [Media]
+      operationId: addProfileMedia
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/MediaCreate" }
+      responses: { "201": { $ref: "#/components/responses/MediaResponse" } }
+
+  /handles/check/{candidate}:
+    get:
+      tags: [Handles]
+      operationId: checkHandleAvailability
+      parameters: [{ $ref: "#/components/parameters/Candidate" }]
+      responses:
+        {
+          "200": { $ref: "#/components/responses/AvailabilityResponse" },
+          "400": { $ref: "#/components/responses/ValidationError" },
+        }
+
+  /open-mics:
+    get:
+      tags: [Open Mics]
+      operationId: listOpenMics
+      parameters:
+        - { $ref: "#/components/parameters/Q" }
+        - { $ref: "#/components/parameters/Country" }
+        - { $ref: "#/components/parameters/City" }
+        - { $ref: "#/components/parameters/Activity" }
+        - { $ref: "#/components/parameters/Tag" }
+        - { $ref: "#/components/parameters/Near" }
+        - { $ref: "#/components/parameters/Radius" }
+        - { $ref: "#/components/parameters/MinRating" }
+        - { $ref: "#/components/parameters/RegistrationMode" }
+        - { $ref: "#/components/parameters/Sort" }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PageSize" }
+      responses:
+        { "200": { $ref: "#/components/responses/OpenMicListResponse" } }
+    post:
+      tags: [Open Mics]
+      operationId: createOpenMic
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/OpenMicCreate" }
+      responses:
+        {
+          "201": { $ref: "#/components/responses/OpenMicResponse" },
+          "409": { $ref: "#/components/responses/HandleConflict" },
+        }
+  /open-mics/map:
+    get:
+      tags: [Open Mics]
+      operationId: mapOpenMics
+      parameters:
+        [
+          { $ref: "#/components/parameters/Bbox" },
+          { $ref: "#/components/parameters/Zoom" },
+          { $ref: "#/components/parameters/Activity" },
+          { $ref: "#/components/parameters/Tag" },
+          { $ref: "#/components/parameters/MinRating" },
+        ]
+      responses: { "200": { $ref: "#/components/responses/MapResponse" } }
+  /open-mics/slug-available:
+    get:
+      tags: [Open Mics]
+      operationId: checkOpenMicSlug
+      parameters: [{ $ref: "#/components/parameters/Slug" }]
+      responses:
+        { "200": { $ref: "#/components/responses/AvailabilityResponse" } }
+  /open-mics/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Open Mics]
+      operationId: getOpenMic
+      responses:
+        {
+          "200": { $ref: "#/components/responses/OpenMicResponse" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        }
+    put:
+      tags: [Open Mics]
+      operationId: updateOpenMic
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/OpenMicUpdate" }
+      responses: { "200": { $ref: "#/components/responses/OpenMicResponse" } }
+    delete:
+      tags: [Open Mics]
+      operationId: deleteOpenMic
+      security: [{ bearerAuth: [] }]
+      responses: { "204": { description: Open mic soft-deleted } }
+  /open-mics/{id}/events:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Events]
+      operationId: listOpenMicEvents
+      responses: { "200": { $ref: "#/components/responses/EventListResponse" } }
+    post:
+      tags: [Events]
+      operationId: createEvent
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/EventCreate" }
+      responses: { "201": { $ref: "#/components/responses/EventResponse" } }
+  /open-mics/{id}/next-event:
+    get:
+      tags: [Events]
+      operationId: getNextEvent
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        {
+          "200": { $ref: "#/components/responses/EventResponse" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        }
+  /open-mics/{id}/events/slug-available:
+    get:
+      tags: [Events]
+      operationId: checkEventSlug
+      parameters:
+        [
+          { $ref: "#/components/parameters/Id" },
+          { $ref: "#/components/parameters/Slug" },
+        ]
+      responses:
+        { "200": { $ref: "#/components/responses/AvailabilityResponse" } }
+  /open-mics/{id}/reviews:
+    get:
+      tags: [Reviews]
+      operationId: listOpenMicReviews
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/ReviewListResponse" } }
+    post:
+      tags: [Reviews]
+      operationId: createOpenMicReview
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/ReviewCreate" }
+      responses: { "201": { $ref: "#/components/responses/ReviewResponse" } }
+
+  /events/upcoming:
+    get:
+      tags: [Events]
+      operationId: listUpcomingEvents
+      parameters:
+        [
+          { $ref: "#/components/parameters/Near" },
+          { $ref: "#/components/parameters/Radius" },
+          { $ref: "#/components/parameters/Limit" },
+          { $ref: "#/components/parameters/From" },
+          { $ref: "#/components/parameters/To" },
+        ]
+      responses: { "200": { $ref: "#/components/responses/EventListResponse" } }
+  /events/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Events]
+      operationId: getEvent
+      responses: { "200": { $ref: "#/components/responses/EventResponse" } }
+    put:
+      tags: [Events]
+      operationId: updateEvent
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/EventUpdate" }
+      responses: { "200": { $ref: "#/components/responses/EventResponse" } }
+    delete:
+      tags: [Events]
+      operationId: deleteEvent
+      security: [{ bearerAuth: [] }]
+      responses: { "204": { description: Event soft-deleted } }
+  /events/{id}/registrations:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Registrations]
+      operationId: listEventRegistrations
+      security: [{ bearerAuth: [] }]
+      responses:
+        { "200": { $ref: "#/components/responses/RegistrationListResponse" } }
+    post:
+      tags: [Registrations]
+      operationId: createRegistration
+      requestBody: { $ref: "#/components/requestBodies/RegistrationCreate" }
+      responses:
+        {
+          "201": { $ref: "#/components/responses/RegistrationResponse" },
+          "409": { $ref: "#/components/responses/CapacityError" },
+        }
+  /events/{id}/media:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Media]
+      operationId: listEventMedia
+      parameters:
+        [
+          {
+            name: grouped_by,
+            in: query,
+            schema: { type: string, enum: [added_by_role] },
+          },
+        ]
+      responses: { "200": { $ref: "#/components/responses/MediaListResponse" } }
+    post:
+      tags: [Media]
+      operationId: addEventMedia
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/MediaCreate" }
+      responses: { "201": { $ref: "#/components/responses/MediaResponse" } }
+  /events/{id}/reviews:
+    get:
+      tags: [Reviews]
+      operationId: listEventReviews
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/ReviewListResponse" } }
+    post:
+      tags: [Reviews]
+      operationId: createEventReview
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/ReviewCreate" }
+      responses: { "201": { $ref: "#/components/responses/ReviewResponse" } }
+  /events/{id}/reviews/{reviewId}:
+    parameters:
+      [
+        { $ref: "#/components/parameters/Id" },
+        { $ref: "#/components/parameters/ReviewId" },
+      ]
+    get:
+      tags: [Reviews]
+      operationId: getEventReview
+      responses: { "200": { $ref: "#/components/responses/ReviewResponse" } }
+    put:
+      tags: [Reviews]
+      operationId: updateEventReview
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/ReviewUpdate" }
+      responses: { "200": { $ref: "#/components/responses/ReviewResponse" } }
+    delete:
+      tags: [Reviews]
+      operationId: deleteEventReview
+      security: [{ bearerAuth: [] }]
+      responses: { "204": { description: Review deleted } }
+  /events/{id}/reviews/{reviewId}/responses:
+    post:
+      tags: [Reviews]
+      operationId: respondToEventReview
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Id" },
+          { $ref: "#/components/parameters/ReviewId" },
+        ]
+      requestBody: { $ref: "#/components/requestBodies/ReviewResponseCreate" }
+      responses: { "201": { $ref: "#/components/responses/ReviewResponse" } }
+
+  /registrations/edit:
+    get:
+      tags: [Registrations]
+      operationId: resolveRegistrationEditLink
+      parameters:
+        [{ name: token, in: query, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: Registration and short-lived edit session established
+          headers:
+            Set-Cookie:
+              description: Secure, HttpOnly, SameSite=Lax edit-session cookie; raw token is not retained.
+              schema: { type: string }
+            Cache-Control:
+              schema: { type: string, example: no-store }
+            Referrer-Policy:
+              schema: { type: string, example: no-referrer }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/Registration" } },
+            }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /registrations/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Registrations]
+      operationId: getRegistration
+      security: [{ bearerAuth: [] }, { editSession: [] }]
+      responses:
+        { "200": { $ref: "#/components/responses/RegistrationResponse" } }
+    put:
+      tags: [Registrations]
+      operationId: updateRegistration
+      security: [{ bearerAuth: [] }, { editSession: [] }]
+      requestBody: { $ref: "#/components/requestBodies/RegistrationUpdate" }
+      responses:
+        { "200": { $ref: "#/components/responses/RegistrationResponse" } }
+  /registrations/{id}/rotate-edit-token:
+    post:
+      tags: [Registrations]
+      operationId: rotateRegistrationEditToken
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/RegistrationResponse" } }
+  /registrations/{id}/verify-email:
+    post:
+      tags: [Registrations]
+      operationId: verifyRegistrationEmail
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/EmailVerification" }
+      responses:
+        {
+          "200": { $ref: "#/components/responses/RegistrationResponse" },
+          "400": { $ref: "#/components/responses/ValidationError" },
+        }
+  /registrations/{id}/claim:
+    post:
+      tags: [Registrations]
+      operationId: claimRegistration
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/RegistrationClaim" }
+      responses:
+        { "200": { $ref: "#/components/responses/RegistrationResponse" } }
+  /registrations/{id}/performances:
+    get:
+      tags: [Performances]
+      operationId: listRegistrationPerformances
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/PerformanceListResponse" } }
+
+  /performances:
+    post:
+      tags: [Performances]
+      operationId: createPerformance
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/PerformanceCreate" }
+      responses:
+        { "201": { $ref: "#/components/responses/PerformanceResponse" } }
+  /performances/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    put:
+      tags: [Performances]
+      operationId: updatePerformance
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/PerformanceUpdate" }
+      responses:
+        { "200": { $ref: "#/components/responses/PerformanceResponse" } }
+    delete:
+      tags: [Performances]
+      operationId: deletePerformance
+      security: [{ bearerAuth: [] }]
+      responses: { "204": { description: Performance deleted } }
+
+  /media:
+    post:
+      tags: [Media]
+      operationId: createMedia
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/MediaCreate" }
+      responses: { "201": { $ref: "#/components/responses/MediaResponse" } }
+  /media/upload-url:
+    post:
+      tags: [Media]
+      operationId: createMediaUploadUrl
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/UploadUrl" }
+      responses: { "200": { $ref: "#/components/responses/UploadUrlResponse" } }
+  /media/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Media]
+      operationId: getMedia
+      responses: { "200": { $ref: "#/components/responses/MediaResponse" } }
+    put:
+      tags: [Media]
+      operationId: updateMedia
+      summary: Update media metadata
+      description: The uploader may update their media. The owning organizer may update any media within the organization, including performer-uploaded media. Uploader attribution is immutable.
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/MediaUpdate" }
+      responses:
+        {
+          "200": { $ref: "#/components/responses/MediaResponse" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+        }
+    delete:
+      tags: [Media]
+      operationId: deleteMedia
+      description: The uploader may delete their own media. The owning organizer may delete any media within the organization, including performer-uploaded media.
+      security: [{ bearerAuth: [] }]
+      responses: { "204": { description: Media soft-deleted } }
+  /media/{id}/recover:
+    post:
+      tags: [Media]
+      operationId: recoverMedia
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { $ref: "#/components/responses/MediaResponse" } }
+  /media/{id}/comments:
+    get:
+      tags: [Comments]
+      operationId: listMediaComments
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/CommentListResponse" } }
+    post:
+      tags: [Comments]
+      operationId: createMediaComment
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/CommentCreate" }
+      responses: { "201": { $ref: "#/components/responses/CommentResponse" } }
+  /media/{id}/reactions:
+    get:
+      tags: [Comments]
+      operationId: listMediaReactions
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/ReactionListResponse" } }
+    post:
+      tags: [Comments]
+      operationId: reactToMedia
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/ReactionCreate" }
+      responses: { "201": { $ref: "#/components/responses/ReactionResponse" } }
+  /reactions/{id}:
+    put:
+      tags: [Comments]
+      operationId: updateReaction
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/ReactionCreate" }
+      responses:
+        {
+          "200": { $ref: "#/components/responses/ReactionResponse" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        }
+    delete:
+      tags: [Comments]
+      operationId: deleteReaction
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "204": { description: Reaction permanently deleted } }
+
+  /comments/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Comments]
+      operationId: getComment
+      responses: { "200": { $ref: "#/components/responses/CommentResponse" } }
+    put:
+      tags: [Comments]
+      operationId: updateComment
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/CommentUpdate" }
+      responses: { "200": { $ref: "#/components/responses/CommentResponse" } }
+    delete:
+      tags: [Comments]
+      operationId: deleteComment
+      security: [{ bearerAuth: [] }]
+      responses:
+        {
+          "204":
+            {
+              description: Comment permanently deleted; replies and reactions targeting it are cascaded,
+            },
+        }
+  /comments/{id}/replies:
+    post:
+      tags: [Comments]
+      operationId: replyToComment
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/CommentCreate" }
+      responses: { "201": { $ref: "#/components/responses/CommentResponse" } }
+  /comments/{id}/reactions:
+    get:
+      tags: [Comments]
+      operationId: listCommentReactions
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/ReactionListResponse" } }
+    post:
+      tags: [Comments]
+      operationId: reactToComment
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/ReactionCreate" }
+      responses: { "201": { $ref: "#/components/responses/ReactionResponse" } }
+
+  /open-mics/{id}/reviews/{reviewId}:
+    parameters:
+      [
+        { $ref: "#/components/parameters/Id" },
+        { $ref: "#/components/parameters/ReviewId" },
+      ]
+    get:
+      tags: [Reviews]
+      operationId: getOpenMicReview
+      responses: { "200": { $ref: "#/components/responses/ReviewResponse" } }
+    put:
+      tags: [Reviews]
+      operationId: updateOpenMicReview
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/ReviewUpdate" }
+      responses: { "200": { $ref: "#/components/responses/ReviewResponse" } }
+    delete:
+      tags: [Reviews]
+      operationId: deleteOpenMicReview
+      security: [{ bearerAuth: [] }]
+      responses: { "204": { description: Review deleted } }
+  /open-mics/{id}/reviews/{reviewId}/responses:
+    post:
+      tags: [Reviews]
+      operationId: respondToOpenMicReview
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Id" },
+          { $ref: "#/components/parameters/ReviewId" },
+        ]
+      requestBody: { $ref: "#/components/requestBodies/ReviewResponseCreate" }
+      responses: { "201": { $ref: "#/components/responses/ReviewResponse" } }
+
+  /messages:
+    get:
+      tags: [Messages]
+      operationId: listMessages
+      security: [{ bearerAuth: [] }]
+      responses:
+        { "200": { $ref: "#/components/responses/MessageListResponse" } }
+  /messages/{profileId}:
+    parameters: [{ $ref: "#/components/parameters/ProfileId" }]
+    get:
+      tags: [Messages]
+      operationId: getConversation
+      security: [{ bearerAuth: [] }]
+      responses:
+        { "200": { $ref: "#/components/responses/MessageListResponse" } }
+    post:
+      tags: [Messages]
+      operationId: sendMessage
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/MessageCreate" }
+      responses: { "201": { $ref: "#/components/responses/MessageResponse" } }
+  /messages/{id}/mark-read:
+    put:
+      tags: [Messages]
+      operationId: markMessageRead
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "204": { description: Message marked read } }
+
+  /suggestions:
+    get:
+      tags: [Suggestions]
+      operationId: listSuggestions
+      parameters:
+        [
+          { $ref: "#/components/parameters/Status" },
+          { $ref: "#/components/parameters/Tag" },
+          { $ref: "#/components/parameters/Sort" },
+          { $ref: "#/components/parameters/Page" },
+        ]
+      responses:
+        { "200": { $ref: "#/components/responses/SuggestionListResponse" } }
+    post:
+      tags: [Suggestions]
+      operationId: createSuggestion
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/SuggestionCreate" }
+      responses:
+        { "201": { $ref: "#/components/responses/SuggestionResponse" } }
+  /suggestions/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Suggestions]
+      operationId: getSuggestion
+      responses:
+        { "200": { $ref: "#/components/responses/SuggestionResponse" } }
+    put:
+      tags: [Suggestions]
+      operationId: updateSuggestion
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/SuggestionUpdate" }
+      responses:
+        { "200": { $ref: "#/components/responses/SuggestionResponse" } }
+    delete:
+      tags: [Suggestions]
+      operationId: deleteSuggestion
+      security: [{ bearerAuth: [] }]
+      responses: { "204": { description: Suggestion deleted } }
+  /suggestions/{id}/status:
+    patch:
+      tags: [Suggestions]
+      operationId: updateSuggestionStatus
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/SuggestionStatus" }
+      responses:
+        { "200": { $ref: "#/components/responses/SuggestionResponse" } }
+  /suggestions/{id}/admin-notes:
+    put:
+      tags: [Suggestions]
+      operationId: updateSuggestionAdminNotes
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/AdminNotes" }
+      responses:
+        { "200": { $ref: "#/components/responses/SuggestionResponse" } }
+  /suggestions/{id}/replies:
+    get:
+      tags: [Comments]
+      operationId: listSuggestionReplies
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/CommentListResponse" } }
+    post:
+      tags: [Comments]
+      operationId: replyToSuggestion
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/CommentCreate" }
+      responses: { "201": { $ref: "#/components/responses/CommentResponse" } }
+  /suggestions/{id}/reactions:
+    get:
+      tags: [Comments]
+      operationId: listSuggestionReactions
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/ReactionListResponse" } }
+    post:
+      tags: [Comments]
+      operationId: reactToSuggestion
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/ReactionCreate" }
+      responses: { "201": { $ref: "#/components/responses/ReactionResponse" } }
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      security: [{ bearerAuth: [] }]
+      responses:
+        { "200": { $ref: "#/components/responses/NotificationListResponse" } }
+  /notifications/{id}/read:
+    put:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "204": { description: Notification marked read } }
+  /notifications/stream:
+    get:
+      tags: [Notifications]
+      operationId: notificationStream
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: SSE stream. Events include notification, event.updated, registration.added, media.added, and follow.added.
+          content: { text/event-stream: { schema: { type: string } } }
+
+  /roles:
+    get:
+      tags: [Admin]
+      operationId: listRoles
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/RoleListResponse" } }
+    post:
+      tags: [Admin]
+      operationId: createRole
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/RoleCreate" }
+      responses: { "201": { $ref: "#/components/responses/RoleResponse" } }
+  /roles/{id}:
+    put:
+      tags: [Admin]
+      operationId: updateRole
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/RoleCreate" }
+      responses: { "200": { $ref: "#/components/responses/RoleResponse" } }
+  /permissions:
+    get:
+      tags: [Admin]
+      operationId: listPermissions
+      security: [{ bearerAuth: [] }]
+      responses:
+        { "200": { $ref: "#/components/responses/PermissionListResponse" } }
+  /roles/{id}/permissions:
+    get:
+      tags: [Admin]
+      operationId: listRolePermissions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        { "200": { $ref: "#/components/responses/PermissionListResponse" } }
+    post:
+      tags: [Admin]
+      operationId: addRolePermission
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { $ref: "#/components/requestBodies/RolePermission" }
+      responses:
+        { "201": { $ref: "#/components/responses/PermissionResponse" } }
+  /roles/{id}/permissions/{permissionId}:
+    delete:
+      tags: [Admin]
+      operationId: removeRolePermission
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Id" },
+          { $ref: "#/components/parameters/PermissionId" },
+        ]
+      responses: { "204": { description: Permission removed } }
+  /admin/reserved-handles:
+    get:
+      tags: [Admin]
+      operationId: listReservedHandles
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Tag" },
+          { $ref: "#/components/parameters/Page" },
+        ]
+      responses:
+        { "200": { $ref: "#/components/responses/HandleListResponse" } }
+    post:
+      tags: [Admin]
+      operationId: reserveHandle
+      security: [{ bearerAuth: [] }]
+      requestBody: { $ref: "#/components/requestBodies/HandleReservation" }
+      responses:
+        {
+          "201": { $ref: "#/components/responses/HandleResponse" },
+          "409": { $ref: "#/components/responses/HandleConflict" },
+        }
+  /admin/reserved-handles/{handle}:
+    delete:
+      tags: [Admin]
+      operationId: releaseReservedHandle
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [{ name: handle, in: path, required: true, schema: { type: string } }]
+      responses: { "204": { description: Reservation released } }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    editSession:
+      type: apiKey
+      in: cookie
+      name: openmic_edit_session
+  parameters:
+    Id:
+      {
+        name: id,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    AccountId:
+      {
+        name: accountId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    ProfileId:
+      {
+        name: profileId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    ReviewId:
+      {
+        name: reviewId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    PermissionId:
+      {
+        name: permissionId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    Candidate:
+      {
+        name: candidate,
+        in: path,
+        required: true,
+        schema: { type: string, minLength: 1 },
+      }
+    Slug: { name: slug, in: query, required: true, schema: { type: string } }
+    ProfileQuery:
+      { name: profile, in: query, schema: { type: string, format: uuid } }
+    Q: { name: q, in: query, schema: { type: string } }
+    Country: { name: country, in: query, schema: { type: string } }
+    City: { name: city, in: query, schema: { type: string } }
+    Activity:
+      {
+        name: activity,
+        in: query,
+        schema: { $ref: "#/components/schemas/Activity" },
+      }
+    Tag: { name: tag, in: query, schema: { type: string } }
+    Near:
+      name: near
+      in: query
+      description: Latitude and longitude as `lat,lng`.
+      schema:
+        type: string
+        pattern: "^-?[0-9.]+,-?[0-9.]+"
+    Radius: { name: radius_km, in: query, schema: { type: number, minimum: 0 } }
+    MinRating:
+      {
+        name: min_rating,
+        in: query,
+        schema: { type: number, minimum: 0, maximum: 5 },
+      }
+    RegistrationMode:
+      {
+        name: registration_mode,
+        in: query,
+        schema: { $ref: "#/components/schemas/RegistrationMode" },
+      }
+    Sort: { name: sort, in: query, schema: { type: string } }
+    Page:
+      {
+        name: page,
+        in: query,
+        schema: { type: integer, minimum: 1, default: 1 },
+      }
+    PageSize:
+      {
+        name: page_size,
+        in: query,
+        schema: { type: integer, minimum: 1, maximum: 100, default: 25 },
+      }
+    Limit:
+      {
+        name: limit,
+        in: query,
+        schema: { type: integer, minimum: 1, maximum: 100, default: 25 },
+      }
+    From: { name: from, in: query, schema: { type: string, format: date-time } }
+    To: { name: to, in: query, schema: { type: string, format: date-time } }
+    Bbox:
+      name: bbox
+      in: query
+      description: west,south,east,north.
+      schema:
+        type: string
+    Zoom:
+      {
+        name: zoom,
+        in: query,
+        schema: { type: integer, minimum: 0, maximum: 22 },
+      }
+    Status: { name: status, in: query, schema: { type: string } }
+  requestBodies:
+    SignUp:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/SignUpRequest" } },
+          },
+      }
+    SignIn:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/SignInRequest" } },
+          },
+      }
+    RefreshToken:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/RefreshTokenRequest" } },
+          },
+      }
+    AccountUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/AccountUpdateRequest" } },
+          },
+      }
+    CurrentProfile:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema: { $ref: "#/components/schemas/CurrentProfileRequest" },
+              },
+          },
+      }
+    ProfileCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ProfileCreateRequest" } },
+          },
+      }
+    ProfileUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ProfileUpdateRequest" } },
+          },
+      }
+    OpenMicCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/OpenMicCreateRequest" } },
+          },
+      }
+    OpenMicUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/OpenMicUpdateRequest" } },
+          },
+      }
+    EventCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/EventCreateRequest" } },
+          },
+      }
+    EventUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/EventUpdateRequest" } },
+          },
+      }
+    RegistrationCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/RegistrationCreateRequest" },
+              },
+          },
+      }
+    RegistrationUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/RegistrationUpdateRequest" },
+              },
+          },
+      }
+    RegistrationClaim:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/RegistrationClaimRequest" },
+              },
+          },
+      }
+    EmailVerification:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/EmailVerificationRequest" },
+              },
+          },
+      }
+    PerformanceCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/PerformanceCreateRequest" },
+              },
+          },
+      }
+    PerformanceUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/PerformanceUpdateRequest" },
+              },
+          },
+      }
+    MediaCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/MediaCreateRequest" } },
+          },
+      }
+    MediaUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/MediaUpdateRequest" } },
+          },
+      }
+    UploadUrl:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/UploadUrlRequest" } },
+          },
+      }
+    CommentCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/CommentCreateRequest" } },
+          },
+      }
+    CommentUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/CommentUpdateRequest" } },
+          },
+      }
+    ReactionCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema: { $ref: "#/components/schemas/ReactionCreateRequest" },
+              },
+          },
+      }
+    ReviewCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ReviewCreateRequest" } },
+          },
+      }
+    ReviewUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ReviewUpdateRequest" } },
+          },
+      }
+    ReviewResponseCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/ReviewResponseCreateRequest" },
+              },
+          },
+      }
+    MessageCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/MessageCreateRequest" } },
+          },
+      }
+    SuggestionCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/SuggestionCreateRequest" },
+              },
+          },
+      }
+    SuggestionUpdate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/SuggestionUpdateRequest" },
+              },
+          },
+      }
+    SuggestionStatus:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/SuggestionStatusRequest" },
+              },
+          },
+      }
+    AdminNotes:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/AdminNotesRequest" } },
+          },
+      }
+    InvitationCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/InvitationCreateRequest" },
+              },
+          },
+      }
+    InvitationResponse:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/InvitationResponseRequest" },
+              },
+          },
+      }
+    RoleAssignment:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema: { $ref: "#/components/schemas/RoleAssignmentRequest" },
+              },
+          },
+      }
+    RoleCreate:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/RoleCreateRequest" } },
+          },
+      }
+    RolePermission:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema: { $ref: "#/components/schemas/RolePermissionRequest" },
+              },
+          },
+      }
+    HandleReservation:
+      {
+        required: true,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/HandleReservationRequest" },
+              },
+          },
+      }
+  responses:
+    AccountResponse:
+      {
+        description: Account,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Account" } },
+          },
+      }
+    ProfileResponse:
+      {
+        description: Profile,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Profile" } },
+          },
+      }
+    OpenMicResponse:
+      {
+        description: Open mic,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/OpenMic" } },
+          },
+      }
+    EventResponse:
+      {
+        description: Event,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Event" } },
+          },
+      }
+    RegistrationResponse:
+      {
+        description: Registration,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Registration" } },
+          },
+      }
+    PerformanceResponse:
+      {
+        description: Performance,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Performance" } },
+          },
+      }
+    MediaResponse:
+      {
+        description: Media,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Media" } },
+          },
+      }
+    ReviewResponse:
+      {
+        description: Review,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Review" } },
+          },
+      }
+    CommentResponse:
+      {
+        description: Comment,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Comment" } },
+          },
+      }
+    ReactionResponse:
+      {
+        description: Reaction,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Reaction" } },
+          },
+      }
+    MessageResponse:
+      {
+        description: Message,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/PrivateMessage" } },
+          },
+      }
+    SuggestionResponse:
+      {
+        description: Suggestion,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Suggestion" } },
+          },
+      }
+    NotificationResponse:
+      {
+        description: Notification,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Notification" } },
+          },
+      }
+    HandleResponse:
+      {
+        description: Handle,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Handle" } },
+          },
+      }
+    PermissionResponse:
+      {
+        description: Permissions,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/PermissionSet" } },
+          },
+      }
+    RoleResponse:
+      {
+        description: Role,
+        content:
+          {
+            application/json: { schema: { $ref: "#/components/schemas/Role" } },
+          },
+      }
+    AvailabilityResponse:
+      {
+        description: Availability,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Availability" } },
+          },
+      }
+    UploadUrlResponse:
+      {
+        description: Presigned upload,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/UploadUrlResponse" } },
+          },
+      }
+    ProfileListResponse:
+      {
+        description: Profiles,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ProfilePage" } },
+          },
+      }
+    OpenMicListResponse:
+      {
+        description: Open mics,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/OpenMicPage" } },
+          },
+      }
+    EventListResponse:
+      {
+        description: Events,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/EventPage" } },
+          },
+      }
+    RegistrationListResponse:
+      {
+        description: Registrations,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/RegistrationPage" } },
+          },
+      }
+    PerformanceListResponse:
+      {
+        description: Performances,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/PerformancePage" } },
+          },
+      }
+    MediaListResponse:
+      {
+        description: Media,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/MediaPage" } },
+          },
+      }
+    ReviewListResponse:
+      {
+        description: Reviews,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ReviewPage" } },
+          },
+      }
+    CommentListResponse:
+      {
+        description: Comments,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/CommentPage" } },
+          },
+      }
+    ReactionListResponse:
+      {
+        description: Reactions,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    type: array,
+                    items: { $ref: "#/components/schemas/Reaction" },
+                  },
+              },
+          },
+      }
+    MessageListResponse:
+      {
+        description: Messages,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    type: array,
+                    items: { $ref: "#/components/schemas/PrivateMessage" },
+                  },
+              },
+          },
+      }
+    SuggestionListResponse:
+      {
+        description: Suggestions,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/SuggestionPage" } },
+          },
+      }
+    NotificationListResponse:
+      {
+        description: Notifications,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    type: array,
+                    items: { $ref: "#/components/schemas/Notification" },
+                  },
+              },
+          },
+      }
+    RoleListResponse:
+      {
+        description: Roles,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { type: array, items: { $ref: "#/components/schemas/Role" } },
+              },
+          },
+      }
+    FollowResponse:
+      {
+        description: Follow relationship,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/Follow" } },
+          },
+      }
+    RoleAssignmentResponse:
+      {
+        description: Role assignment,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/AccountProfileRole" } },
+          },
+      }
+    PermissionListResponse:
+      {
+        description: Permissions,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    type: array,
+                    items: { $ref: "#/components/schemas/Permission" },
+                  },
+              },
+          },
+      }
+    RoleAssignmentListResponse:
+      {
+        description: Role assignments,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    type: array,
+                    items: { $ref: "#/components/schemas/AccountProfileRole" },
+                  },
+              },
+          },
+      }
+    InvitationListResponse:
+      {
+        description: Invitations,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    type: array,
+                    items: { $ref: "#/components/schemas/ProfileInvitation" },
+                  },
+              },
+          },
+      }
+    InvitationResponse:
+      {
+        description: Invitation,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ProfileInvitation" } },
+          },
+      }
+    HandleListResponse:
+      {
+        description: Handles,
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    type: array,
+                    items: { $ref: "#/components/schemas/Handle" },
+                  },
+              },
+          },
+      }
+    MapResponse:
+      {
+        description: Map results,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/MapResult" } },
+          },
+      }
+    TokenResponse:
+      {
+        description: Access tokens,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/TokenResponse" } },
+          },
+      }
+    ValidationError:
+      {
+        description: Validation error,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ErrorEnvelope" } },
+          },
+      }
+    Unauthorized:
+      {
+        description: Authentication required,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ErrorEnvelope" } },
+          },
+      }
+    Forbidden:
+      {
+        description: Permission denied,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ErrorEnvelope" } },
+          },
+      }
+    NotFound:
+      {
+        description: Resource not found,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ErrorEnvelope" } },
+          },
+      }
+    HandleConflict:
+      {
+        description: Handle unavailable,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/HandleConflictError" } },
+          },
+      }
+    CapacityError:
+      {
+        description: Capacity exceeded,
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/ErrorEnvelope" } },
+          },
+      }
+  schemas:
+    Id: { type: string, format: uuid }
+    Timestamp: { type: string, format: date-time }
+    Activity:
+      {
+        type: string,
+        enum: [singing, poetry, jam, trad, comedy, storytelling, other],
+      }
+    ProfileVisibility: { type: string, enum: [public, unlisted, private] }
+    OpenMicStatus: { type: string, enum: [active, paused, ended, draft] }
+    RegistrationMode:
+      { type: string, enum: [pre_only, on_night_only, both, external] }
+    RegistrationChannel:
+      {
+        type: string,
+        enum:
+          [
+            organic,
+            shared_link,
+            email_reminder,
+            social_ad,
+            poster_qr,
+            kiosk,
+            prior,
+          ],
+      }
+    RegistrationVisibility: { type: string, enum: [pending, valid] }
+    MediaType: { type: string, enum: [photo, video] }
+    RoleName:
+      { type: string, enum: [Owner, Admin, Assistant, Performer, Organizer] }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              {
+                type: array,
+                items: { type: object, additionalProperties: true },
+              }
+    HandleConflictError:
+      allOf:
+        - $ref: "#/components/schemas/ErrorEnvelope"
+        - type: object
+          properties:
+            holder_type:
+              { type: string, enum: [profile, open_mic], nullable: true }
+            holder_id:
+              { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+    Account:
+      type: object
+      required: [id, email, display_name, plan, created_at, updated_at]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        cognito_id: { type: string }
+        email: { type: string, format: email }
+        display_name: { type: string }
+        city: { type: string, nullable: true }
+        preferred_language: { type: string, nullable: true }
+        current_profile_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        is_platform_admin: { type: boolean }
+        plan: { type: string, enum: [free, pro] }
+        referred_by_profile_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        referred_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+    Profile:
+      type: object
+      required:
+        [id, created_by_account_id, profile_name, visibility, current_handle]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        created_by_account_id: { $ref: "#/components/schemas/Id" }
+        current_handle: { type: string }
+        slug: { type: string, deprecated: true }
+        profile_name: { type: string }
+        profile_kind: { type: string, enum: [organizer, performer] }
+        bio: { type: string, nullable: true }
+        profile_image_url: { type: string, format: uri, nullable: true }
+        theme_name: { type: string, nullable: true }
+        visibility: { $ref: "#/components/schemas/ProfileVisibility" }
+        links:
+          { type: array, items: { $ref: "#/components/schemas/ProfileLink" } }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+        deleted_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        recovery_deadline:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+    ProfileLink:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        profile_id: { $ref: "#/components/schemas/Id" }
+        type:
+          {
+            type: string,
+            enum:
+              [
+                website,
+                instagram,
+                youtube,
+                tiktok,
+                twitter,
+                facebook,
+                spotify,
+                bandcamp,
+                email,
+                phone,
+                other,
+              ],
+          }
+        url: { type: string }
+        label: { type: string, nullable: true }
+        sequence: { type: integer }
+    OpenMic:
+      type: object
+      required: [id, current_handle, name, status]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        owner_profile_id: { $ref: "#/components/schemas/Id" }
+        current_handle: { type: string }
+        slug: { type: string, deprecated: true }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        activities:
+          { type: array, items: { $ref: "#/components/schemas/Activity" } }
+        tags: { type: array, items: { type: string } }
+        venue_name: { type: string }
+        address_line1: { type: string }
+        address_line2: { type: string, nullable: true }
+        postcode: { type: string, nullable: true }
+        city: { type: string }
+        country: { type: string }
+        lat: { type: number, minimum: -90, maximum: 90, nullable: true }
+        lng: { type: number, minimum: -180, maximum: 180, nullable: true }
+        time_zone: { type: string, example: Europe/Dublin }
+        schedule_summary: { type: string, nullable: true }
+        schedule_details: { type: string, nullable: true }
+        website: { type: string, format: uri, nullable: true }
+        contact_email: { type: string, format: email, nullable: true }
+        originals_only: { type: boolean }
+        amplification_available: { type: boolean }
+        registration_mode: { $ref: "#/components/schemas/RegistrationMode" }
+        external_registration_url: { type: string, format: uri, nullable: true }
+        entry_fee_amount: { type: number, nullable: true }
+        entry_fee_currency: { type: string, nullable: true }
+        entry_fee_note: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/OpenMicStatus" }
+        rating_avg: { type: number, minimum: 0, maximum: 5 }
+        rating_count: { type: integer, minimum: 0 }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+    Event:
+      type: object
+      required: [id, open_mic_id, title, starts_at, time_zone]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        open_mic_id: { $ref: "#/components/schemas/Id" }
+        slug: { type: string }
+        title: { type: string }
+        starts_at: { $ref: "#/components/schemas/Timestamp" }
+        ends_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        time_zone: { type: string, example: Europe/Dublin }
+        running: { type: boolean, nullable: true }
+        registrations_closed_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        venue_name: { type: string }
+        address_line1: { type: string }
+        address_line2: { type: string, nullable: true }
+        postcode: { type: string, nullable: true }
+        city: { type: string }
+        country: { type: string }
+        lat: { type: number, minimum: -90, maximum: 90, nullable: true }
+        lng: { type: number, minimum: -180, maximum: 180, nullable: true }
+        activities:
+          { type: array, items: { $ref: "#/components/schemas/Activity" } }
+        tags: { type: array, items: { type: string } }
+        capacity: { type: integer, minimum: 1, nullable: true }
+        notes: { type: string, nullable: true }
+        rating_avg: { type: number, minimum: 0, maximum: 5, nullable: true }
+        rating_count: { type: integer, minimum: 0 }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+    Registration:
+      type: object
+      required:
+        [
+          id,
+          event_id,
+          performer_name,
+          submission_channel,
+          organizer_supervised,
+          visibility_state,
+        ]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        event_id: { $ref: "#/components/schemas/Id" }
+        profile_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        performer_name: { type: string }
+        performer_city: { type: string, nullable: true }
+        contact_email: { type: string, format: email, nullable: true }
+        contact_phone: { type: string, nullable: true }
+        song_names: { type: array, items: { type: string } }
+        submission_channel: { $ref: "#/components/schemas/RegistrationChannel" }
+        organizer_supervised: { type: boolean }
+        referred_by_profile_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        media_consent: { type: boolean }
+        email_verified_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        verification_method:
+          {
+            type: string,
+            enum: [email, organizer_kiosk, authenticated_account],
+            nullable: true,
+          }
+        visibility_state:
+          { $ref: "#/components/schemas/RegistrationVisibility" }
+        claimed_by_account_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        claimed_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+    Performance:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        registration_id: { $ref: "#/components/schemas/Id" }
+        name: { type: string }
+        activity: { $ref: "#/components/schemas/Activity" }
+        sequence: { type: integer, minimum: 1 }
+        status: { type: string, enum: [planned, performed, cancelled] }
+        notes: { type: string, nullable: true }
+    Media:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        media_type: { $ref: "#/components/schemas/MediaType" }
+        event_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        profile_owner_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        added_by_profile_id: { $ref: "#/components/schemas/Id" }
+        added_by_role: { type: string, enum: [performer, organizer] }
+        source_url: { type: string, format: uri }
+        mime_type: { type: string, nullable: true }
+        size_bytes: { type: integer, nullable: true }
+        caption: { type: string, nullable: true }
+        thumbnail_url: { type: string, format: uri, nullable: true }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+    Comment:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        profile_id: { $ref: "#/components/schemas/Id" }
+        text: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 5, nullable: true }
+        target: { $ref: "#/components/schemas/CommentTarget" }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+    CommentTarget:
+      type: object
+      required: [type, id]
+      properties:
+        type:
+          {
+            type: string,
+            enum:
+              [media, comment, event, open_mic, private_message, suggestion],
+          }
+        id: { $ref: "#/components/schemas/Id" }
+    Reaction:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        profile_id: { $ref: "#/components/schemas/Id" }
+        type: { type: string, enum: [like, upvote] }
+        target: { $ref: "#/components/schemas/ReactionTarget" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+    ReactionTarget:
+      type: object
+      required: [type, id]
+      properties:
+        type:
+          { type: string, enum: [media, comment, private_message, suggestion] }
+        id: { $ref: "#/components/schemas/Id" }
+    Review:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        event_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        open_mic_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        profile_id: { $ref: "#/components/schemas/Id" }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        text: { type: string, nullable: true }
+        response: { type: string, nullable: true }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+    PrivateMessage:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        sender_profile_id: { $ref: "#/components/schemas/Id" }
+        receiver_profile_id: { $ref: "#/components/schemas/Id" }
+        text: { type: string }
+        read_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+    Suggestion:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        account_id: { $ref: "#/components/schemas/Id" }
+        title: { type: string }
+        body: { type: string }
+        status:
+          {
+            type: string,
+            enum: [open, planned, in_progress, completed, declined],
+          }
+        admin_notes: { type: string, nullable: true }
+        tags: { type: array, items: { type: string } }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+    Notification:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        recipient_profile_id: { $ref: "#/components/schemas/Id" }
+        type:
+          {
+            type: string,
+            enum:
+              [
+                private_message,
+                comment,
+                reply,
+                reaction,
+                review,
+                review_response,
+              ],
+          }
+        actor_profile_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        entity_type: { type: string }
+        entity_id: { $ref: "#/components/schemas/Id" }
+        preview: { type: string, nullable: true }
+        read_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        email_required: { type: boolean }
+        email_sent_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+    Handle:
+      type: object
+      properties:
+        handle: { type: string }
+        entity_type: { type: string, enum: [profile, open_mic], nullable: true }
+        profile_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        open_mic_id:
+          { allOf: [{ $ref: "#/components/schemas/Id" }], nullable: true }
+        status: { type: string, enum: [current, retired, reserved, tombstoned] }
+        redirects_to_handle: { type: string, nullable: true }
+        reserved_category: { type: string, nullable: true }
+        reserved_reason: { type: string, nullable: true }
+    Role:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        name: { $ref: "#/components/schemas/RoleName" }
+        description: { type: string }
+    Permission:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        key: { type: string }
+        description: { type: string }
+    AccountProfileRole:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        account_id: { $ref: "#/components/schemas/Id" }
+        profile_id: { $ref: "#/components/schemas/Id" }
+        role_id: { $ref: "#/components/schemas/Id" }
+        role: { $ref: "#/components/schemas/Role" }
+    ProfileInvitation:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        profile_id: { $ref: "#/components/schemas/Id" }
+        invited_account_id: { $ref: "#/components/schemas/Id" }
+        role_id: { $ref: "#/components/schemas/Id" }
+        status: { type: string, enum: [pending, accepted, rejected] }
+        expires_at: { $ref: "#/components/schemas/Timestamp" }
+    PermissionSet:
+      type: object
+      properties: { permissions: { type: array, items: { type: string } } }
+    Availability:
+      type: object
+      required: [available]
+      properties:
+        available: { type: boolean }
+        reason:
+          {
+            type: string,
+            enum: [reserved, in_use, invalid_format, retired, tombstoned],
+            nullable: true,
+          }
+    Pagination:
+      type: object
+      properties:
+        page: { type: integer }
+        page_size: { type: integer }
+        total: { type: integer }
+    MapResult:
+      type: object
+      properties:
+        pins: { type: array, items: { $ref: "#/components/schemas/MapPin" } }
+        clusters:
+          { type: array, items: { $ref: "#/components/schemas/MapCluster" } }
+    MapPin:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        handle: { type: string }
+        name: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        activities:
+          { type: array, items: { $ref: "#/components/schemas/Activity" } }
+        rating_avg: { type: number }
+    MapCluster:
+      type: object
+      properties:
+        lat: { type: number }
+        lng: { type: number }
+        count: { type: integer }
+        sample_ids: { type: array, items: { $ref: "#/components/schemas/Id" } }
+    TokenResponse:
+      type: object
+      properties:
+        {
+          access_token: { type: string },
+          refresh_token: { type: string },
+          expires_in: { type: integer },
+        }
+    UploadUrlResponse:
+      type: object
+      properties:
+        {
+          upload_url: { type: string, format: uri },
+          object_key: { type: string },
+          expires_at: { $ref: "#/components/schemas/Timestamp" },
+        }
+    ProfilePage:
+      {
+        type: object,
+        properties:
+          {
+            items:
+              { type: array, items: { $ref: "#/components/schemas/Profile" } },
+            pagination: { $ref: "#/components/schemas/Pagination" },
+          },
+      }
+    OpenMicPage:
+      {
+        type: object,
+        properties:
+          {
+            items:
+              { type: array, items: { $ref: "#/components/schemas/OpenMic" } },
+            pagination: { $ref: "#/components/schemas/Pagination" },
+          },
+      }
+    EventPage:
+      {
+        type: object,
+        properties:
+          {
+            items:
+              { type: array, items: { $ref: "#/components/schemas/Event" } },
+            pagination: { $ref: "#/components/schemas/Pagination" },
+          },
+      }
+    RegistrationPage:
+      {
+        type: object,
+        properties:
+          {
+            items:
+              {
+                type: array,
+                items: { $ref: "#/components/schemas/Registration" },
+              },
+            pagination: { $ref: "#/components/schemas/Pagination" },
+          },
+      }
+    PerformancePage:
+      {
+        type: object,
+        properties:
+          {
+            items:
+              {
+                type: array,
+                items: { $ref: "#/components/schemas/Performance" },
+              },
+            pagination: { $ref: "#/components/schemas/Pagination" },
+          },
+      }
+    MediaPage:
+      {
+        type: object,
+        properties:
+          {
+            items:
+              { type: array, items: { $ref: "#/components/schemas/Media" } },
+            pagination: { $ref: "#/components/schemas/Pagination" },
+          },
+      }
+    ReviewPage:
+      {
+        type: object,
+        properties:
+          {
+            items:
+              { type: array, items: { $ref: "#/components/schemas/Review" } },
+            pagination: { $ref: "#/components/schemas/Pagination" },
+          },
+      }
+    CommentPage:
+      {
+        type: object,
+        properties:
+          {
+            items:
+              { type: array, items: { $ref: "#/components/schemas/Comment" } },
+            pagination: { $ref: "#/components/schemas/Pagination" },
+          },
+      }
+    SuggestionPage:
+      {
+        type: object,
+        properties:
+          {
+            items:
+              {
+                type: array,
+                items: { $ref: "#/components/schemas/Suggestion" },
+              },
+            pagination: { $ref: "#/components/schemas/Pagination" },
+          },
+      }
+    # Request schemas
+    SignUpRequest:
+      {
+        type: object,
+        required: [email],
+        properties:
+          {
+            email: { type: string, format: email },
+            display_name: { type: string },
+          },
+      }
+    SignInRequest:
+      {
+        type: object,
+        required: [email],
+        properties: { email: { type: string, format: email } },
+      }
+    RefreshTokenRequest:
+      {
+        type: object,
+        required: [refresh_token],
+        properties: { refresh_token: { type: string } },
+      }
+    AccountUpdateRequest:
+      {
+        type: object,
+        properties:
+          {
+            display_name: { type: string },
+            city: { type: string },
+            preferred_language: { type: string },
+          },
+      }
+    CurrentProfileRequest:
+      {
+        type: object,
+        required: [profile_id],
+        properties: { profile_id: { $ref: "#/components/schemas/Id" } },
+      }
+    ProfileCreateRequest:
+      {
+        type: object,
+        required: [profile_name, profile_kind],
+        properties:
+          {
+            handle: { type: string },
+            profile_name: { type: string },
+            profile_kind: { type: string, enum: [organizer, performer] },
+            bio: { type: string },
+            visibility: { $ref: "#/components/schemas/ProfileVisibility" },
+            theme_name: { type: string },
+            links:
+              {
+                type: array,
+                items: { $ref: "#/components/schemas/ProfileLink" },
+              },
+          },
+      }
+    ProfileUpdateRequest:
+      { allOf: [{ $ref: "#/components/schemas/ProfileCreateRequest" }] }
+    OpenMicCreateRequest:
+      {
+        type: object,
+        required: [name, venue_name, address_line1, city, country, time_zone],
+        properties:
+          {
+            name: { type: string },
+            description: { type: string },
+            handle: { type: string },
+            venue_name: { type: string },
+            address_line1: { type: string },
+            address_line2: { type: string },
+            postcode: { type: string },
+            city: { type: string },
+            country: { type: string },
+            lat: { type: number, minimum: -90, maximum: 90 },
+            lng: { type: number, minimum: -180, maximum: 180 },
+            time_zone: { type: string },
+            website: { type: string, format: uri },
+            contact_email: { type: string, format: email },
+            schedule_summary: { type: string },
+            schedule_details: { type: string },
+            originals_only: { type: boolean },
+            amplification_available: { type: boolean },
+            activities:
+              { type: array, items: { $ref: "#/components/schemas/Activity" } },
+            tags: { type: array, items: { type: string } },
+            registration_mode:
+              { $ref: "#/components/schemas/RegistrationMode" },
+            external_registration_url: { type: string, format: uri },
+            entry_fee_amount: { type: number, minimum: 0 },
+            entry_fee_currency: { type: string },
+            entry_fee_note: { type: string },
+          },
+      }
+    OpenMicUpdateRequest: { $ref: "#/components/schemas/OpenMicCreateRequest" }
+    EventCreateRequest:
+      {
+        type: object,
+        required: [title, starts_at, time_zone],
+        properties:
+          {
+            title: { type: string },
+            starts_at: { $ref: "#/components/schemas/Timestamp" },
+            ends_at: { $ref: "#/components/schemas/Timestamp" },
+            time_zone: { type: string },
+            capacity: { type: integer },
+            venue_name: { type: string },
+            address_line1: { type: string },
+            address_line2: { type: string },
+            postcode: { type: string },
+            city: { type: string },
+            country: { type: string },
+            lat: { type: number },
+            lng: { type: number },
+          },
+      }
+    EventUpdateRequest: { $ref: "#/components/schemas/EventCreateRequest" }
+    RegistrationCreateRequest:
+      {
+        type: object,
+        required: [performer_name, submission_channel, organizer_supervised],
+        properties:
+          {
+            profile_id:
+              {
+                allOf: [{ $ref: "#/components/schemas/Id" }],
+                description: Required for authenticated self-serve registrations; must reference a separate account-owned profile with profile_kind=performer.,
+              },
+            performer_name: { type: string },
+            performer_city: { type: string },
+            contact_email: { type: string, format: email },
+            contact_phone: { type: string },
+            song_names: { type: array, items: { type: string } },
+            submission_channel:
+              { $ref: "#/components/schemas/RegistrationChannel" },
+            organizer_supervised: { type: boolean },
+            referred_by_profile_id: { $ref: "#/components/schemas/Id" },
+            media_consent: { type: boolean },
+          },
+      }
+    RegistrationUpdateRequest:
+      {
+        type: object,
+        properties:
+          {
+            performer_name: { type: string },
+            performer_city: { type: string },
+            song_names: { type: array, items: { type: string } },
+            media_consent: { type: boolean },
+          },
+      }
+    RegistrationClaimRequest:
+      {
+        type: object,
+        properties:
+          {
+            adopt_claiming_profile:
+              {
+                type: boolean,
+                description: "If true, the guest registration is updated to point at the current authenticated performer profile for public event views and clickable profile links.",
+              },
+            sync_public_fields:
+              {
+                type: boolean,
+                description: "If true and adopt_claiming_profile is true, update performer_name and performer_city from the claiming profile for public event attribution.",
+              },
+            note: { type: string, nullable: true },
+          },
+      }
+    EmailVerificationRequest:
+      {
+        type: object,
+        required: [token],
+        properties: { token: { type: string } },
+      }
+    PerformanceCreateRequest:
+      {
+        type: object,
+        required: [registration_id, name],
+        properties:
+          {
+            registration_id: { $ref: "#/components/schemas/Id" },
+            name: { type: string },
+            activity: { $ref: "#/components/schemas/Activity" },
+            sequence: { type: integer },
+          },
+      }
+    PerformanceUpdateRequest:
+      { $ref: "#/components/schemas/PerformanceCreateRequest" }
+    MediaCreateRequest:
+      {
+        type: object,
+        required: [media_type, source_url],
+        properties:
+          {
+            media_type: { $ref: "#/components/schemas/MediaType" },
+            source_url: { type: string, format: uri },
+            caption: { type: string },
+            event_id: { $ref: "#/components/schemas/Id" },
+            profile_owner_id: { $ref: "#/components/schemas/Id" },
+          },
+      }
+    MediaUpdateRequest:
+      {
+        type: object,
+        properties:
+          {
+            caption: { type: string },
+            source_url: { type: string, format: uri },
+            profile_owner_id: { $ref: "#/components/schemas/Id" },
+          },
+      }
+    UploadUrlRequest:
+      {
+        type: object,
+        required: [media_type, mime_type],
+        properties:
+          {
+            media_type: { $ref: "#/components/schemas/MediaType" },
+            mime_type: { type: string },
+            size_bytes: { type: integer },
+          },
+      }
+    CommentCreateRequest:
+      {
+        type: object,
+        required: [text],
+        properties: { text: { type: string, minLength: 1, maxLength: 5000 } },
+      }
+    CommentUpdateRequest: { $ref: "#/components/schemas/CommentCreateRequest" }
+    ReactionCreateRequest:
+      {
+        type: object,
+        properties: { type: { type: string, enum: [like, upvote] } },
+      }
+    ReviewCreateRequest:
+      {
+        type: object,
+        required: [rating],
+        properties:
+          {
+            rating: { type: integer, minimum: 1, maximum: 5 },
+            text: { type: string },
+          },
+      }
+    ReviewUpdateRequest: { $ref: "#/components/schemas/ReviewCreateRequest" }
+    ReviewResponseCreateRequest:
+      { type: object, required: [text], properties: { text: { type: string } } }
+    MessageCreateRequest:
+      {
+        type: object,
+        required: [text],
+        properties: { text: { type: string, maxLength: 5000 } },
+      }
+    SuggestionCreateRequest:
+      {
+        type: object,
+        required: [title, body],
+        properties:
+          {
+            title: { type: string },
+            body: { type: string },
+            tags: { type: array, items: { type: string } },
+          },
+      }
+    SuggestionUpdateRequest:
+      { $ref: "#/components/schemas/SuggestionCreateRequest" }
+    SuggestionStatusRequest:
+      {
+        type: object,
+        required: [status],
+        properties: { status: { type: string } },
+      }
+    AdminNotesRequest:
+      {
+        type: object,
+        required: [admin_notes],
+        properties: { admin_notes: { type: string } },
+      }
+    InvitationCreateRequest:
+      {
+        type: object,
+        required: [invited_account_id, role_id],
+        properties:
+          {
+            invited_account_id: { $ref: "#/components/schemas/Id" },
+            role_id: { $ref: "#/components/schemas/Id" },
+          },
+      }
+    InvitationResponseRequest:
+      {
+        type: object,
+        required: [status],
+        properties: { status: { type: string, enum: [accepted, rejected] } },
+      }
+    RoleAssignmentRequest:
+      {
+        type: object,
+        required: [role_id],
+        properties: { role_id: { $ref: "#/components/schemas/Id" } },
+      }
+    RoleCreateRequest:
+      {
+        type: object,
+        required: [name],
+        properties: { name: { type: string }, description: { type: string } },
+      }
+    RolePermissionRequest:
+      {
+        type: object,
+        required: [permission_id],
+        properties: { permission_id: { $ref: "#/components/schemas/Id" } },
+      }
+    HandleReservationRequest:
+      {
+        type: object,
+        required: [handle, category, reason],
+        properties:
+          {
+            handle: { type: string },
+            category: { type: string },
+            reason: { type: string },
+          },
+      }
+    # Aliases for shared response names
+    Follow:
+      {
+        type: object,
+        properties:
+          {
+            profile_id: { $ref: "#/components/schemas/Id" },
+            created_at: { $ref: "#/components/schemas/Timestamp" },
+          },
+      }
+    ProfileFollow:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        follower_profile_id: { $ref: "#/components/schemas/Id" }
+        followee_profile_id: { $ref: "#/components/schemas/Id" }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+    Deletion:
+      type: object
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        entity_type: { type: string }
+        entity_id: { $ref: "#/components/schemas/Id" }
+        deleted_by_profile_id: { $ref: "#/components/schemas/Id" }
+        deleted_at: { $ref: "#/components/schemas/Timestamp" }
+        recovery_deadline: { $ref: "#/components/schemas/Timestamp" }
+        restored_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }
+        purged_at:
+          {
+            allOf: [{ $ref: "#/components/schemas/Timestamp" }],
+            nullable: true,
+          }

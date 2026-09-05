@@ -1,0 +1,25 @@
+{
+  "name": "openmic",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "validate:openapi": "node scripts/validate-openapi.mjs",
+    "lint:openapi": "spectral lint openapi.yaml --ruleset spectral.yaml",
+    "format:openapi": "prettier --write openapi.yaml",
+    "lint:markdown": "markdownlint-cli2 \"**/*.md\"",
+    "check:links": "node scripts/check-links.mjs",
+    "check": "npm run validate:openapi && npm run lint:openapi && npm run lint:markdown"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "description": "",
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "12.1.0",
+    "@stoplight/spectral-cli": "6.13.1",
+    "markdown-link-check": "3.10.2",
+    "markdownlint-cli2": "0.20.0",
+    "prettier": "3.6.2",
+    "yaml": "2.9.0"
+  }
+}
