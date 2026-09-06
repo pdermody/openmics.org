@@ -2,10 +2,19 @@ import { readdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
-const markdownFiles = (await readdir('docs'))
-  .filter((file) => file.endsWith('.md'))
-  .map((file) => path.join('docs', file))
-  .sort();
+async function findMarkdownFiles(dir) {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map((entry) => {
+      const entryPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) return findMarkdownFiles(entryPath);
+      return entry.name.endsWith('.md') ? [entryPath] : [];
+    }),
+  );
+  return files.flat();
+}
+
+const markdownFiles = (await findMarkdownFiles('docs')).sort();
 
 const command = process.platform === 'win32'
   ? path.join('node_modules', '.bin', 'markdown-link-check.cmd')

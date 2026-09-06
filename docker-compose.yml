@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: openmic_dev
+      POSTGRES_USER: openmic
+      POSTGRES_PASSWORD: openmic_local
+    ports:
+      - '5432:5432'
+    volumes:
+      - openmic-postgres:/var/lib/postgresql/data
+
+volumes:
+  openmic-postgres:

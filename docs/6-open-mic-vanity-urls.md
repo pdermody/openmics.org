@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-08-23
-**Related:** [4-open-mic-technical-architecture.md](4-open-mic-technical-architecture.md), [5-open-mic-frontend-architecture.md](5-open-mic-frontend-architecture.md)
+**Related:** [4-open-mic-technical-architecture.md](4-open-mic-technical-architecture.md), [5-open-mic-frontend-architecture.md](5-open-mic-frontend-architecture.md), [architecture/data-model.md](architecture/data-model.md)
 
 ---
 
@@ -394,7 +394,7 @@ DELETE /admin/reserved-handles/:handle            (only removes rows where statu
 
 ## 11) Frontend Routing (TanStack Router)
 
-The catch-all `/@` route is the only new top-level route. Everything else in the [Key Pages](4-open-mic-technical-architecture.md#6-frontend-architecture) list continues to use its existing form; the UUID versions serve as internal navigation and 301 to the handle version on direct hits.
+The catch-all `/@` route is the only new top-level route. Everything else in the [Key Pages](5-open-mic-frontend-architecture.md#key-pages-route-map) list continues to use its existing form; the UUID versions serve as internal navigation and 301 to the handle version on direct hits.
 
 ```ts
 // Existing type-scoped routes stay — they still work by UUID, and their loaders 301 to the handle URL:

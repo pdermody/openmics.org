@@ -4,7 +4,8 @@
 
 - `docs/3-open-mic-requirements.md` is authoritative for product behavior and permissions.
 - `docs/6-open-mic-vanity-urls.md` is authoritative for handle lifecycle, casing, routing, and visibility policy.
-- `docs/4-open-mic-technical-architecture.md` is authoritative for persistence, infrastructure, and implementation boundaries.
+- `docs/4-open-mic-technical-architecture.md` is an index into `docs/architecture/*.md` (overview, infrastructure, data model, API design, development workflow), which are authoritative for persistence, infrastructure, and implementation boundaries.
+- `docs/5-open-mic-frontend-architecture.md` is authoritative for frontend structure and the canonical page/route map.
 - `openapi.yaml` is the API contract and must be aligned with the authoritative product and architecture documents.
 - `docs/decisions.md` records settled cross-document decisions. If a document conflicts with it, flag the conflict before changing behavior.
 
@@ -17,4 +18,4 @@
 - Run `npm run validate:openapi` after OpenAPI changes.
 - Run `npm run lint:openapi` after API contract changes.
 - Run `npm run check:links` after moving or renaming documents.
-- Use `npm run lint:markdown` for Markdown quality checks; existing legacy formatting findings may remain until deliberately cleaned up.
+- Markdown documents are not linted; do not run or reintroduce Markdown lint checks.

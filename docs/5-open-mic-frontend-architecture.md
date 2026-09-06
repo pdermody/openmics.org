@@ -2,13 +2,13 @@
 
 **Status:** Draft
 **Date:** 2026-08-21
-**Related:** [4-open-mic-technical-architecture.md](4-open-mic-technical-architecture.md)
+**Related:** [4-open-mic-technical-architecture.md](4-open-mic-technical-architecture.md), [architecture/api-design.md](architecture/api-design.md), [architecture/data-model.md](architecture/data-model.md)
 
 ---
 
 ## 1) Summary
 
-A **React 18 + TypeScript + Vite** single-page application, hosted as static assets on S3, fed by the Fastify API described in the [technical architecture](4-open-mic-technical-architecture.md#5-api-architecture). The frontend is designed around four fixed priorities:
+A **React 18 + TypeScript + Vite** single-page application, hosted as static assets on S3, fed by the Fastify API described in [API Design](architecture/api-design.md). The frontend is designed around four fixed priorities:
 
 1. **Instant navigations** after the first paint (client-side routing + prefetch on hover).
 2. **Data-driven pages feel fast** via stale-while-revalidate (60 s freshness is acceptable).
@@ -121,7 +121,55 @@ Why distinct routes over modals:
 - Permission checks happen in the route loader, so an unauthorized user hits a 403 boundary instead of rendering a half-loaded modal.
 - The dirty-form guard is a route `beforeLoad` hook rather than a modal `onOpenChange` hack.
 
-The canonical URL map lives in the technical architecture's [Key Pages](4-open-mic-technical-architecture.md#6-frontend-architecture) list; this document treats that list as the source of truth for URL structure.
+The canonical URL map is the [Key Pages (Route Map)](#key-pages-route-map) section below; this document is the source of truth for URL structure.
+
+### Key Pages (Route Map)
+
+*Convention: create/edit flows use distinct routes (`/new`, `/:id/edit`) rather than modals or query flags, so every editor is deep-linkable, back-button-friendly, and independently code-split. Access is permission-gated at the loader; unauthorized users get a 403 boundary, not a redirect.*
+
+*Canonical public URLs use `@handle` vanity form (see [6-open-mic-vanity-urls.md](6-open-mic-vanity-urls.md)). UUID paths listed below still work but 301-redirect to the handle form.*
+
+Public / auth:
+- `/` — **Directory home.** Upcoming events and open-mic series with browse and registration actions. Phase 1 does not require personalized feeds, maps, follows, or recommendations.
+- `/login` — Sign-in (redirects to Cognito)
+- `/register` — Sign-up (delegates to Cognito)
+- `/dashboard` — **Signed-in home.** Post-login landing: current profile, owned open-mics and events, registration activity, and organizer actions. Requires authentication; unauthenticated hits redirect to `/`.
+
+Open-mic series:
+- `/open-mics/:id` — Series details
+- `/open-mics/new` — Create series (requires `open_mics:create`; creates an organizer profile if the current profile isn't one)
+- `/open-mics/:id/edit` — Edit series (requires `open_mics:edit` on the owning organizer profile)
+
+Events:
+- `/open-mics/:id/events/:eventId` — Event detail, permitted roster, registration controls, and organizer-owned media
+- `/open-mics/:id/events/new` — Create event under a series (requires `events:manage`)
+- `/open-mics/:id/events/:eventId/edit` — Edit event (requires `events:manage`)
+- `/events/:eventId/register` — Public self-registration flow (guest or signed-in); shareable link, reachable via organic browsing, a shared link, an email reminder, a social ad, or a poster QR code — the page and verification behavior are identical regardless of entry point. If `?token=<edit_token>` is present, the server exchanges it for a short-lived HttpOnly edit session, strips the token before rendering, and loads the existing registration for editing without requiring an account. Accepts an optional `?ref=<profile_id>` referral param.
+- `/open-mics/:id/register` (and `/@:handle/register`) — Durable "next scheduled event" registration link for posters/QR codes that never need reprinting; forwards to the soonest upcoming event's register page, or shows the open mic's schedule summary if none is currently open.
+- `/events/:eventId/collect` — Organizer/assistant walk-in kiosk. Requires `registrations:collect` permission. Loops after each registration to a clean form; toolbar links to view/edit the full roster and to close the event to new registrations.
+
+Profiles:
+- `/accounts/:id/profiles` — All profiles for current user
+- `/profiles/new` — Create profile (choose type: performer or organizer)
+- `/profiles/:id` — Profile details page (performer or organizer)
+- `/profiles/:id/edit` — Edit profile (requires `profiles:edit`)
+
+Media:
+- `/media/:id` — Organizer-owned media detail view
+- `/media/upload` — Organizer media upload (requires an owning organizer profile or event context)
+- `/media/:id/edit` — Edit organizer media metadata
+
+Performer media, comments, reviews, reactions, and messaging routes are later-phase features and are not exposed in the Phase 1 navigation or page controls.
+
+Suggestions & messaging:
+- `/suggestions` — Suggestion box (list, filter by status/tag)
+- `/suggestions/new` — Post a suggestion
+- `/suggestions/:id` — Suggestion detail + replies + upvotes
+- `/notifications` — Notification center
+- `/messages` — Private messages
+
+Settings:
+- `/settings` — Account settings (email, password reset via Cognito, notification preferences, quota/plan overview)
 
 ### Role-based splitting
 
@@ -290,7 +338,7 @@ React Suspense boundaries provide the fallback; TanStack Query's `useSuspenseQue
 
 ### Permission-driven UI
 
-The API is the sole authorization boundary (see the server-side design under [§4 Data Model → Permission enforcement design](4-open-mic-technical-architecture.md#4-data-model-key-entities) in the technical architecture). The frontend mirrors the model to shape UI, never to enforce security.
+The API is the sole authorization boundary (see the server-side design under [Data Model → Permission enforcement design](architecture/data-model.md)). The frontend mirrors the model to shape UI, never to enforce security.
 
 - **One canonical permissions query per (account, profile).** A key factory `permissionKeys.forProfile(id)` backs `useMyPermissions(profileId)`, which fetches `GET /me/permissions?profile=<id>` once per session with `staleTime: Infinity`. Explicit invalidation replaces time-based refresh.
 - **Piggyback on every response.** `api/client.ts` reads the `X-Current-Profile-Permissions` header emitted by successful mutations and detail responses and calls `queryClient.setQueryData(permissionKeys.forProfile(id), …)`. No extra round trip after role changes made via the app itself.
@@ -304,7 +352,7 @@ The API is the sole authorization boundary (see the server-side design under [§
 
 ## 9) Errors and Quotas
 
-All API errors use the envelope defined in the [technical architecture](4-open-mic-technical-architecture.md#5-api-architecture). The client wrapper parses `error.code` into typed classes:
+All API errors use the envelope defined in [API Design](architecture/api-design.md). The client wrapper parses `error.code` into typed classes:
 
 - `ValidationError` — surfaced by React Hook Form as field errors.
 - `AuthError` — trigger silent token refresh once, then redirect to sign-in.
