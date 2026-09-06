@@ -14,6 +14,7 @@ import { eventsRoutes } from './events/routes.js';
 import { openMicsRoutes } from './open-mics/routes.js';
 import { profilesRoutes } from './profiles/routes.js';
 import { registrationsRoutes } from './registrations/routes.js';
+import { performancesRoutes } from './performances/routes.js';
 
 export type BuildAppOptions = {
   config?: AppConfig;
@@ -43,6 +44,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.register(openMicsRoutes, { pool, prefix: '/api' });
   app.register(eventsRoutes, { pool, prefix: '/api' });
   app.register(registrationsRoutes, { pool, prefix: '/api' });
+  app.register(performancesRoutes, { pool, prefix: '/api' });
 
   return app;
 }

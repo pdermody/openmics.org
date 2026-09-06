@@ -1632,8 +1632,9 @@ components:
         status:
           type: string
           enum:
-            - planned
+            - registered
             - performed
+            - no_show
             - cancelled
         notes:
           type: string
@@ -2291,8 +2292,38 @@ components:
           $ref: "#/components/schemas/Activity"
         sequence:
           type: integer
+        status:
+          type: string
+          enum:
+            - registered
+            - performed
+            - no_show
+            - cancelled
+        notes:
+          type: string
+          nullable: true
     PerformanceUpdateRequest:
-      $ref: "#/components/schemas/PerformanceCreateRequest"
+      type: object
+      properties:
+        name:
+          type: string
+        activity:
+          allOf:
+            - $ref: "#/components/schemas/Activity"
+          nullable: true
+        sequence:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum:
+            - registered
+            - performed
+            - no_show
+            - cancelled
+        notes:
+          type: string
+          nullable: true
     MediaCreateRequest:
       type: object
       required:
