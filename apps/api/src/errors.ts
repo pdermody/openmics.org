@@ -41,6 +41,12 @@ export class NotFoundError extends AppError {
   }
 }
 
+export class GoneError extends AppError {
+  constructor(message = 'Resource is no longer available') {
+    super(410, 'GONE', message);
+  }
+}
+
 export class HandleConflictError extends AppError {
   constructor(
     public readonly holderType: 'profile' | 'open_mic' | null,
