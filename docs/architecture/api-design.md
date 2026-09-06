@@ -4,6 +4,24 @@
 
 ---
 
+## Deferred (later-phase) API surface
+
+`openapi.yaml` contains only the Phase 1 executable contract. The following were removed from the contract (not the product) and can be restored from git history when their phase begins:
+
+- **Follows and follow-dependent feeds** (Phase 2+ social): `/profiles/{id}/follow`, `/profiles/{id}/followers`, `/profiles/{id}/following`, `/me/following/upcoming-events`, `/me/home/upcoming-events`, `/me/home/notable-open-mics`, and the `Follow`/`ProfileFollow` schemas.
+- **Reviews**: all `*/reviews*` operations on open-mics and events, and the `Review*` schemas.
+- **Comments and reactions**: `/media/{id}/comments`, `/media/{id}/reactions`, `/reactions/{id}`, `/comments/*`, and the `Comment*`/`Reaction*` schemas.
+- **Private messaging**: `/messages*` and the `PrivateMessage` schema.
+- **Suggestions** (site-wide feedback box): `/suggestions*` and the `Suggestion*` schemas.
+- **Notifications** (depend on the above): `/notifications*` and the `Notification` schema.
+- **Multi-admin collaboration roles** (explicitly post-MVP per the data model): `/profiles/{id}/roles`, `/profiles/{id}/members*`, `/profiles/{id}/invitations`, `/invitations/{id}`, `/roles*`, `/permissions`, and the `Role`/`Permission`/`AccountProfileRole`/`ProfileInvitation` schemas.
+- **Public map/geo discovery** (Phase 3): `/open-mics/map` and the `MapResult`/`MapPin`/`MapCluster` schemas.
+- **Legacy slug system**, superseded by handles: `/profiles/slug-available`, `/open-mics/slug-available`, `/open-mics/{id}/events/slug-available`, the `Slug` parameter, and the `slug` fields on `Profile`, `OpenMic`, and `Event` (the Phase 1 database schema has no `events.slug` column at all).
+
+The public vanity resolver (`GET /@:handle`) intentionally does not appear in `openapi.yaml` — it is served outside the `/api` base by Fastify directly, per [6-open-mic-vanity-urls.md](../6-open-mic-vanity-urls.md#10-api-surface).
+
+---
+
 ## 5) API Architecture
 
 **Canonical contract:** [`openapi.yaml`](../../openapi.yaml)

@@ -151,7 +151,7 @@ Every profile and every open-mic gets a handle **at creation time** — no opt-o
 **Algorithm:**
 
 1. Take the entity's display name (`Profile.display_name` or `OpenMic.name`).
-2. Normalize: NFKD, strip combining marks (é → e), lowercase, replace `&` with `-and-`, replace any non-`[a-z0-9]` run with a single `-`, strip leading/trailing `-`, collapse `--` to `-`.
+2. Normalize: NFKD, strip combining marks (é → e), lowercase, strip apostrophes (`'`, `’`) rather than hyphenating them, replace `&` with `-and-`, replace `@` with `-at-`, replace any non-`[a-z0-9]` run with a single `-`, strip leading/trailing `-`, collapse `--` to `-`.
 3. Truncate to 50 chars, then trim to the last `-` boundary if truncation cut mid-word.
 4. If the result is `<3` chars, empty, all-digits, UUID-shaped, or reserved → append a short random suffix (`-x7k2`) instead.
 5. If the candidate collides with an existing `Handles.handle` (any status) → try `-2`, `-3`, … up to `-9`; then fall back to `-<random-4-char>`.
