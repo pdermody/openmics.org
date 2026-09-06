@@ -1409,6 +1409,12 @@ components:
           type: boolean
         amplification_available:
           type: boolean
+        age_policy:
+          type: string
+          enum:
+            - adults_only
+            - children_only
+            - both
         registration_mode:
           $ref: "#/components/schemas/RegistrationMode"
         external_registration_url:
@@ -1947,6 +1953,12 @@ components:
           type: boolean
         amplification_available: &a25
           type: boolean
+        age_policy: &a33
+          type: string
+          enum:
+            - adults_only
+            - children_only
+            - both
         activities: &a26
           type: array
           items:
@@ -1988,6 +2000,7 @@ components:
         schedule_details: *a23
         originals_only: *a24
         amplification_available: *a25
+        age_policy: *a33
         activities: *a26
         tags: *a27
         registration_mode: *a28
