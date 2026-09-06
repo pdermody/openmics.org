@@ -464,7 +464,8 @@ paths:
           description: Registration and short-lived edit session established
           headers:
             Set-Cookie:
-              description: Secure, HttpOnly, SameSite=Lax edit-session cookie; raw token is not retained.
+              description: Secure, HttpOnly, SameSite=Lax edit-session cookie; raw token is
+                not retained.
               schema:
                 type: string
             Cache-Control:
@@ -632,7 +633,9 @@ paths:
         - Media
       operationId: updateMedia
       summary: Update media metadata
-      description: The uploader may update their media. The owning organizer may update any media within the organization, including performer-uploaded media. Uploader attribution is immutable.
+      description: The uploader may update their media. The owning organizer may
+        update any media within the organization, including performer-uploaded
+        media. Uploader attribution is immutable.
       security:
         - bearerAuth: []
       requestBody:
@@ -646,7 +649,9 @@ paths:
       tags:
         - Media
       operationId: deleteMedia
-      description: The uploader may delete their own media. The owning organizer may delete any media within the organization, including performer-uploaded media.
+      description: The uploader may delete their own media. The owning organizer may
+        delete any media within the organization, including performer-uploaded
+        media.
       security:
         - bearerAuth: []
       responses:
@@ -1108,7 +1113,8 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     ClaimConflict:
-      description: Registration was already claimed by another account before this request completed.
+      description: Registration was already claimed by another account before this
+        request completed.
       content:
         application/json:
           schema:
@@ -1573,7 +1579,9 @@ components:
           allOf:
             - $ref: "#/components/schemas/Timestamp"
           nullable: true
-          description: Set whenever media_consent changes. Revocation only blocks future media publication under this registration; media already published beforehand is not retroactively removed.
+          description: Set whenever media_consent changes. Revocation only blocks future
+            media publication under this registration; media already published
+            beforehand is not retroactively removed.
         email_verified_at:
           allOf:
             - $ref: "#/components/schemas/Timestamp"
@@ -1603,7 +1611,10 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-          description: Profile explicitly adopted by the claiming account as the public attribution for this registration. Distinct from profile_id (set only for authenticated self-serve registrations) and never set without claimed_by_account_id.
+          description: Profile explicitly adopted by the claiming account as the public
+            attribution for this registration. Distinct from profile_id (set
+            only for authenticated self-serve registrations) and never set
+            without claimed_by_account_id.
     Performance:
       type: object
       properties:
@@ -1652,7 +1663,10 @@ components:
         source_url:
           type: string
           format: uri
-          description: For media_type=photo, an object URL in the platform's own S3 media bucket (via the upload-url flow). For media_type=video, a link on an allowlisted host (youtube.com, youtu.be, or vimeo.com). Enforced server-side; arbitrary hosts are rejected.
+          description: For media_type=photo, an object URL in the platform's own S3 media
+            bucket (via the upload-url flow). For media_type=video, a link on an
+            allowlisted host (youtube.com, youtu.be, or vimeo.com). Enforced
+            server-side; arbitrary hosts are rejected.
         mime_type:
           type: string
           nullable: true
@@ -1872,35 +1886,47 @@ components:
         - profile_name
         - profile_kind
       properties:
-        handle: &a1
+        handle:
           type: string
-        profile_name: &a2
+        profile_name:
           type: string
-        profile_kind: &a3
+        profile_kind:
           type: string
           enum:
             - organizer
             - performer
-        bio: &a4
+        bio:
           type: string
-        visibility: &a5
+        visibility:
           $ref: "#/components/schemas/ProfileVisibility"
-        theme_name: &a6
+        theme_name:
           type: string
-        links: &a7
+        links:
           type: array
           items:
             $ref: "#/components/schemas/ProfileLink"
     ProfileUpdateRequest:
       type: object
       properties:
-        handle: *a1
-        profile_name: *a2
-        profile_kind: *a3
-        bio: *a4
-        visibility: *a5
-        theme_name: *a6
-        links: *a7
+        handle:
+          type: string
+        profile_name:
+          type: string
+        profile_kind:
+          type: string
+          enum:
+            - organizer
+            - performer
+        bio:
+          type: string
+        visibility:
+          $ref: "#/components/schemas/ProfileVisibility"
+        theme_name:
+          type: string
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileLink"
     OpenMicCreateRequest:
       type: object
       required:
@@ -1911,103 +1937,145 @@ components:
         - country
         - time_zone
       properties:
-        name: &a8
+        name:
           type: string
-        description: &a9
+        description:
           type: string
-        handle: &a10
+        handle:
           type: string
-        venue_name: &a11
+        venue_name:
           type: string
-        address_line1: &a12
+        address_line1:
           type: string
-        address_line2: &a13
+        address_line2:
           type: string
-        postcode: &a14
+        postcode:
           type: string
-        city: &a15
+        city:
           type: string
-        country: &a16
+        country:
           type: string
-        lat: &a17
+        lat:
           type: number
           minimum: -90
           maximum: 90
-        lng: &a18
+        lng:
           type: number
           minimum: -180
           maximum: 180
-        time_zone: &a19
+        time_zone:
           type: string
-        website: &a20
+        website:
           type: string
           format: uri
-        contact_email: &a21
+        contact_email:
           type: string
           format: email
-        schedule_summary: &a22
+        schedule_summary:
           type: string
-        schedule_details: &a23
+        schedule_details:
           type: string
-        originals_only: &a24
+        originals_only:
           type: boolean
-        amplification_available: &a25
+        amplification_available:
           type: boolean
-        age_policy: &a33
+        age_policy:
           type: string
           enum:
             - adults_only
             - children_only
             - both
-        activities: &a26
+        activities:
           type: array
           items:
             $ref: "#/components/schemas/Activity"
-        tags: &a27
+        tags:
           type: array
           items:
             type: string
-        registration_mode: &a28
+        registration_mode:
           $ref: "#/components/schemas/RegistrationMode"
-        external_registration_url: &a29
+        external_registration_url:
           type: string
           format: uri
-        entry_fee_amount: &a30
+        entry_fee_amount:
           type: number
           minimum: 0
-        entry_fee_currency: &a31
+        entry_fee_currency:
           type: string
-        entry_fee_note: &a32
+        entry_fee_note:
           type: string
     OpenMicUpdateRequest:
       type: object
       properties:
-        name: *a8
-        description: *a9
-        handle: *a10
-        venue_name: *a11
-        address_line1: *a12
-        address_line2: *a13
-        postcode: *a14
-        city: *a15
-        country: *a16
-        lat: *a17
-        lng: *a18
-        time_zone: *a19
-        website: *a20
-        contact_email: *a21
-        schedule_summary: *a22
-        schedule_details: *a23
-        originals_only: *a24
-        amplification_available: *a25
-        age_policy: *a33
-        activities: *a26
-        tags: *a27
-        registration_mode: *a28
-        external_registration_url: *a29
-        entry_fee_amount: *a30
-        entry_fee_currency: *a31
-        entry_fee_note: *a32
+        name:
+          type: string
+        description:
+          type: string
+        handle:
+          type: string
+        venue_name:
+          type: string
+        address_line1:
+          type: string
+        address_line2:
+          type: string
+        postcode:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        time_zone:
+          type: string
+        website:
+          type: string
+          format: uri
+        contact_email:
+          type: string
+          format: email
+        schedule_summary:
+          type: string
+        schedule_details:
+          type: string
+        originals_only:
+          type: boolean
+        amplification_available:
+          type: boolean
+        age_policy:
+          type: string
+          enum:
+            - adults_only
+            - children_only
+            - both
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        tags:
+          type: array
+          items:
+            type: string
+        registration_mode:
+          $ref: "#/components/schemas/RegistrationMode"
+        external_registration_url:
+          type: string
+          format: uri
+        entry_fee_amount:
+          type: number
+          minimum: 0
+        entry_fee_currency:
+          type: string
+        entry_fee_note:
+          type: string
     EventCreateRequest:
       type: object
       required:
@@ -2023,10 +2091,20 @@ components:
           $ref: "#/components/schemas/Timestamp"
         time_zone:
           type: string
+        running:
+          type: boolean
+          nullable: true
+        registrations_closed_at:
+          $ref: "#/components/schemas/Timestamp"
         capacity:
           type: integer
+          minimum: 1
         venue_name:
           type: string
+          description: Part of the location snapshot. If provided, all location fields
+            (venue_name, address_line1, city, country, lat, lng) must be
+            provided together. If omitted, event inherits location from parent
+            open mic.
         address_line1:
           type: string
         address_line2:
@@ -2039,10 +2117,89 @@ components:
           type: string
         lat:
           type: number
+          minimum: -90
+          maximum: 90
         lng:
           type: number
+          minimum: -180
+          maximum: 180
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        tags:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+        entry_fee_amount:
+          type: number
+          minimum: 0
+        entry_fee_currency:
+          type: string
+        entry_fee_note:
+          type: string
     EventUpdateRequest:
-      $ref: "#/components/schemas/EventCreateRequest"
+      type: object
+      properties:
+        title:
+          type: string
+        starts_at:
+          $ref: "#/components/schemas/Timestamp"
+        ends_at:
+          $ref: "#/components/schemas/Timestamp"
+        time_zone:
+          type: string
+        running:
+          type: boolean
+          nullable: true
+        registrations_closed_at:
+          $ref: "#/components/schemas/Timestamp"
+        capacity:
+          type: integer
+          minimum: 1
+        venue_name:
+          type: string
+          description: Part of the location snapshot. If provided, all location fields
+            (venue_name, address_line1, city, country, lat, lng) must be
+            provided together. If omitted, event inherits location from parent
+            open mic.
+        address_line1:
+          type: string
+        address_line2:
+          type: string
+        postcode:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        tags:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+        entry_fee_amount:
+          type: number
+          minimum: 0
+        entry_fee_currency:
+          type: string
+        entry_fee_note:
+          type: string
     RegistrationCreateRequest:
       type: object
       required:
@@ -2053,7 +2210,8 @@ components:
         profile_id:
           allOf:
             - $ref: "#/components/schemas/Id"
-          description: Required for authenticated self-serve registrations; must reference a separate account-owned profile with profile_kind=performer.
+          description: Required for authenticated self-serve registrations; must reference
+            a separate account-owned profile with profile_kind=performer.
         performer_name:
           type: string
         performer_city:
@@ -2092,7 +2250,8 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-          description: Registration owner may change or clear the adopted public attribution after the initial claim.
+          description: Registration owner may change or clear the adopted public
+            attribution after the initial claim.
     RegistrationClaimRequest:
       type: object
       properties:
@@ -2100,10 +2259,14 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-          description: An account-owned performer profile to adopt as the public attribution for this registration. Omit or set null to claim without adopting a public profile.
+          description: An account-owned performer profile to adopt as the public
+            attribution for this registration. Omit or set null to claim without
+            adopting a public profile.
         sync_public_fields:
           type: boolean
-          description: If true and adopted_profile_id is set, update performer_name and performer_city from the adopted profile for public event attribution.
+          description: If true and adopted_profile_id is set, update performer_name and
+            performer_city from the adopted profile for public event
+            attribution.
         note:
           type: string
           nullable: true
@@ -2141,7 +2304,10 @@ components:
         source_url:
           type: string
           format: uri
-          description: For media_type=photo, an object URL in the platform's own S3 media bucket (via the upload-url flow). For media_type=video, a link on an allowlisted host (youtube.com, youtu.be, or vimeo.com). Enforced server-side; arbitrary hosts are rejected.
+          description: For media_type=photo, an object URL in the platform's own S3 media
+            bucket (via the upload-url flow). For media_type=video, a link on an
+            allowlisted host (youtube.com, youtu.be, or vimeo.com). Enforced
+            server-side; arbitrary hosts are rejected.
         caption:
           type: string
         event_id:
@@ -2156,7 +2322,8 @@ components:
         source_url:
           type: string
           format: uri
-          description: Subject to the same host-allowlist policy as MediaCreateRequest.source_url.
+          description: Subject to the same host-allowlist policy as
+            MediaCreateRequest.source_url.
         profile_owner_id:
           $ref: "#/components/schemas/Id"
     UploadUrlRequest:

@@ -9,6 +9,7 @@ import { createPool } from './db.js';
 import { registerErrorHandler } from './errors.js';
 import { checkHandleAvailability } from './handles/repository.js';
 import { handlesRoutes, type HandlesPluginOptions } from './handles/routes.js';
+import { eventsRoutes } from './events/routes.js';
 import { openMicsRoutes } from './open-mics/routes.js';
 import { profilesRoutes } from './profiles/routes.js';
 
@@ -37,6 +38,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.register(handlesRoutes, { ...handlesOptions, prefix: '/api' });
   app.register(profilesRoutes, { pool, prefix: '/api' });
   app.register(openMicsRoutes, { pool, prefix: '/api' });
+  app.register(eventsRoutes, { pool, prefix: '/api' });
 
   return app;
 }
