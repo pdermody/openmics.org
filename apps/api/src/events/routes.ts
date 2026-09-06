@@ -3,8 +3,17 @@ import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { parseGeoFilter } from '../geo.js';
 import { findOpenMicById } from '../open-mics/repository.js';
-import { findEventById, findEventsByOpenMicId, insertEvent, serializeEvent, updateEvent } from './repository.js';
+import {
+  findEventById,
+  findEventsByOpenMicId,
+  findNextEventByOpenMicId,
+  findUpcomingEvents,
+  insertEvent,
+  serializeEvent,
+  updateEvent,
+} from './repository.js';
 import { createEventSchema, updateEventSchema } from './validation.js';
 
 export type EventsPluginOptions = { pool: Pool };
@@ -62,10 +71,41 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
 
   app.get<{ Params: { id: string } }>('/open-mics/:id/events', async (request, reply) => {
     const openMic = await findOpenMicById(pool, request.params.id);
-    if (!openMic) throw new NotFoundError('Open mic not found');
+    if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Open mic not found');
 
     const events = await findEventsByOpenMicId(pool, openMic.id);
     reply.send(events.map(serializeEvent));
+  });
+
+  app.get<{ Params: { id: string } }>('/open-mics/:id/next-event', async (request, reply) => {
+    const openMic = await findOpenMicById(pool, request.params.id);
+    if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Open mic not found');
+    const event = await findNextEventByOpenMicId(pool, openMic.id);
+    if (!event) throw new NotFoundError('No upcoming event found');
+    reply.send(serializeEvent(event));
+  });
+
+  app.get<{ Querystring: { near?: string; radius_km?: string; limit?: string; from?: string; to?: string } }>(
+    '/events/upcoming',
+    async (request, reply) => {
+      const limit = Math.min(100, Math.max(1, Number(request.query.limit ?? 25)));
+      const geo = parseGeoFilter(request.query.near, request.query.radius_km);
+      const events = await findUpcomingEvents(pool, {
+        from: request.query.from,
+        to: request.query.to,
+        limit,
+        geo,
+      });
+      reply.send(events.map(serializeEvent));
+    },
+  );
+
+  app.get<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
+    const event = await findEventById(pool, request.params.id);
+    if (!event) throw new NotFoundError('Event not found');
+    const openMic = await findOpenMicById(pool, event.open_mic_id);
+    if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Event not found');
+    reply.send(serializeEvent(event));
   });
 
   app.get<{ Params: { id: string; eventId: string } }>('/open-mics/:id/events/:eventId', async (request, reply) => {

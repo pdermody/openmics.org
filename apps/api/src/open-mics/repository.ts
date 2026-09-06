@@ -116,6 +116,56 @@ export async function findOpenMicById(client: Queryable, id: string): Promise<Op
   return result.rows[0] ?? null;
 }
 
+export async function findPublicOpenMics(
+  client: Queryable,
+  options: { limit: number; offset: number; q?: string; country?: string; city?: string; activity?: string; tag?: string; registrationMode?: string; geo?: { lat: number; lng: number; radiusKm: number } },
+): Promise<{ rows: OpenMicRow[]; total: number }> {
+  const values: unknown[] = [];
+  const conditions = ["deleted_at IS NULL", "status NOT IN ('draft', 'ended')"];
+  if (options.q) {
+    values.push(`%${options.q}%`);
+    conditions.push(`(name ILIKE $${values.length} OR description ILIKE $${values.length})`);
+  }
+  if (options.country) {
+    values.push(options.country);
+    conditions.push(`lower(country) = lower($${values.length})`);
+  }
+  if (options.city) {
+    values.push(options.city);
+    conditions.push(`lower(city) = lower($${values.length})`);
+  }
+  if (options.activity) {
+    values.push(options.activity);
+    conditions.push(`$${values.length} = ANY(activities)`);
+  }
+  if (options.tag) {
+    values.push(options.tag);
+    conditions.push(`$${values.length} = ANY(tags)`);
+  }
+  if (options.registrationMode) {
+    values.push(options.registrationMode);
+    conditions.push(`registration_mode = $${values.length}`);
+  }
+  if (options.geo) {
+    values.push(options.geo.lng, options.geo.lat, options.geo.radiusKm * 1000);
+    conditions.push(`ST_DWithin(location, ST_SetSRID(ST_MakePoint($${values.length - 2}, $${values.length - 1}), 4326)::geography, $${values.length})`);
+  }
+  const where = conditions.join(' AND ');
+  values.push(options.limit, options.offset);
+  const result = await client.query<OpenMicRow>(
+    `SELECT * FROM open_mics
+     WHERE ${where}
+     ORDER BY name ASC LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    values,
+  );
+  const count = await client.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM open_mics
+     WHERE ${where}`,
+    values.slice(0, -2),
+  );
+  return { rows: result.rows, total: Number(count.rows[0].count) };
+}
+
 const UPDATABLE_COLUMNS = [
   'name',
   'description',

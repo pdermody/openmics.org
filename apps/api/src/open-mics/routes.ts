@@ -3,9 +3,10 @@ import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { parseGeoFilter } from '../geo.js';
 import { assignHandle } from '../handles/service.js';
 import { requireOwnedProfile } from '../profiles/current-profile.js';
-import { findOpenMicById, insertOpenMic, serializeOpenMic, updateOpenMic } from './repository.js';
+import { findOpenMicById, findPublicOpenMics, insertOpenMic, serializeOpenMic, updateOpenMic } from './repository.js';
 import { createOpenMicSchema, updateOpenMicSchema } from './validation.js';
 
 export type OpenMicsPluginOptions = { pool: Pool };
@@ -56,6 +57,27 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     });
 
     reply.status(201).send(serializeOpenMic(withHandle!));
+  });
+
+  app.get<{ Querystring: { page?: string; page_size?: string; q?: string; country?: string; city?: string; activity?: string; tag?: string; registration_mode?: string; near?: string; radius_km?: string } }>('/open-mics', async (request, reply) => {
+    const page = Math.max(1, Number(request.query.page ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(request.query.page_size ?? 25)));
+    const geo = parseGeoFilter(request.query.near, request.query.radius_km);
+    const result = await findPublicOpenMics(pool, {
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      q: request.query.q,
+      country: request.query.country,
+      city: request.query.city,
+      activity: request.query.activity,
+      tag: request.query.tag,
+      registrationMode: request.query.registration_mode,
+      geo,
+    });
+    reply.send({
+      items: result.rows.map(serializeOpenMic),
+      pagination: { page, page_size: pageSize, total: result.total },
+    });
   });
 
   app.get<{ Params: { id: string } }>('/open-mics/:id', async (request, reply) => {

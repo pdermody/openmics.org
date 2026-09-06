@@ -111,6 +111,44 @@ export async function findEventsByOpenMicId(client: Queryable, openMicId: string
   return result.rows;
 }
 
+export async function findUpcomingEvents(
+  client: Queryable,
+  options: { from?: string; to?: string; limit: number; geo?: { lat: number; lng: number; radiusKm: number } },
+): Promise<EventRow[]> {
+  const values: unknown[] = [];
+  const conditions = ['e.deleted_at IS NULL', "o.deleted_at IS NULL", "o.status NOT IN ('draft', 'ended')", 'e.starts_at >= now()'];
+  if (options.from) {
+    values.push(options.from);
+    conditions.push(`e.starts_at >= $${values.length}`);
+  }
+  if (options.to) {
+    values.push(options.to);
+    conditions.push(`e.starts_at <= $${values.length}`);
+  }
+  if (options.geo) {
+    values.push(options.geo.lng, options.geo.lat, options.geo.radiusKm * 1000);
+    conditions.push(`ST_DWithin(e.location, ST_SetSRID(ST_MakePoint($${values.length - 2}, $${values.length - 1}), 4326)::geography, $${values.length})`);
+  }
+  values.push(options.limit);
+  const result = await client.query<EventRow>(
+    `SELECT e.* FROM events e JOIN open_mics o ON o.id = e.open_mic_id
+     WHERE ${conditions.join(' AND ')} ORDER BY e.starts_at ASC LIMIT $${values.length}`,
+    values,
+  );
+  return result.rows;
+}
+
+export async function findNextEventByOpenMicId(client: Queryable, openMicId: string): Promise<EventRow | null> {
+  const result = await client.query<EventRow>(
+    `SELECT * FROM events
+     WHERE open_mic_id = $1 AND deleted_at IS NULL AND starts_at >= now()
+       AND (registrations_closed_at IS NULL OR registrations_closed_at > now())
+     ORDER BY starts_at ASC LIMIT 1`,
+    [openMicId],
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function updateEvent(pool: Pool, id: string, changes: Partial<InsertEventInput>): Promise<EventRow | null> {
   const updates: string[] = [];
   const values: unknown[] = [];

@@ -135,8 +135,8 @@
 **DNS:**
 - Route 53 for domain management (root domain: `openmics.org`)
 - `www`/root domain (`openmics.org`, `www.openmics.org`) points to a CloudFront distribution with an ACM certificate
-- CloudFront serves `/assets/*` and ordinary SPA requests from the frontend S3 origin; it routes `/@*` and `/@*/events/*` to the Fastify origin, which returns a public HTML document with page metadata and the SPA entry script
-- The Vite build produces the canonical HTML app-shell template. The deployment packages that template with Fastify, which replaces only explicit, escaped metadata placeholders for public handle requests; the root element, asset URLs, scripts, styles, and document structure remain identical to the S3-served SPA shell.
+- CloudFront serves `/assets/*` and ordinary SPA requests from the frontend S3 origin. Browser-facing paths may be routed to the Fastify origin, which returns the shared SPA entry point without resolving or rendering entity-specific HTML.
+- The Vite build will define the canonical HTML app-shell template. Its final packaging and metadata strategy remain pending frontend implementation.
 - `api.openmics.org` points to the API CloudFront distribution, which routes `/api/*` to the Fastify origin; TLS terminates at CloudFront and the origin is health-checked
 - `media.openmics.org` fronts the S3 media bucket (public reads served under our domain)
 

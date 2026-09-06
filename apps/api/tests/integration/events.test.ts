@@ -38,8 +38,8 @@ describe('events routes (real database)', () => {
     organizerProfileId = organizerProfile.rows[0].id;
 
     const openMic = await pool.query<{ id: string }>(
-      `INSERT INTO open_mics (owner_profile_id, name, venue_name, address_line1, city, country, time_zone, activities, age_policy)
-       VALUES ($1, 'Test Open Mic', 'Test Venue', '1 Test St', 'Dublin', 'IE', 'Europe/Dublin', ARRAY['singing'], 'both')
+      `INSERT INTO open_mics (owner_profile_id, name, venue_name, address_line1, city, country, time_zone, activities, age_policy, status)
+       VALUES ($1, 'Test Open Mic', 'Test Venue', '1 Test St', 'Dublin', 'IE', 'Europe/Dublin', ARRAY['singing'], 'both', 'active')
        RETURNING id`,
       [organizerProfileId],
     );

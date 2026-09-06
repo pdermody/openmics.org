@@ -444,8 +444,8 @@ Perf budgets are enforced in CI with `size-limit` (fail the build if any route c
 
 - Vite build → `dist/`.
 - Immutable, hashed assets are uploaded to the private frontend S3 origin and served through the required CloudFront distribution with Brotli and HTTP/3.
-- CloudFront sends ordinary SPA routes to the S3 app shell. It sends canonical public handle routes (`/@:handle` and `/@:handle/events/:eventId`) to Fastify, which returns a minimal HTML document containing escaped page metadata, canonical tags, and the same Vite SPA entry script. Crawlers consume the metadata; browsers load the SPA normally. No crawler detection or separate OG endpoint is used.
-- **Shared app shell:** `index.html` is the canonical Vite document template. The build copies a version with explicit metadata placeholders into the Fastify deployment artifact. Fastify replaces only those placeholders (`title`, description, canonical URL, and OpenGraph/Twitter tags) with escaped public values; it does not independently construct the document shell. Consequently, the Fastify response and S3 SPA response have the same root element, asset references, styles, scripts, and structure.
+- CloudFront sends ordinary SPA routes and canonical public handle routes to the shared SPA entry point. The API does not render entity-specific HTML or metadata; the SPA resolves the route and loads data through `/api`.
+- **Shared app shell:** `index.html` will be the canonical Vite document template. Its final metadata, asset packaging, and deployment integration remain pending completion of the frontend shell.
 - **Preview environments**: one static bucket per PR (or a single bucket with per-PR prefixes), backed by the staging API.
 
 ---
@@ -457,7 +457,7 @@ Perf budgets are enforced in CI with `size-limit` (fail the build if any route c
 - **Integration**: MSW mocks + real router + real query client to exercise route → data → mutation flows.
 - **E2E** (Playwright): happy paths only — sign in, register for an event, upload media, post a comment, follow a profile, receive an SSE update. Runs against a staging stack in CI.
 - **Contract**: a lightweight script consumes the API's OpenAPI and checks that the client's typed hooks reference existing operations.
-- **Public-document parity:** CI compares the Fastify-rendered handle document with the built SPA shell after removing the permitted metadata elements; a mismatch in root markup, asset URLs, styles, or scripts fails the build.
+- **Public-document parity:** the API's browser fallback and the deployed SPA shell must use the same entry-point contract once the frontend shell is defined.
 
 ---
 

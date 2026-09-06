@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import { withTransaction } from '../db.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { assignHandle } from '../handles/service.js';
-import { findProfileById, insertProfile, serializeProfile, updateProfile } from './repository.js';
+import { findProfileById, findPublicProfiles, insertProfile, serializeProfile, updateProfile } from './repository.js';
 import { createProfileSchema, updateProfileSchema } from './validation.js';
 
 export type ProfilesPluginOptions = { pool: Pool };
@@ -37,9 +37,21 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
     reply.status(201).send(serializeProfile(withHandle!));
   });
 
+  app.get<{ Querystring: { page?: string; page_size?: string } }>('/profiles', async (request, reply) => {
+    const page = Math.max(1, Number(request.query.page ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(request.query.page_size ?? 25)));
+    const result = await findPublicProfiles(pool, pageSize, (page - 1) * pageSize);
+    reply.send({
+      items: result.rows.map(serializeProfile),
+      pagination: { page, page_size: pageSize, total: result.total },
+    });
+  });
+
   app.get<{ Params: { id: string } }>('/profiles/:id', async (request, reply) => {
     const profile = await findProfileById(pool, request.params.id);
-    if (!profile) throw new NotFoundError('Profile not found');
+    if (!profile || profile.visibility === 'private' || profile.is_hidden || profile.is_blacklisted) {
+      throw new NotFoundError('Profile not found');
+    }
     reply.send(serializeProfile(profile));
   });
 

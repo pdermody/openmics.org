@@ -28,7 +28,7 @@ The public vanity resolver (`GET /@:handle`) intentionally does not appear in `o
 
 **Base URL:** `https://api.openmics.org/api` (all JSON and SSE API operations are below the `/api` root)
 
-The Fastify service serves the same contract at `GET /api/openapi.json`. Paths in the endpoint inventory below are relative to the base URL, so for example `GET /open-mics` is served at `GET https://api.openmics.org/api/open-mics`. Public HTML documents such as `/@:handle` remain outside the API root and are routed by CloudFront to the Fastify HTML origin.
+The Fastify service serves the same contract at `GET /api/openapi.json`. Paths in the endpoint inventory below are relative to the base URL, so for example `GET /open-mics` is served at `GET https://api.openmics.org/api/open-mics`. Browser-facing paths remain outside the API root and receive the shared SPA entry point; the API does not render entity-specific HTML.
 
 **Core Resources:**
 
@@ -40,8 +40,8 @@ Authentication
   GET    /auth/profile            (current user)
 
 Public documents (CloudFront origin for canonical handle URLs)
-  GET    /@:handle                (public HTML document: escaped metadata, canonical URL, and SPA entry script)
-  GET    /@:handle/events/:id     (public HTML document for an event under an open-mic handle)
+  GET    /@:handle                (shared SPA entry point; the SPA resolves the handle through the API)
+  GET    /@:handle/events/:id     (shared SPA entry point; the SPA loads the event through the API)
 
 Profiles (unified context management)
   GET    /accounts/:id/profiles           (list all profiles for current user with their roles)
@@ -88,7 +88,7 @@ OpenMics (directory + management)
   PUT    /open-mics/:id
   GET    /open-mics/:id/events
   GET    /open-mics/:id/next-event    (public; the soonest upcoming, not-yet-closed event under the series, or null + schedule_summary/schedule_details fallback; powers the durable "next event" QR/link)
-  GET    /open-mics/:id/register      (public HTML; resolves to the next event's register page via /open-mics/:id/next-event, or renders the schedule_summary fallback if none exists; also served at the vanity form /@:handle/register)
+  GET    /open-mics/:id/register      (shared SPA entry point; the SPA resolves the next event through /api/open-mics/:id/next-event)
   GET    /open-mics/:id/events/slug-available?slug=<candidate>   (check per-series event slug availability)
   GET    /open-mics/:id/reviews
   POST   /open-mics/:id/reviews   (registered users only)

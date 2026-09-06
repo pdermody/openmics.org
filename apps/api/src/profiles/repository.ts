@@ -10,6 +10,8 @@ export type ProfileRow = {
   profile_image_url: string | null;
   theme_name: string | null;
   visibility: string;
+  is_hidden: boolean;
+  is_blacklisted: boolean;
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
@@ -48,6 +50,20 @@ export async function insertProfile(
 export async function findProfileById(client: Queryable, id: string): Promise<ProfileRow | null> {
   const result = await client.query<ProfileRow>('SELECT * FROM profiles WHERE id = $1 AND deleted_at IS NULL', [id]);
   return result.rows[0] ?? null;
+}
+
+export async function findPublicProfiles(client: Queryable, limit: number, offset: number): Promise<{ rows: ProfileRow[]; total: number }> {
+  const result = await client.query<ProfileRow>(
+    `SELECT * FROM profiles
+     WHERE deleted_at IS NULL AND visibility <> 'private' AND is_hidden = false AND is_blacklisted = false
+     ORDER BY profile_name ASC LIMIT $1 OFFSET $2`,
+    [limit, offset],
+  );
+  const count = await client.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM profiles
+     WHERE deleted_at IS NULL AND visibility <> 'private' AND is_hidden = false AND is_blacklisted = false`,
+  );
+  return { rows: result.rows, total: Number(count.rows[0].count) };
 }
 
 const UPDATABLE_COLUMNS = ['profile_name', 'profile_kind', 'bio', 'visibility', 'theme_name'] as const;

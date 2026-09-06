@@ -9,12 +9,12 @@ import { createPool } from './db.js';
 import { registerErrorHandler } from './errors.js';
 import { checkHandleAvailability } from './handles/repository.js';
 import { handlesRoutes, type HandlesPluginOptions } from './handles/routes.js';
-import { vanityRoutes } from './handles/vanity-routes.js';
 import { eventsRoutes } from './events/routes.js';
 import { openMicsRoutes } from './open-mics/routes.js';
 import { profilesRoutes } from './profiles/routes.js';
 import { registrationsRoutes } from './registrations/routes.js';
 import { performancesRoutes } from './performances/routes.js';
+import { spaRoutes } from './spa-routes.js';
 
 export type BuildAppOptions = {
   config?: AppConfig;
@@ -39,12 +39,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get('/health', async () => ({ status: 'ok' }));
   app.register(handlesRoutes, { ...handlesOptions, prefix: '/api' });
-  app.register(vanityRoutes, { pool });
   app.register(profilesRoutes, { pool, prefix: '/api' });
   app.register(openMicsRoutes, { pool, prefix: '/api' });
   app.register(eventsRoutes, { pool, prefix: '/api' });
   app.register(registrationsRoutes, { pool, prefix: '/api' });
   app.register(performancesRoutes, { pool, prefix: '/api' });
+  app.register(spaRoutes);
 
   return app;
 }

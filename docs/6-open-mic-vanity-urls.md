@@ -449,17 +449,9 @@ Even the UUID URL response, before its 301, sets `rel=canonical` to the handle U
 
 ## 13) Social Sharing / OpenGraph
 
-People will share vanity URLs through WhatsApp, iMessage, Facebook, Instagram, Slack, LinkedIn, and other services that require metadata in the initial HTML response. A generic static SPA document would make every preview identical.
+The API does not render entity-specific HTML. Fastify returns one shared SPA entry point for browser-facing paths, including vanity handles, event pages, and registration pages. The SPA resolves the current route and calls the `/api` endpoints to load data and apply visibility rules.
 
-**Approach: Fastify-rendered public documents.** CloudFront routes `/@:handle` and `/@:handle/events/:eventId` requests to Fastify; all static assets and other SPA routes remain on the S3 origin. Fastify resolves the public entity or event, applies the same visibility and soft-delete policy as the JSON resolver, and returns a small HTML document containing:
-
-- escaped `<title>` and description metadata;
-- canonical, OpenGraph, and Twitter card tags;
-- the Vite SPA entry script and root element.
-
-The same response is served to browsers and crawlers. Crawlers consume the metadata without JavaScript; browsers load the SPA and continue with the normal client-side route. This avoids user-agent detection, Lambda@Edge, and a separate public `/og/:handle` endpoint.
-
-**Shared document shell.** The Vite `index.html` template is the sole definition of the SPA document shell. Its build output, with explicit metadata placeholders, is packaged with Fastify. For handle requests Fastify replaces only the placeholders with escaped public metadata; it does not maintain a separate HTML template. This guarantees that public-document responses and ordinary SPA responses differ only in their page metadata.
+The entry-point HTML is intentionally minimal until the frontend shell is defined. Metadata, canonical links, asset references, and page rendering belong to the SPA build rather than the API.
 
 **Caching and safety.** CloudFront caches each normalized public path independently. Fastify returns `404` for private, unavailable, or deleted entities and emits only sanitized public fields in metadata. The public document must use correctly escaped HTML, `Cache-Control` appropriate to the metadata freshness target, and never forward viewer cookies or authorization headers to this cacheable route. Purge or revalidate the corresponding path after public metadata changes. CloudFront's cache-key policy for these routes explicitly excludes attribution query params (`ref`, `utm_*`) — the server response never varies based on them, so including them in the cache key would fragment the cache per shared link and let a malicious or accidental unique `ref` value bypass caching entirely. The referral value is read client-side from the URL after the cached HTML loads.
 
@@ -510,7 +502,7 @@ Realistically at MVP the migration is trivial (fewer than 1000 entities). This s
 - **Reserved-handle marketplace / auction.** No.
 - **Verification badges (blue-check style).** Not for MVP; revisit when impersonation reports show up.
 - **Custom domain per organizer** (e.g. `portlaoise-spotlight-sessions.com` CNAME'd to us). Post-MVP, low priority.
-- **Prerender.io / SSG.** Fastify-rendered public documents provide the required metadata for now.
+- **Prerender.io / SSG.** Deferred until the SPA shell and metadata strategy are defined.
 
 ---
 
