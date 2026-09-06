@@ -6,6 +6,7 @@ import type { AuthenticatedAccount, AuthVerifier } from './types.js';
 declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest) => Promise<void>;
+    authenticateOptional: (request: FastifyRequest) => Promise<void>;
   }
   interface FastifyRequest {
     account?: AuthenticatedAccount;
@@ -18,6 +19,13 @@ function extractBearerToken(request: FastifyRequest): string | undefined {
 }
 
 export function registerAuth(app: FastifyInstance, verify: AuthVerifier): void {
+  const authenticateOptional = async (request: FastifyRequest): Promise<void> => {
+    const token = extractBearerToken(request);
+    if (!token) return;
+    const account = await verify(token);
+    if (account) request.account = account;
+  };
+
   app.decorate('authenticate', async (request: FastifyRequest) => {
     const token = extractBearerToken(request);
     if (!token) throw new UnauthorizedError();
@@ -27,4 +35,5 @@ export function registerAuth(app: FastifyInstance, verify: AuthVerifier): void {
 
     request.account = account;
   });
+  app.decorate('authenticateOptional', authenticateOptional);
 }

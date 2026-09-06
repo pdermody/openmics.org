@@ -29,6 +29,12 @@ export class ForbiddenError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(code = 'CONFLICT', message = 'The request conflicts with the current resource state') {
+    super(409, code, message);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = 'Resource not found') {
     super(404, 'NOT_FOUND', message);
