@@ -31,6 +31,16 @@ export type OpenMic = {
   status: string
 }
 
+export type Profile = {
+  id: string
+  current_handle: string | null
+  profile_name: string
+  profile_kind: string
+  bio: string | null
+  profile_image_url: string | null
+  visibility: string
+}
+
 type OpenMicPage = { items: OpenMic[]; pagination: { page: number; page_size: number; total: number } }
 
 export const publicReadKeys = {
@@ -68,6 +78,14 @@ export function usePublicOpenMic(id: string | undefined) {
   return useQuery({
     queryKey: [...publicReadKeys.all, 'open-mic', id],
     queryFn: () => api<OpenMic>(`/open-mics/${id}`),
+    enabled: Boolean(id),
+  })
+}
+
+export function usePublicProfile(id: string | undefined) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'profile', id],
+    queryFn: () => api<Profile>(`/profiles/${id}`),
     enabled: Boolean(id),
   })
 }

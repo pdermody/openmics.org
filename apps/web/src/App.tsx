@@ -15,7 +15,7 @@ import {
 import './App.css'
 import { ApiError, api, friendlyApiErrorMessage } from './api/client'
 import { beginSignIn } from './auth/session'
-import { usePublicEvent, usePublicOpenMic, usePublicOpenMics, useUpcomingEvents, type Event, type OpenMic } from './features/publicReads'
+import { usePublicEvent, usePublicOpenMic, usePublicOpenMics, usePublicProfile, useUpcomingEvents, type Event, type OpenMic } from './features/publicReads'
 import {
   DEFAULT_THEME,
   isColorMode,
@@ -71,27 +71,29 @@ function SeriesCard({ openMic }: { openMic: OpenMic }) {
   </article>
 }
 
-function PublicDetail({ kind, id }: { kind: 'event' | 'open-mic'; id: string }) {
+function PublicDetail({ kind, id }: { kind: 'event' | 'open-mic' | 'profile'; id: string }) {
   const event = usePublicEvent(kind === 'event' ? id : undefined)
   const openMic = usePublicOpenMic(kind === 'open-mic' ? id : undefined)
-  const loading = kind === 'event' ? event.isPending : openMic.isPending
-  const error = kind === 'event' ? event.isError : openMic.isError
-  const title = event.data?.title ?? openMic.data?.name
+  const profile = usePublicProfile(kind === 'profile' ? id : undefined)
+  const loading = kind === 'event' ? event.isPending : kind === 'open-mic' ? openMic.isPending : profile.isPending
+  const error = kind === 'event' ? event.isError : kind === 'open-mic' ? openMic.isError : profile.isError
+  const title = event.data?.title ?? openMic.data?.name ?? profile.data?.profile_name
   return <main className="app" data-theme="venue" data-mode="light">
     <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><SignInButton /></header>
     <section className="detail-page">
       <a className="back-link" href="/">← Back to discovery</a>
       {loading && <ReadState message="Loading this room…" />}
-      {error && <ReadState message={friendlyApiErrorMessage(kind === 'event' ? event.error : openMic.error, 'This page could not be loaded. Please try again.')} retry={() => void (kind === 'event' ? event.refetch() : openMic.refetch())} />}
+      {error && <ReadState message={friendlyApiErrorMessage(kind === 'event' ? event.error : kind === 'open-mic' ? openMic.error : profile.error, 'This page could not be loaded. Please try again.')} retry={() => void (kind === 'event' ? event.refetch() : kind === 'open-mic' ? openMic.refetch() : profile.refetch())} />}
       {!loading && !error && title && <>
-        <div className="eyebrow">{kind === 'event' ? 'Event detail' : 'Open mic series'}</div>
+        <div className="eyebrow">{kind === 'event' ? 'Event detail' : kind === 'open-mic' ? 'Open mic series' : 'Public profile'}</div>
         <h1>{title}</h1>
-        <p className="detail-lede">{event.data?.notes ?? openMic.data?.description ?? 'A welcoming room for new voices.'}</p>
+        <p className="detail-lede">{event.data?.notes ?? openMic.data?.description ?? profile.data?.bio ?? 'A welcoming room for new voices.'}</p>
         <div className="detail-facts">
-          <span><MapPin size={16} /> {event.data?.venue_name ?? openMic.data?.venue_name}, {event.data?.city ?? openMic.data?.city}</span>
+          {(event.data || openMic.data) && <span><MapPin size={16} /> {event.data?.venue_name ?? openMic.data?.venue_name}, {event.data?.city ?? openMic.data?.city}</span>}
           {event.data?.starts_at && <span><Clock3 size={16} /> {new Date(event.data.starts_at).toLocaleString()}</span>}
+          {profile.data?.profile_kind && <span>{profile.data.profile_kind}</span>}
         </div>
-        <div className="detail-actions">{kind === 'event' ? <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>Register for this event</a> : <button className="primary-button" type="button">See next event</button>}<SocialButton label="React" icon="heart" /><SocialButton label="Comment" icon="message" /></div>
+        <div className="detail-actions">{kind === 'event' ? <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>Register for this event</a> : <button className="primary-button" type="button">{kind === 'open-mic' ? 'See next event' : 'Follow profile'}</button>}<SocialButton label="React" icon="heart" /><SocialButton label="Comment" icon="message" /></div>
       </>}
     </section>
   </main>
@@ -196,6 +198,7 @@ function App() {
   const eventMatch = pathname.match(/^\/events\/([^/]+)$/)
   const registrationMatch = pathname.match(/^\/events\/([^/]+)\/register$/)
   const openMicMatch = pathname.match(/^\/open-mics\/([^/]+)$/)
+  const profileMatch = pathname.match(/^\/profiles\/([^/]+)$/)
 
   useEffect(() => localStorage.setItem(THEME_STORAGE_KEY, theme), [theme])
   useEffect(() => localStorage.setItem(MODE_STORAGE_KEY, mode), [mode])
@@ -203,6 +206,7 @@ function App() {
   if (eventMatch) return <PublicDetail kind="event" id={eventMatch[1]} />
   if (registrationMatch) return <RegistrationPage eventCode={registrationMatch[1]} />
   if (openMicMatch) return <PublicDetail kind="open-mic" id={openMicMatch[1]} />
+  if (profileMatch) return <PublicDetail kind="profile" id={profileMatch[1]} />
 
   return (
     <main className="app" data-theme={theme} data-mode={mode}>
