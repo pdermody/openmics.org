@@ -82,6 +82,15 @@ export function usePublicOpenMic(id: string | undefined) {
   })
 }
 
+export function useNextEvent(openMicId: string | undefined) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'next-event', openMicId],
+    queryFn: () => api<Event>(`/open-mics/${openMicId}/next-event`),
+    enabled: Boolean(openMicId),
+    retry: false,
+  })
+}
+
 export function usePublicProfile(id: string | undefined) {
   return useQuery({
     queryKey: [...publicReadKeys.all, 'profile', id],

@@ -17,6 +17,9 @@ export type AccountProfile = {
   profile_name: string
   profile_kind: string
   current_handle: string | null
+  bio: string | null
+  phone: string | null
+  visibility: string
 }
 
 export const accountKeys = {
@@ -50,6 +53,14 @@ export function useAccountContext(enabled = true) {
       queryClient.invalidateQueries({ queryKey: accountKeys.permissions(profile.id) })
     },
   })
+  const updateProfile = useMutation({
+    mutationFn: (input: { id: string; profile_name: string; bio: string; phone: string; visibility: string }) => api<AccountProfile>(`/profiles/${input.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_name: input.profile_name, bio: input.bio || null, phone: input.phone || null, visibility: input.visibility }),
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: accountKeys.profiles(account.data?.id) }),
+  })
   const selectedProfileId = account.data?.current_profile_id ?? undefined
   const permissions = useQuery({
     queryKey: accountKeys.permissions(selectedProfileId),
@@ -57,5 +68,5 @@ export function useAccountContext(enabled = true) {
     enabled: Boolean(selectedProfileId),
     retry: false,
   })
-  return { account, profiles, currentProfile, permissions }
+  return { account, profiles, currentProfile, permissions, updateProfile }
 }

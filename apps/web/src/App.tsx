@@ -5,8 +5,8 @@ import {
   Heart,
   MapPin,
   MessageCircle,
+  Menu,
   Moon,
-  Palette,
   Share2,
   Sparkles,
   Sun,
@@ -15,7 +15,7 @@ import {
 import './App.css'
 import { ApiError, api, friendlyApiErrorMessage } from './api/client'
 import { beginSignIn } from './auth/session'
-import { usePublicEvent, usePublicOpenMic, usePublicOpenMics, usePublicProfile, useUpcomingEvents, type Event, type OpenMic } from './features/publicReads'
+import { useNextEvent, usePublicEvent, usePublicOpenMic, usePublicOpenMics, usePublicProfile, useUpcomingEvents, type Event, type OpenMic } from './features/publicReads'
 import { useAccountContext } from './features/account'
 import {
   DEFAULT_THEME,
@@ -51,6 +51,13 @@ function SignInButton() {
   </>
 }
 
+function HeaderMenu() {
+  return <details className="header-menu">
+    <summary aria-label="Open menu"><Menu size={18} /><span>Menu</span></summary>
+    <nav aria-label="Page menu"><a href="/settings/theme">Theme</a><a href="/#events">Events</a><a href="/">Discover</a></nav>
+  </details>
+}
+
 function ProfileSwitcher() {
   const context = useAccountContext()
   if (!context.account.data || context.profiles.isPending || context.profiles.data?.items.length === 0) return null
@@ -62,6 +69,21 @@ function ProfileSwitcher() {
       {profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name} · {profile.profile_kind}</option>)}
     </select>
   </label>{selected && context.permissions.data?.permissions.includes('profiles:manage') && <span className="workspace-badge">Organizer workspace</span>}</div>
+}
+
+function ThemePage({ theme, mode, setTheme, setMode }: { theme: ThemeId; mode: ColorMode; setTheme: (theme: ThemeId) => void; setMode: (mode: ColorMode) => void }) {
+  const activeTheme = themes.find((item) => item.id === theme) ?? themes[0]
+  return <main className="app" data-theme={theme} data-mode={mode}>
+    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <section className="theme-page">
+      <a className="back-link" href="/">← Back to discovery</a>
+      <div className="eyebrow">Appearance</div>
+      <h1>Choose the room’s mood</h1>
+      <p className="detail-lede">Give each of your profiles its own look and feel on openmics.org. Choose a theme and mood that helps you distinguish your profiles, whether you are presenting an organizer identity or stepping onto the stage.</p>
+      <aside className="theme-panel theme-page-panel" aria-label="Color mode controls"><div className="panel-heading"><div><span className="panel-label">Current theme</span><strong>{activeTheme.name}</strong></div><span className="source-pill">{activeTheme.source}</span></div><p>{activeTheme.note}</p><div className="mode-switch" role="group" aria-label="Color mode"><button className={mode === 'light' ? 'selected' : ''} type="button" onClick={() => setMode('light')}><Sun size={15} /> Light</button><button className={mode === 'dark' ? 'selected' : ''} type="button" onClick={() => setMode('dark')}><Moon size={15} /> Dark</button></div></aside>
+      <div className="theme-grid theme-page-grid" aria-label="Theme gallery">{themes.map((item) => <button className={`theme-chip ${theme === item.id ? 'selected' : ''}`} key={item.id} type="button" onClick={() => setTheme(item.id)}><span className="swatches" aria-hidden="true">{item.swatches.map((color) => <i key={color} style={{ backgroundColor: color }} />)}</span><span><strong>{item.name}</strong><small>{item.source}</small></span></button>)}</div>
+    </section>
+  </main>
 }
 
 function EventCard({ event }: { event: Event }) {
@@ -88,12 +110,13 @@ function SeriesCard({ openMic }: { openMic: OpenMic }) {
 function PublicDetail({ kind, id, theme, mode }: { kind: 'event' | 'open-mic' | 'profile'; id: string; theme: ThemeId; mode: ColorMode }) {
   const event = usePublicEvent(kind === 'event' ? id : undefined)
   const openMic = usePublicOpenMic(kind === 'open-mic' ? id : undefined)
+  const nextEvent = useNextEvent(kind === 'open-mic' ? id : undefined)
   const profile = usePublicProfile(kind === 'profile' ? id : undefined)
   const loading = kind === 'event' ? event.isPending : kind === 'open-mic' ? openMic.isPending : profile.isPending
   const error = kind === 'event' ? event.isError : kind === 'open-mic' ? openMic.isError : profile.isError
   const title = event.data?.title ?? openMic.data?.name ?? profile.data?.profile_name
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="detail-page">
       <a className="back-link" href="/">← Back to discovery</a>
       {loading && <ReadState message="Loading this room…" />}
@@ -107,7 +130,7 @@ function PublicDetail({ kind, id, theme, mode }: { kind: 'event' | 'open-mic' | 
           {event.data?.starts_at && <span><Clock3 size={16} /> {new Date(event.data.starts_at).toLocaleString()}</span>}
           {profile.data?.profile_kind && <span>{profile.data.profile_kind}</span>}
         </div>
-        <div className="detail-actions">{kind === 'event' ? <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>Register for this event</a> : <button className="primary-button" type="button">{kind === 'open-mic' ? 'See next event' : 'Follow profile'}</button>}<SocialButton label="React" icon="heart" /><SocialButton label="Comment" icon="message" /></div>
+        <div className="detail-actions">{kind === 'event' ? <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>Register for this event</a> : kind === 'open-mic' ? <a className="primary-button" href={nextEvent.data ? `/events/${nextEvent.data.public_code}` : `/open-mics/${id}/register`}>{nextEvent.data ? 'See next event' : 'View registration link'}</a> : <button className="primary-button" type="button">Follow profile</button>}<SocialButton label="React" icon="heart" /><SocialButton label="Comment" icon="message" /></div>
       </>}
     </section>
   </main>
@@ -176,7 +199,7 @@ function RegistrationPage({ eventCode, theme, mode }: { eventCode: string; theme
   }
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="registration-page">
       <a className="back-link" href={`/events/${eventCode}`}>← Back to event</a>
       {event.isPending && <ReadState message="Loading registration details…" />}
@@ -199,6 +222,44 @@ function RegistrationPage({ eventCode, theme, mode }: { eventCode: string; theme
   </main>
 }
 
+function ProfileEditor({ profileId, theme, mode }: { profileId: string; theme: ThemeId; mode: ColorMode }) {
+  const context = useAccountContext()
+  const profile = context.profiles.data?.items.find((item) => item.id === profileId)
+  const [name, setName] = useState('')
+  const [bio, setBio] = useState('')
+  const [phone, setPhone] = useState('')
+  const [visibility, setVisibility] = useState('public')
+
+  useEffect(() => {
+    if (!profile) return
+    setName(profile.profile_name)
+    setBio(profile.bio ?? '')
+    setPhone(profile.phone ?? '')
+    setVisibility(profile.visibility)
+  }, [profile])
+
+  if (context.account.isPending || context.profiles.isPending) return <main className="app" data-theme={theme} data-mode={mode}><ReadState message="Loading profile settings…" /></main>
+  if (!context.account.data || !profile) return <main className="app" data-theme={theme} data-mode={mode}><ReadState message="This profile is not available to edit." /></main>
+
+  return <main className="app" data-theme={theme} data-mode={mode}>
+    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark" ><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <section className="registration-page profile-editor">
+      <a className="back-link" href={`/profiles/${profileId}`}>← Back to profile</a>
+      <div className="eyebrow">Profile settings</div>
+      <h1>Edit {profile.profile_name}</h1>
+      <form className="registration-form" onSubmit={(event) => { event.preventDefault(); context.updateProfile.mutate({ id: profileId, profile_name: name, bio, phone, visibility }) }}>
+        <label>Profile name<input required value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label>Bio <span className="field-hint">Optional</span><textarea value={bio} onChange={(event) => setBio(event.target.value)} /></label>
+        <label>Phone <span className="field-hint">Private contact detail</span><input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
+        <label>Visibility<select value={visibility} onChange={(event) => setVisibility(event.target.value)}><option value="public">Public</option><option value="unlisted">Unlisted</option><option value="private">Private</option></select></label>
+        {context.updateProfile.isError && <p className="form-error" role="alert">We could not save your profile. Please check the fields and try again.</p>}
+        {context.updateProfile.isSuccess && <p className="form-success" role="status">Profile saved.</p>}
+        <button className="primary-button" type="submit" disabled={context.updateProfile.isPending}>{context.updateProfile.isPending ? 'Saving…' : 'Save profile'}</button>
+      </form>
+    </section>
+  </main>
+}
+
 function App() {
   const [theme, setTheme] = useState<ThemeId>(() => {
     const stored = localStorage.getItem(THEME_STORAGE_KEY)
@@ -208,7 +269,6 @@ function App() {
     const stored = localStorage.getItem(MODE_STORAGE_KEY)
     return isColorMode(stored) ? stored : systemColorMode()
   })
-  const activeTheme = themes.find((item) => item.id === theme) ?? themes[0]
   const upcomingEvents = useUpcomingEvents()
   const openMics = usePublicOpenMics()
   const pathname = window.location.pathname
@@ -216,14 +276,18 @@ function App() {
   const registrationMatch = pathname.match(/^\/events\/([^/]+)\/register$/)
   const openMicMatch = pathname.match(/^\/open-mics\/([^/]+)$/)
   const profileMatch = pathname.match(/^\/profiles\/([^/]+)$/)
+  const profileEditMatch = pathname.match(/^\/profiles\/([^/]+)\/edit$/)
+  const themeMatch = pathname === '/settings/theme'
 
   useEffect(() => localStorage.setItem(THEME_STORAGE_KEY, theme), [theme])
   useEffect(() => localStorage.setItem(MODE_STORAGE_KEY, mode), [mode])
 
+  if (themeMatch) return <ThemePage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} />
   if (eventMatch) return <PublicDetail kind="event" id={eventMatch[1]} theme={theme} mode={mode} />
   if (registrationMatch) return <RegistrationPage eventCode={registrationMatch[1]} theme={theme} mode={mode} />
   if (openMicMatch) return <PublicDetail kind="open-mic" id={openMicMatch[1]} theme={theme} mode={mode} />
   if (profileMatch) return <PublicDetail kind="profile" id={profileMatch[1]} theme={theme} mode={mode} />
+  if (profileEditMatch) return <ProfileEditor profileId={profileEditMatch[1]} theme={theme} mode={mode} />
 
   return (
     <main className="app" data-theme={theme} data-mode={mode}>
@@ -237,11 +301,11 @@ function App() {
           <a href="#events">Events</a>
           <a href="#about">How it works</a>
         </nav>
-        <ProfileSwitcher /><SignInButton />
+        <HeaderMenu /><ProfileSwitcher /><SignInButton />
       </header>
 
       <section className="review-hero" id="discover">
-        <div className="eyebrow"><Palette size={14} /> Theme review room</div>
+        <div className="eyebrow"><Sparkles size={14} /> Open mic discovery</div>
         <div className="hero-grid">
           <div>
             <p className="kicker">A place for the next voice</p>
@@ -252,29 +316,6 @@ function App() {
               <button className="quiet-button" type="button">Share a series <Share2 size={16} /></button>
             </div>
           </div>
-          <aside className="theme-panel" aria-label="Theme controls">
-            <div className="panel-heading">
-              <div><span className="panel-label">Current direction</span><strong>{activeTheme.name}</strong></div>
-              <span className="source-pill">{activeTheme.source}</span>
-            </div>
-            <p>{activeTheme.note}</p>
-            <div className="mode-switch" role="group" aria-label="Color mode">
-              <button className={mode === 'light' ? 'selected' : ''} type="button" onClick={() => setMode('light')}><Sun size={15} /> Light</button>
-              <button className={mode === 'dark' ? 'selected' : ''} type="button" onClick={() => setMode('dark')}><Moon size={15} /> Dark</button>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section className="theme-strip" aria-label="Theme gallery">
-        <div className="section-intro"><span className="panel-label">Six references</span><h2>Choose the room’s mood</h2></div>
-        <div className="theme-grid">
-          {themes.map((item) => (
-            <button className={`theme-chip ${theme === item.id ? 'selected' : ''}`} key={item.id} type="button" onClick={() => setTheme(item.id)}>
-              <span className="swatches" aria-hidden="true"><i /><i /><i /></span>
-              <span><strong>{item.name}</strong><small>{item.source}</small></span>
-            </button>
-          ))}
         </div>
       </section>
 
@@ -291,7 +332,7 @@ function App() {
         {openMics.data?.slice(0, 3).map((openMic) => <SeriesCard openMic={openMic} key={openMic.id} />)}
       </section>
 
-      <footer className="footer"><span>Designed for voices, rooms, and the people who make them.</span><span>Theme reference · {activeTheme.name}</span></footer>
+      <footer className="footer"><span>Designed for voices, rooms, and the people who make them.</span><a className="footer-link" href="/settings/theme">Appearance</a></footer>
     </main>
   )
 }
