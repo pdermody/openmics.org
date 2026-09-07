@@ -1,3 +1,5 @@
+import { getAccessToken } from '../auth/session'
+
 export type ApiErrorPayload = {
   error: {
     code: string
@@ -72,4 +74,4 @@ export function createApiClient(options: ApiClientOptions = {}) {
   }
 }
 
-export const api = createApiClient()
+export const api = createApiClient({ getAccessToken })

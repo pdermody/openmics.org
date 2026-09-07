@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { ApiError, api, friendlyApiErrorMessage } from './api/client'
+import { beginSignIn } from './auth/session'
 import { usePublicEvent, usePublicOpenMic, usePublicOpenMics, useUpcomingEvents, type Event, type OpenMic } from './features/publicReads'
 import {
   DEFAULT_THEME,
@@ -39,6 +40,14 @@ function SocialButton({ label, icon }: { label: string; icon: 'heart' | 'message
 
 function ReadState({ message, retry }: { message: string; retry?: () => void }) {
   return <div className="read-state" role="status"><span>{message}</span>{retry && <button className="link-button" type="button" onClick={retry}>Try again</button>}</div>
+}
+
+function SignInButton() {
+  const [message, setMessage] = useState('')
+  return <>
+    <button className="text-button" type="button" onClick={() => void beginSignIn().catch((error: Error) => setMessage(error.message))}>Sign in</button>
+    {message && <span className="auth-note" role="status">{message}</span>}
+  </>
 }
 
 function EventCard({ event }: { event: Event }) {
@@ -69,7 +78,7 @@ function PublicDetail({ kind, id }: { kind: 'event' | 'open-mic'; id: string }) 
   const error = kind === 'event' ? event.isError : openMic.isError
   const title = event.data?.title ?? openMic.data?.name
   return <main className="app" data-theme="venue" data-mode="light">
-    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><button className="text-button" type="button">Sign in</button></header>
+    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><SignInButton /></header>
     <section className="detail-page">
       <a className="back-link" href="/">← Back to discovery</a>
       {loading && <ReadState message="Loading this room…" />}
@@ -103,6 +112,10 @@ function RegistrationPage({ eventCode }: { eventCode: string }) {
   const event = usePublicEvent(eventCode)
   const [performerName, setPerformerName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
+  const [performerCity, setPerformerCity] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [songNames, setSongNames] = useState('')
+  const [mediaConsent, setMediaConsent] = useState(true)
   const [state, setState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
 
@@ -123,7 +136,16 @@ function RegistrationPage({ eventCode }: { eventCode: string }) {
       await api(`/events/${eventCode}/registrations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ performer_name: performerName, contact_email: contactEmail, submission_channel: 'organic', organizer_supervised: false }),
+        body: JSON.stringify({
+          performer_name: performerName,
+          contact_email: contactEmail,
+          performer_city: performerCity || undefined,
+          contact_phone: contactPhone || undefined,
+          song_names: songNames.split(',').map((song) => song.trim()).filter(Boolean),
+          media_consent: mediaConsent,
+          submission_channel: 'organic',
+          organizer_supervised: false,
+        }),
       })
       setState('success')
       setMessage('Check your inbox to confirm your registration.')
@@ -134,7 +156,7 @@ function RegistrationPage({ eventCode }: { eventCode: string }) {
   }
 
   return <main className="app" data-theme="venue" data-mode="light">
-    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><button className="text-button" type="button">Sign in</button></header>
+    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><SignInButton /></header>
     <section className="registration-page">
       <a className="back-link" href={`/events/${eventCode}`}>← Back to event</a>
       {event.isPending && <ReadState message="Loading registration details…" />}
@@ -146,6 +168,10 @@ function RegistrationPage({ eventCode }: { eventCode: string }) {
         {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong><p>Your place is pending email confirmation.</p></div> : <form className="registration-form" noValidate onSubmit={submit}>
           <label>Performer name<input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
           <label>Contact email<input required type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
+          <label>City <span className="field-hint">Optional</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
+          <label>Phone <span className="field-hint">Optional, for organizer contact</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
+          <label>What will you perform? <span className="field-hint">Optional · separate songs with commas</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
+          <label className="checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>I’m happy for photos or video of my performance to be shared by the organizer. You can change this later.</span></label>
           {state === 'error' && <p className="form-error" role="alert">{message}</p>}
           <button className="primary-button" type="submit" disabled={state === 'submitting'}>{state === 'submitting' ? 'Sending…' : 'Register for this event'}</button>
         </form>}
@@ -190,7 +216,7 @@ function App() {
           <a href="#events">Events</a>
           <a href="#about">How it works</a>
         </nav>
-        <button className="text-button" type="button">Sign in</button>
+        <SignInButton />
       </header>
 
       <section className="review-hero" id="discover">
