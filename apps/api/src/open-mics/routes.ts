@@ -59,7 +59,7 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     reply.status(201).send(serializeOpenMic(withHandle!));
   });
 
-  app.get<{ Querystring: { page?: string; page_size?: string; q?: string; country?: string; city?: string; activity?: string; tag?: string; registration_mode?: string; near?: string; radius_km?: string } }>('/open-mics', async (request, reply) => {
+  app.get<{ Querystring: { page?: string; page_size?: string; q?: string; country?: string; city?: string; activity?: string; tag?: string; registration_mode?: string; owner_profile_id?: string; near?: string; radius_km?: string } }>('/open-mics', async (request, reply) => {
     const page = Math.max(1, Number(request.query.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(request.query.page_size ?? 25)));
     const geo = parseGeoFilter(request.query.near, request.query.radius_km);
@@ -72,6 +72,7 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
       activity: request.query.activity,
       tag: request.query.tag,
       registrationMode: request.query.registration_mode,
+      ownerProfileId: request.query.owner_profile_id,
       geo,
     });
     reply.send({

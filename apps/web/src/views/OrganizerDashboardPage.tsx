@@ -18,7 +18,7 @@ export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: 
       {isOrganizer && <>
         <p className="detail-lede">You are working as <strong>{selected.profile_name}</strong>. Your next actions will be scoped to this organizer profile.</p>
         <div className="dashboard-grid">
-          <article className="dashboard-card"><span className="panel-label">Series</span><h2>Open mic series</h2><p>Create and maintain the rooms your audience returns to.</p><button className="quiet-button" type="button">Manage series</button></article>
+          <article className="dashboard-card"><span className="panel-label">Series</span><h2>Open mic series</h2><p>Create and maintain the rooms your audience returns to.</p><a className="quiet-button" href="/dashboard/series">Manage series</a></article>
           <article className="dashboard-card"><span className="panel-label">Tonight</span><h2>Event operations</h2><p>Keep the roster, running order, and registration status close at hand.</p><button className="quiet-button" type="button">View operations</button></article>
         </div>
       </>}

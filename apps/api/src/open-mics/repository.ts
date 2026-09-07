@@ -118,7 +118,7 @@ export async function findOpenMicById(client: Queryable, id: string): Promise<Op
 
 export async function findPublicOpenMics(
   client: Queryable,
-  options: { limit: number; offset: number; q?: string; country?: string; city?: string; activity?: string; tag?: string; registrationMode?: string; geo?: { lat: number; lng: number; radiusKm: number } },
+  options: { limit: number; offset: number; q?: string; country?: string; city?: string; activity?: string; tag?: string; registrationMode?: string; ownerProfileId?: string; geo?: { lat: number; lng: number; radiusKm: number } },
 ): Promise<{ rows: OpenMicRow[]; total: number }> {
   const values: unknown[] = [];
   const conditions = ["deleted_at IS NULL", "status NOT IN ('draft', 'ended')"];
@@ -145,6 +145,10 @@ export async function findPublicOpenMics(
   if (options.registrationMode) {
     values.push(options.registrationMode);
     conditions.push(`registration_mode = $${values.length}`);
+  }
+  if (options.ownerProfileId) {
+    values.push(options.ownerProfileId);
+    conditions.push(`owner_profile_id = $${values.length}`);
   }
   if (options.geo) {
     values.push(options.geo.lng, options.geo.lat, options.geo.radiusKm * 1000);
