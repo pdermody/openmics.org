@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ApiError, api } from '../api/client'
 import { useAccountContext } from '../features/account'
-import { usePublicEvent } from '../features/publicReads'
+import { usePublicEvent, usePublicOpenMic } from '../features/publicReads'
 import type { ThemeProps } from './shared'
 import { ReadState, SiteHeader } from './shared'
 
@@ -18,10 +18,13 @@ function registrationErrorMessage(error: unknown): string {
 
 export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string } & ThemeProps) {
   const event = usePublicEvent(eventCode)
+  const parentOpenMic = usePublicOpenMic(event.data?.open_mic_id)
   const accountContext = useAccountContext()
   const activeProfile = accountContext.profiles.data?.items.find((profile) => profile.id === accountContext.account.data?.current_profile_id)
   const performerProfile = activeProfile?.profile_kind === 'performer' ? activeProfile : undefined
   const needsPerformerProfile = Boolean(accountContext.account.data) && !performerProfile
+  const registrationMode = parentOpenMic.data?.registration_mode
+  const standardRegistrationDisabled = registrationMode === 'on_night_only' || registrationMode === 'external'
   const [performerName, setPerformerName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [performerCity, setPerformerCity] = useState('')
@@ -33,6 +36,11 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
 
   async function submit(eventObject: FormEvent<HTMLFormElement>) {
     eventObject.preventDefault()
+    if (standardRegistrationDisabled) {
+      setState('error')
+      setMessage(registrationMode === 'external' ? 'This open mic uses an external registration link.' : 'Registration for this open mic is only available on the night.')
+      return
+    }
     if (!performerProfile && !performerName.trim()) {
       setState('error')
       setMessage('Please enter the name you would like the organizer to call.')
@@ -79,9 +87,16 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
           <div className="eyebrow">Registration</div>
           <h1>Join {event.data.title}</h1>
           <p className="detail-lede">{event.data.venue_name}, {event.data.city}. We’ll email you a confirmation link before your name appears on the public roster.</p>
+          {standardRegistrationDisabled && (
+            <div className="profile-context profile-context-warning" role="alert">
+              {registrationMode === 'external'
+                ? 'This open mic is using an external registration link, so self-serve signups are disabled here.'
+                : 'This open mic only accepts registrations on the night, so self-serve signups are disabled here.'}
+            </div>
+          )}
           {needsPerformerProfile && <div className="profile-context profile-context-warning" role="alert">Switch to one of your performer profiles above to register. Organizer profiles cannot register as the performer, including for their own events.</div>}
           {performerProfile && <div className="profile-context" role="status">Registering as <strong>{performerProfile.profile_name}</strong> · performer profile</div>}
-          {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong><p>Your place is pending email confirmation.</p></div> : needsPerformerProfile ? null : <form className="registration-form" noValidate onSubmit={submit}>
+          {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong><p>Your place is pending email confirmation.</p></div> : needsPerformerProfile || standardRegistrationDisabled ? null : <form className="registration-form" noValidate onSubmit={submit}>
             {!performerProfile && <>
               <label>Performer name<input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
               <label>Contact email<input required type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>

@@ -92,6 +92,16 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       const input = parsed.data;
       const event = await findEventByIdOrPublicCode(pool, request.params.id);
       if (!event) throw new NotFoundError('Event not found');
+      const openMic = await findOpenMicById(pool, event.open_mic_id);
+      if (!openMic) throw new NotFoundError('Parent open mic not found');
+      if (!input.organizer_supervised && ['on_night_only', 'external'].includes(openMic.registration_mode)) {
+        throw new ConflictError(
+          'REGISTRATION_MODE_DISABLED',
+          openMic.registration_mode === 'external'
+            ? 'This open mic is using an external registration link.'
+            : 'Registration for this open mic is only available on the night.',
+        );
+      }
       if (event.registrations_closed_at && new Date(event.registrations_closed_at).getTime() <= Date.now()) {
         throw new ConflictError('REGISTRATIONS_CLOSED', 'Registrations are closed for this event');
       }

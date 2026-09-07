@@ -1,10 +1,26 @@
+import { useState } from 'react'
 import { useAccountContext } from '../features/account'
+
+const demoProfiles = [
+  { id: 'demo-organizer', profile_name: 'Organizer Demo', profile_kind: 'organizer' },
+  { id: 'demo-performer', profile_name: 'Performer Demo', profile_kind: 'performer' },
+] as const
 
 export function ProfileSwitcher() {
   const context = useAccountContext()
-  if (!context.account.data || context.profiles.isPending || context.profiles.data?.items.length === 0) return <div className="profile-slot" aria-hidden="true" />
+  const [localValue, setLocalValue] = useState('public')
   const profiles = context.profiles.data?.items ?? []
-  return <div className="profile-context-controls"><label className="profile-switcher"><span className="sr-only">Current profile</span><select value={context.account.data.current_profile_id ?? ''} onChange={(event) => context.currentProfile.mutate(event.target.value)} aria-label="Current profile"><option value="" disabled>Select profile</option>{profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name} · {profile.profile_kind}</option>)}</select></label></div>
+  const selectableProfiles = profiles.length > 0 ? profiles : demoProfiles
+  const value = context.account.data?.current_profile_id ?? localValue
+
+  return <div className="profile-context-controls"><label className="profile-switcher"><span className="sr-only">Current profile</span><select value={value} onChange={(event) => {
+    const selected = event.target.value
+    setLocalValue(selected)
+    if (selected === 'public') return
+    if (context.account.data && selected !== 'demo-organizer' && selected !== 'demo-performer') {
+      context.currentProfile.mutate(selected)
+    }
+  }} aria-label="Current profile"><option value="public">Public / unauth</option>{selectableProfiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name} · {profile.profile_kind}</option>)}</select></label></div>
 }
 
 export function DashboardMenuLink() {

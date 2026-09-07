@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { OpenMic } from './publicReads'
+import type { Event, OpenMic } from './publicReads'
 
 export const organizerKeys = {
   openMics: (profileId: string | undefined) => ['organizer', 'open-mics', profileId] as const,
@@ -14,6 +14,15 @@ export function useOrganizerOpenMics(profileId: string | undefined, enabled = tr
       return response.items
     },
     enabled: Boolean(profileId) && enabled,
+    retry: false,
+  })
+}
+
+export function useOrganizerSeriesEvents(seriesId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: [...organizerKeys.openMics(seriesId), 'events'],
+    queryFn: () => api<Event[]>(`/open-mics/${seriesId}/events`),
+    enabled: Boolean(seriesId) && enabled,
     retry: false,
   })
 }

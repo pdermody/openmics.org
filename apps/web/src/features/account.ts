@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
+import { isAuthConfigured } from '../auth/session'
 
 export type Account = {
   id: string
@@ -30,16 +31,17 @@ export const accountKeys = {
 
 export function useAccountContext(enabled = true) {
   const queryClient = useQueryClient()
+  const hasAuth = isAuthConfigured || Boolean(import.meta.env.VITE_LOCAL_AUTH_TOKEN)
   const account = useQuery({
     queryKey: accountKeys.me,
     queryFn: () => api<Account>('/me'),
-    enabled,
+    enabled: hasAuth && enabled,
     retry: false,
   })
   const profiles = useQuery({
     queryKey: accountKeys.profiles(account.data?.id),
     queryFn: () => api<{ items: AccountProfile[] }>(`/accounts/${account.data!.id}/profiles`),
-    enabled: Boolean(account.data?.id),
+    enabled: hasAuth && Boolean(account.data?.id),
     retry: false,
   })
   const currentProfile = useMutation({
@@ -65,7 +67,7 @@ export function useAccountContext(enabled = true) {
   const permissions = useQuery({
     queryKey: accountKeys.permissions(selectedProfileId),
     queryFn: () => api<{ permissions: string[] }>(`/me/permissions?profile=${selectedProfileId}`),
-    enabled: Boolean(selectedProfileId),
+    enabled: hasAuth && Boolean(selectedProfileId),
     retry: false,
   })
   return { account, profiles, currentProfile, permissions, updateProfile }

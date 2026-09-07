@@ -1,8 +1,9 @@
 import { Clock3, MapPin } from 'lucide-react'
-import type { Event, OpenMic } from '../features/publicReads'
+import { usePublicOpenMic, type Event, type OpenMic } from '../features/publicReads'
 import { SocialButton } from './shared'
 
 export function EventCard({ event }: { event: Event }) {
+  const parentOpenMic = usePublicOpenMic(event.open_mic_id)
   const date = new Date(event.starts_at)
   const day = Number.isNaN(date.getTime()) ? '--' : date.getDate()
   const month = Number.isNaN(date.getTime())
@@ -11,6 +12,7 @@ export function EventCard({ event }: { event: Event }) {
   const time = Number.isNaN(date.getTime())
     ? 'Time to be announced'
     : date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const registrationDisabled = parentOpenMic.data?.registration_mode === 'on_night_only' || parentOpenMic.data?.registration_mode === 'external'
 
   return (
     <article className="event-card">
@@ -40,9 +42,15 @@ export function EventCard({ event }: { event: Event }) {
         </div>
       </div>
       <div className="event-action">
-        <a className="primary-button" href={`/events/${event.public_code}/register`}>
-          Register
-        </a>
+        {registrationDisabled ? (
+          <button className="primary-button" type="button" disabled aria-disabled="true">
+            Register
+          </button>
+        ) : (
+          <a className="primary-button" href={`/events/${event.public_code}/register`}>
+            Register
+          </a>
+        )}
         <div className="social-row">
           <SocialButton label="React" icon="heart" />
           <SocialButton label="Comment" icon="message" />

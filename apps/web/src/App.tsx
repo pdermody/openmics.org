@@ -11,6 +11,7 @@ import { DEFAULT_THEME, isColorMode, isThemeId, MODE_STORAGE_KEY, systemColorMod
 const ProfileEditor = lazy(() => import('./views/ProfileEditorPage').then((module) => ({ default: module.ProfileEditorPage })))
 const OrganizerDashboard = lazy(() => import('./views/OrganizerDashboardPage').then((module) => ({ default: module.OrganizerDashboardPage })))
 const OrganizerSeries = lazy(() => import('./views/OrganizerSeriesPage').then((module) => ({ default: module.OrganizerSeriesPage })))
+const OrganizerEvents = lazy(() => import('./views/OrganizerEventsPage').then((module) => ({ default: module.OrganizerEventsPage })))
 
 function LazyView({ children }: { children: ReactNode }) {
   return <Suspense fallback={<main className="app"><div className="route-loading" role="status">Loading workspace…</div></main>}>{children}</Suspense>
@@ -28,6 +29,7 @@ function App() {
   const themeMatch = pathname === '/settings/theme'
   const dashboardMatch = pathname === '/dashboard'
   const seriesMatch = pathname === '/dashboard/series'
+  const seriesEventsMatch = pathname.match(/^\/dashboard\/series\/([^/]+)$/)
 
   useEffect(() => localStorage.setItem(THEME_STORAGE_KEY, theme), [theme])
   useEffect(() => localStorage.setItem(MODE_STORAGE_KEY, mode), [mode])
@@ -35,6 +37,7 @@ function App() {
   if (themeMatch) return <ThemePage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} />
   if (dashboardMatch) return <LazyView><OrganizerDashboard theme={theme} mode={mode} /></LazyView>
   if (seriesMatch) return <LazyView><OrganizerSeries theme={theme} mode={mode} /></LazyView>
+  if (seriesEventsMatch) return <LazyView><OrganizerEvents seriesId={seriesEventsMatch[1]} theme={theme} mode={mode} /></LazyView>
   if (profileEditMatch) return <LazyView><ProfileEditor profileId={profileEditMatch[1]} theme={theme} mode={mode} /></LazyView>
   if (eventMatch) return <EventPage id={eventMatch[1]} theme={theme} mode={mode} />
   if (registrationMatch) return <RegistrationPage eventCode={registrationMatch[1]} theme={theme} mode={mode} />

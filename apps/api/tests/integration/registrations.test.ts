@@ -105,6 +105,35 @@ describe('registration routes (real database)', () => {
     expect(response.json().error.message).toBe('Select an account-owned performer profile to register');
   });
 
+  it.each(['on_night_only', 'external'])('rejects standard registrations when the parent open mic uses %s mode', async (registrationMode) => {
+    const openMic = await pool.query<{ id: string }>(
+      `INSERT INTO open_mics (owner_profile_id, name, venue_name, address_line1, city, country, time_zone, activities, age_policy, registration_mode, external_registration_url)
+       VALUES ($1, 'Mode Guard Open Mic', 'Venue', '1 Test Street', 'Dublin', 'IE', 'Europe/Dublin', ARRAY['singing'], 'both', $2, $3)
+       RETURNING id`,
+      [ownerProfileId, registrationMode, registrationMode === 'external' ? 'https://example.test/register' : null],
+    );
+    const event = await pool.query<{ id: string }>(
+      `INSERT INTO events (open_mic_id, title, starts_at, time_zone, venue_name, address_line1, city, country)
+       VALUES ($1, 'Mode Guard Event', now() + interval '9 days', 'Europe/Dublin', 'Venue', '1 Test Street', 'Dublin', 'IE')
+       RETURNING id`,
+      [openMic.rows[0].id],
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/events/${event.rows[0].id}/registrations`,
+      payload: {
+        performer_name: 'Blocked Performer',
+        contact_email: `${registrationMode}@example.test`,
+        submission_channel: 'organic',
+        organizer_supervised: false,
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe('REGISTRATION_MODE_DISABLED');
+  });
+
   it('rejects a second verified registration for the same event and email', async () => {
     await pool.query(
       "UPDATE registrations SET email_verified_at = now(), verification_method = 'email' WHERE contact_email = 'guest@example.test'",

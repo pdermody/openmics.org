@@ -9,11 +9,14 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   const openMic = usePublicOpenMic(kind === 'open-mic' ? id : undefined)
   const nextEvent = useNextEvent(kind === 'open-mic' ? id : undefined)
   const profile = usePublicProfile(kind === 'profile' ? id : undefined)
+  const parentOpenMic = usePublicOpenMic(kind === 'event' ? event.data?.open_mic_id : undefined)
   const loading = kind === 'event' ? event.isPending : kind === 'open-mic' ? openMic.isPending : profile.isPending
   const error = kind === 'event' ? event.isError : kind === 'open-mic' ? openMic.isError : profile.isError
   const title = event.data?.title ?? openMic.data?.name ?? profile.data?.profile_name
   const errorObject = kind === 'event' ? event.error : kind === 'open-mic' ? openMic.error : profile.error
   const retry = () => void (kind === 'event' ? event.refetch() : kind === 'open-mic' ? openMic.refetch() : profile.refetch())
+  const registrationMode = kind === 'event' ? parentOpenMic.data?.registration_mode : openMic.data?.registration_mode
+  const registrationDisabled = registrationMode === 'on_night_only' || registrationMode === 'external'
 
   return (
     <main className="app" data-theme={theme} data-mode={mode}>
@@ -32,8 +35,20 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
             {profile.data?.profile_kind && <span>{profile.data.profile_kind}</span>}
           </div>
           <div className="detail-actions">
-            {kind === 'event' && <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>Register for this event</a>}
-            {kind === 'open-mic' && <a className="primary-button" href={nextEvent.data ? `/events/${nextEvent.data.public_code}` : `/open-mics/${id}/register`}>{nextEvent.data ? 'See next event' : 'View registration link'}</a>}
+            {kind === 'event' && (
+              registrationDisabled ? (
+                <button className="primary-button" type="button" disabled aria-disabled="true">
+                  Registration unavailable
+                </button>
+              ) : (
+                <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>Register for this event</a>
+              )
+            )}
+            {kind === 'open-mic' && (
+              <a className="primary-button" href={nextEvent.data ? `/events/${nextEvent.data.public_code}` : `/open-mics/${id}/register`}>
+                {nextEvent.data ? 'See next event' : 'View registration link'}
+              </a>
+            )}
             {kind === 'profile' && <button className="primary-button" type="button">Follow profile</button>}
             <SocialButton label="React" icon="heart" /><SocialButton label="Comment" icon="message" />
           </div>

@@ -28,6 +28,8 @@ export type OpenMic = {
   country: string
   activities: string[]
   tags: string[]
+  registration_mode: 'pre_only' | 'on_night_only' | 'both' | 'external'
+  external_registration_url: string | null
   status: string
 }
 
