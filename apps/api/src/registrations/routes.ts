@@ -99,6 +99,9 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       let profileId = input.profile_id ?? null;
       let verificationMethod: string | null = null;
       let verifiedAt: Date | null = null;
+      if (request.account && !profileId && !input.organizer_supervised) {
+        throw new ValidationError('Select an account-owned performer profile to register', { field: 'profile_id' });
+      }
       if (profileId) {
         if (!request.account) throw new UnauthorizedError('Authentication required for profile registration');
         const profile = await findProfileById(pool, profileId);

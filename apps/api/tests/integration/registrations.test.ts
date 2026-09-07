@@ -89,6 +89,22 @@ describe('registration routes (real database)', () => {
     expect(kiosk.json().verification_method).toBe('organizer_kiosk');
   });
 
+  it('requires an authenticated organizer to select a performer profile for self-registration', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/registrations`,
+      headers: { authorization: 'Bearer registration-owner' },
+      payload: {
+        performer_name: 'Organizer Self Registration',
+        contact_email: 'owner@example.test',
+        submission_channel: 'organic',
+        organizer_supervised: false,
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.message).toBe('Select an account-owned performer profile to register');
+  });
+
   it('rejects a second verified registration for the same event and email', async () => {
     await pool.query(
       "UPDATE registrations SET email_verified_at = now(), verification_method = 'email' WHERE contact_email = 'guest@example.test'",
