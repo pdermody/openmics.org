@@ -35,6 +35,11 @@ try {
      VALUES ($1, 'Mara Quinn', 'organizer', 'Host, songwriter, and keeper of welcoming rooms.', 'public') RETURNING id`,
     [owner.rows[0].id],
   );
+  const ownerPerformer = await pool.query(
+    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, phone, visibility)
+     VALUES ($1, 'Mara on Stage', 'performer', 'Acoustic covers, original songs, and a little spoken word.', '+353 87 555 0102', 'public') RETURNING id`,
+    [owner.rows[0].id],
+  );
   const performerProfile = await pool.query(
     `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, visibility)
      VALUES ($1, 'Noah Reed', 'performer', 'Acoustic songs and small stories.', 'public') RETURNING id`,
@@ -79,8 +84,9 @@ try {
   await pool.query(
     `INSERT INTO handles (handle, entity_type, profile_id, status) VALUES
       ('Mara-Quinn', 'profile', $1, 'current'),
-      ('Noah-Reed', 'profile', $2, 'current')`,
-    [organizer.rows[0].id, performerProfile.rows[0].id],
+      ('Mara-on-Stage', 'profile', $2, 'current'),
+      ('Noah-Reed', 'profile', $3, 'current')`,
+    [organizer.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id],
   );
   await pool.query(
     `INSERT INTO handles (handle, entity_type, open_mic_id, status) VALUES
@@ -89,9 +95,9 @@ try {
     [houseLights.rows[0].id, blueNote.rows[0].id],
   );
   await pool.query(
-    `UPDATE profiles SET current_handle = CASE id WHEN $1 THEN 'Mara-Quinn' WHEN $2 THEN 'Noah-Reed' END
-     WHERE id IN ($1, $2)`,
-    [organizer.rows[0].id, performerProfile.rows[0].id],
+    `UPDATE profiles SET current_handle = CASE id WHEN $1 THEN 'Mara-Quinn' WHEN $2 THEN 'Mara-on-Stage' WHEN $3 THEN 'Noah-Reed' END
+     WHERE id IN ($1, $2, $3)`,
+    [organizer.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id],
   );
   await pool.query(
     `UPDATE open_mics SET current_handle = CASE id WHEN $1 THEN 'Lantern-Sessions' WHEN $2 THEN 'Blue-Note-Sundays' END

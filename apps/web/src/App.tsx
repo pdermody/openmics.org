@@ -16,6 +16,7 @@ import './App.css'
 import { ApiError, api, friendlyApiErrorMessage } from './api/client'
 import { beginSignIn } from './auth/session'
 import { usePublicEvent, usePublicOpenMic, usePublicOpenMics, usePublicProfile, useUpcomingEvents, type Event, type OpenMic } from './features/publicReads'
+import { useAccountContext } from './features/account'
 import {
   DEFAULT_THEME,
   isColorMode,
@@ -50,6 +51,19 @@ function SignInButton() {
   </>
 }
 
+function ProfileSwitcher() {
+  const context = useAccountContext()
+  if (!context.account.data || context.profiles.isPending || context.profiles.data?.items.length === 0) return null
+  const profiles = context.profiles.data?.items ?? []
+  const selected = profiles.find((profile) => profile.id === context.account.data?.current_profile_id)
+  return <div className="profile-context-controls"><label className="profile-switcher">Profile
+    <select value={context.account.data.current_profile_id ?? ''} onChange={(event) => context.currentProfile.mutate(event.target.value)} aria-label="Current profile">
+      <option value="" disabled>Select profile</option>
+      {profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name} · {profile.profile_kind}</option>)}
+    </select>
+  </label>{selected && context.permissions.data?.permissions.includes('profiles:manage') && <span className="workspace-badge">Organizer workspace</span>}</div>
+}
+
 function EventCard({ event }: { event: Event }) {
   const date = new Date(event.starts_at)
   const day = Number.isNaN(date.getTime()) ? '--' : date.getDate()
@@ -71,15 +85,15 @@ function SeriesCard({ openMic }: { openMic: OpenMic }) {
   </article>
 }
 
-function PublicDetail({ kind, id }: { kind: 'event' | 'open-mic' | 'profile'; id: string }) {
+function PublicDetail({ kind, id, theme, mode }: { kind: 'event' | 'open-mic' | 'profile'; id: string; theme: ThemeId; mode: ColorMode }) {
   const event = usePublicEvent(kind === 'event' ? id : undefined)
   const openMic = usePublicOpenMic(kind === 'open-mic' ? id : undefined)
   const profile = usePublicProfile(kind === 'profile' ? id : undefined)
   const loading = kind === 'event' ? event.isPending : kind === 'open-mic' ? openMic.isPending : profile.isPending
   const error = kind === 'event' ? event.isError : kind === 'open-mic' ? openMic.isError : profile.isError
   const title = event.data?.title ?? openMic.data?.name ?? profile.data?.profile_name
-  return <main className="app" data-theme="venue" data-mode="light">
-    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><SignInButton /></header>
+  return <main className="app" data-theme={theme} data-mode={mode}>
+    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><ProfileSwitcher /><SignInButton /></header>
     <section className="detail-page">
       <a className="back-link" href="/">← Back to discovery</a>
       {loading && <ReadState message="Loading this room…" />}
@@ -110,8 +124,11 @@ function registrationErrorMessage(error: unknown): string {
   return 'Please check your details and try again.'
 }
 
-function RegistrationPage({ eventCode }: { eventCode: string }) {
+function RegistrationPage({ eventCode, theme, mode }: { eventCode: string; theme: ThemeId; mode: ColorMode }) {
   const event = usePublicEvent(eventCode)
+  const accountContext = useAccountContext()
+  const activeProfile = accountContext.profiles.data?.items.find((profile) => profile.id === accountContext.account.data?.current_profile_id)
+  const performerProfile = activeProfile?.profile_kind === 'performer' ? activeProfile : undefined
   const [performerName, setPerformerName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [performerCity, setPerformerCity] = useState('')
@@ -123,12 +140,12 @@ function RegistrationPage({ eventCode }: { eventCode: string }) {
 
   async function submit(eventObject: FormEvent<HTMLFormElement>) {
     eventObject.preventDefault()
-    if (!performerName.trim()) {
+    if (!performerProfile && !performerName.trim()) {
       setState('error')
       setMessage('Please enter the name you would like the organizer to call.')
       return
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    if (!performerProfile && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
       setState('error')
       setMessage('Please enter a valid email address, such as you@example.com.')
       return
@@ -139,8 +156,9 @@ function RegistrationPage({ eventCode }: { eventCode: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          performer_name: performerName,
-          contact_email: contactEmail,
+          profile_id: performerProfile?.id,
+          performer_name: performerProfile?.profile_name ?? performerName,
+          contact_email: performerProfile ? undefined : contactEmail,
           performer_city: performerCity || undefined,
           contact_phone: contactPhone || undefined,
           song_names: songNames.split(',').map((song) => song.trim()).filter(Boolean),
@@ -157,8 +175,8 @@ function RegistrationPage({ eventCode }: { eventCode: string }) {
     }
   }
 
-  return <main className="app" data-theme="venue" data-mode="light">
-    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><SignInButton /></header>
+  return <main className="app" data-theme={theme} data-mode={mode}>
+    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><ProfileSwitcher /><SignInButton /></header>
     <section className="registration-page">
       <a className="back-link" href={`/events/${eventCode}`}>← Back to event</a>
       {event.isPending && <ReadState message="Loading registration details…" />}
@@ -167,11 +185,10 @@ function RegistrationPage({ eventCode }: { eventCode: string }) {
         <div className="eyebrow">Registration</div>
         <h1>Join {event.data.title}</h1>
         <p className="detail-lede">{event.data.venue_name}, {event.data.city}. We’ll email you a confirmation link before your name appears on the public roster.</p>
+        {performerProfile && <div className="profile-context" role="status">Registering as <strong>{performerProfile.profile_name}</strong> · performer profile</div>}
         {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong><p>Your place is pending email confirmation.</p></div> : <form className="registration-form" noValidate onSubmit={submit}>
-          <label>Performer name<input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
-          <label>Contact email<input required type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
-          <label>City <span className="field-hint">Optional</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
-          <label>Phone <span className="field-hint">Optional, for organizer contact</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
+          {!performerProfile && <><label>Performer name<input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label><label>Contact email<input required type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label></>}
+          {!performerProfile && <><label>City <span className="field-hint">Optional</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label><label>Phone <span className="field-hint">Optional, for organizer contact</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label></>}
           <label>What will you perform? <span className="field-hint">Optional · separate songs with commas</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
           <label className="checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>I’m happy for photos or video of my performance to be shared by the organizer. You can change this later.</span></label>
           {state === 'error' && <p className="form-error" role="alert">{message}</p>}
@@ -203,10 +220,10 @@ function App() {
   useEffect(() => localStorage.setItem(THEME_STORAGE_KEY, theme), [theme])
   useEffect(() => localStorage.setItem(MODE_STORAGE_KEY, mode), [mode])
 
-  if (eventMatch) return <PublicDetail kind="event" id={eventMatch[1]} />
-  if (registrationMatch) return <RegistrationPage eventCode={registrationMatch[1]} />
-  if (openMicMatch) return <PublicDetail kind="open-mic" id={openMicMatch[1]} />
-  if (profileMatch) return <PublicDetail kind="profile" id={profileMatch[1]} />
+  if (eventMatch) return <PublicDetail kind="event" id={eventMatch[1]} theme={theme} mode={mode} />
+  if (registrationMatch) return <RegistrationPage eventCode={registrationMatch[1]} theme={theme} mode={mode} />
+  if (openMicMatch) return <PublicDetail kind="open-mic" id={openMicMatch[1]} theme={theme} mode={mode} />
+  if (profileMatch) return <PublicDetail kind="profile" id={profileMatch[1]} theme={theme} mode={mode} />
 
   return (
     <main className="app" data-theme={theme} data-mode={mode}>
@@ -220,7 +237,7 @@ function App() {
           <a href="#events">Events</a>
           <a href="#about">How it works</a>
         </nav>
-        <SignInButton />
+        <ProfileSwitcher /><SignInButton />
       </header>
 
       <section className="review-hero" id="discover">

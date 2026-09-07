@@ -8,6 +8,7 @@ export const createProfileSchema = z.object({
   profile_name: z.string().min(1),
   profile_kind: profileKindSchema,
   bio: z.string().optional(),
+  phone: z.string().trim().min(7).max(32).nullable().optional(),
   visibility: profileVisibilitySchema.optional(),
   theme_name: z.string().optional(),
 });
@@ -22,6 +23,7 @@ export const updateProfileSchema = z
     profile_name: z.string().min(1).optional(),
     profile_kind: profileKindSchema.optional(),
     bio: z.string().nullable().optional(),
+    phone: z.string().trim().min(7).max(32).nullable().optional(),
     visibility: profileVisibilitySchema.optional(),
     theme_name: z.string().nullable().optional(),
   })

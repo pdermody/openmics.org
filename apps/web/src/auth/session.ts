@@ -1,6 +1,7 @@
 const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID
 const userPoolClientId = import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID
 const cognitoDomain = import.meta.env.VITE_COGNITO_DOMAIN
+const localAuthToken = import.meta.env.VITE_LOCAL_AUTH_TOKEN
 
 export const isAuthConfigured = Boolean(userPoolId && userPoolClientId)
 let configured = false
@@ -34,6 +35,7 @@ async function authModules() {
 }
 
 export async function getAccessToken(): Promise<string | undefined> {
+  if (localAuthToken) return localAuthToken
   if (!isAuthConfigured) return undefined
   const { fetchAuthSession } = await authModules()
   const session = await fetchAuthSession()

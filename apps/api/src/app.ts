@@ -15,6 +15,7 @@ import { profilesRoutes } from './profiles/routes.js';
 import { registrationsRoutes } from './registrations/routes.js';
 import { performancesRoutes } from './performances/routes.js';
 import { spaRoutes } from './spa-routes.js';
+import { accountsRoutes } from './accounts/routes.js';
 
 export type BuildAppOptions = {
   config?: AppConfig;
@@ -44,6 +45,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.register(eventsRoutes, { pool, prefix: '/api' });
   app.register(registrationsRoutes, { pool, prefix: '/api' });
   app.register(performancesRoutes, { pool, prefix: '/api' });
+  app.register(accountsRoutes, { pool, prefix: '/api' });
   app.register(spaRoutes);
 
   return app;

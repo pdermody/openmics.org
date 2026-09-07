@@ -23,6 +23,7 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
         profileName: input.profile_name,
         profileKind: input.profile_kind,
         bio: input.bio,
+        phone: input.phone,
         visibility: input.visibility,
         themeName: input.theme_name,
       });
@@ -34,7 +35,7 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
       return findProfileById(client, profile.id);
     });
 
-    reply.status(201).send(serializeProfile(withHandle!));
+    reply.status(201).send(serializeProfile(withHandle!, true));
   });
 
   app.get<{ Querystring: { page?: string; page_size?: string } }>('/profiles', async (request, reply) => {
@@ -42,7 +43,7 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
     const pageSize = Math.min(100, Math.max(1, Number(request.query.page_size ?? 25)));
     const result = await findPublicProfiles(pool, pageSize, (page - 1) * pageSize);
     reply.send({
-      items: result.rows.map(serializeProfile),
+      items: result.rows.map((profile) => serializeProfile(profile)),
       pagination: { page, page_size: pageSize, total: result.total },
     });
   });
@@ -68,6 +69,6 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
     }
 
     const updated = await updateProfile(pool, request.params.id, parsed.data);
-    reply.send(serializeProfile(updated!));
+    reply.send(serializeProfile(updated!, true));
   });
 };

@@ -1,62 +1,82 @@
 ## Plan: Build The Frontend SPA
 
-TL;DR: Create `apps/web` as a React 18 + TypeScript + Vite SPA that consumes the existing Fastify JSON API, starts with a source-informed light/dark theme gallery, and ships public browsing, registration, and organizer workflows as responsive, accessible, multilingual-ready experiences. Use Amplify/Cognito from the start behind a small auth boundary, keep CloudFront/S3 as the frontend deployment boundary, and leave the API responsible only for JSON plus a generic SPA entry-point fallback.
+TL;DR: Complete the API, Cognito/Amplify contract, local seed data, adapter boundaries, and infrastructure ownership first; then build `apps/web` as a React 18 + TypeScript + Vite SPA with a source-informed light/dark theme gallery, public browsing, registration, and organizer workflows. The API remains JSON-only while Amplify owns frontend-adjacent infrastructure and Terraform owns independently managed platform resources.
+
+**Current status**
+
+- **Implemented:** Vite React frontend shell; six musical theme families with light/dark modes and local persistence; API/query/i18n foundations; local Postgres/PostGIS seed data; public event/open-mic/profile reads; short event codes; guest registration; friendly API and form errors.
+- **Partially implemented:** Amplify adapter without configured Cognito; public route coverage; API contract alignment; accessibility primitives; social affordance placeholders; account preference synchronization; public filters and route composition.
+- **Not implemented:** account/auth profile/current-profile/permission APIs; production Cognito/JWT integration; authenticated registration; email/magic-link/claim UI; organizer console; media adapters; SSE; MSW/RTL/Playwright coverage; Amplify deployment configuration; CI and infrastructure validation.
+
+**Backend/API status**
+
+- **Implemented:** Fastify app factory and JSON boundary; profiles, handles, open-mics, events, registrations, performances; public visibility reads; handle availability; short event codes; PostGIS radius filtering; local migrations and development seed data; generic SPA entry-point fallback; three-layer coverage for implemented slices.
+- **Partially implemented:** OpenAPI alignment for newer frontend surfaces; registration email/magic-link delivery adapters; account/profile context; current-profile and permission responses; Cognito JWT verification; media persistence/storage; SSE; account preferences.
+- **Not implemented:** account dashboard contract, authenticated profile selection, organizer permission API, production AWS/Amplify environments, SES/S3 adapters, media routes, and confirmed SSE operations.
+
+Completed items remain in the phases below as verification or follow-up work. Only unfinished work should be treated as the next implementation target.
 
 **Steps**
 
-### Phase 0: Contract and product alignment
-1. Inventory the executable API contract against the frontend route map before building screens. Confirm response shapes, error envelopes, pagination, visibility states, auth requirements, and missing operations such as account/auth profile, current-profile, permissions, registration token exchange, media, and any SSE endpoints.
-2. Define the frontend API boundary in `apps/web/src/api/client.ts`: base URL, `Accept-Language`, bearer token attachment, one 401 refresh attempt through Amplify, JSON error-envelope parsing, quota headers, request cancellation, and typed operation wrappers generated from `openapi.yaml`.
-3. Record frontend-specific decisions: CloudFront/S3 serves the SPA independently; the API remains JSON/API-only with a generic non-API entry point; no API-rendered metadata or entity-specific HTML; public vanity route data loads through API queries.
-4. Keep missing backend operations as explicit integration tasks rather than hiding gaps in mock data. Use MSW/local fixtures only for development and component tests.
+### Phase 0: API, auth, and infrastructure readiness
+1. Produce a contract-gap matrix for every selected frontend route: API operation, request/response schema, auth requirement, permission rule, visibility rule, loading/error/empty states, and test fixture. Treat `openapi.yaml` and the authoritative architecture documents as the contract sources.
+2. Complete the remaining backend operations the frontend depends on before implementing their screens: account/auth profile, current-profile selection, account profiles, permissions, profile contact fields including phone storage, registration token exchange and verification, claimable registrations, media operations, and confirmed SSE streams. Public profile/open-mic/event reads are already implemented and need contract coverage rather than redevelopment.
+3. Align API contracts and implementation details: error codes/details, pagination, short event identifiers, canonical handles, public visibility filtering, friendly validation details, profile phone storage and privacy, `Accept-Language`, quota headers, current-profile headers, and response serialization. Run OpenAPI validation and API tests after every contract change.
+4. Implement the production authentication boundary: Cognito JWT verification in the API, Amplify/Cognito environment configuration, redirect URI configuration, account provisioning, refresh behavior, logout, and deterministic local identities for tests. Do not expose organizer UI until permission responses are real.
+5. Define and implement the account preference contract for locale, selected theme, and color mode. Use local storage for anonymous users, then synchronize authenticated preferences through the account API with account preference taking precedence across devices.
+6. Add profile contact storage for phone numbers, including migration, validation/normalization policy, ownership controls, OpenAPI fields, serializer behavior, privacy rules, local seed fixtures, and profile editor support. Authenticated performer registration should use the stored profile phone/city where appropriate and must not ask for duplicate values.
+7. Define API adapter boundaries for SES email, S3/Amplify Storage, and any SSE infrastructure. Provide local fakes and deterministic test adapters; keep AWS implementation details out of feature components.
+8. Extend the existing repeatable local integration data: Docker Postgres/PostGIS, migrations, and development seed data already cover public/private profiles, active/paused/draft series, upcoming/closed events, registrations, performances, handles, and test accounts. Add permissions, profile phone fixtures, media, authenticated users, and token lifecycle fixtures.
+9. Define infrastructure ownership: Amplify manages frontend-adjacent resources such as Cognito, frontend hosting, and storage resources it owns; Terraform manages independently owned API/platform resources. No AWS resource may be managed by both.
+10. Record the browser boundary: CloudFront/Amplify serves the SPA independently; the API remains JSON/API-only with a generic non-API entry point; no API-rendered metadata or entity-specific HTML.
+11. Keep MSW/local fixtures for isolated component tests only. Do not use mocks to conceal missing production API operations or to mark a feature complete.
 
 ### Phase 1: Visual direction and design system
-5. Research and prototype a generous theme gallery rather than only 2-3 isolated mockups. Start with at least 6 paired light/dark families, each represented by the same compact set of public and organizer screens: warm editorial music venue, bright civic directory, Material 3 tonal color, Radix Colors neutral/accent, Solarized-inspired, and Nord-inspired. Treat these as design references rather than copying product branding.
-6. Record the provenance and rationale for every palette: source system or published palette, license/usage notes where relevant, transformations made for this product, intended emotional/domain fit, and known contrast tradeoffs. Prefer established systems such as Material 3, Radix Colors, Open Color, Solarized, Nord, and IBM Carbon as references over arbitrary hand-picked hex values.
-7. Evaluate every theme family in both light and dark modes against public browsing, dense organizer operations, mobile registration, focus/hover/disabled/error/success states, chart or map accents if later introduced, and multilingual text expansion. Include at least one intentionally high-contrast option and one restrained low-glare option.
-8. Define interchangeable theme contracts rather than hard-coding colors in components. Implement the gallery as CSS-variable/token configurations behind a theme provider, with semantic roles such as surface, text, muted text, border, accent, accent-contrast, success, warning, danger, focus, and scrim. Theme selection must persist locally and respect the system light/dark preference.
-9. Select a default theme only after side-by-side review using representative screens and a short decision record. Keep at least two additional production-ready alternatives available; selecting a default must not require component rewrites. Avoid purple-default or generic dashboard styling.
-10. Establish content voice and reusable copy patterns: concise labels, registration reassurance, organizer operational language, verification/magic-link explanations, capacity/closure messaging, empty states, loading/error recovery, and localized plural/date/currency formatting. Every visible string must come from i18n resources.
-11. Build accessible primitives with Radix where applicable: buttons, links, form fields, dialogs, menus, tabs, comboboxes, toasts, confirmation flows, skeletons, banners, and live-region announcements. Use lucide icons with tooltips for unfamiliar icon-only actions.
-### Phase 2: Frontend foundation
-12. Create the application shape from the frontend architecture: `shell`, `auth`, `api`, `routes`, `features`, `components`, `i18n`, `locales`, and `styles`. Keep route composition in `routes`; domain queries/mutations and feature components stay under `features`.
-13. Implement `main.tsx`, root providers, app shell, error boundaries, route pending/error boundaries, responsive navigation, profile switcher placeholder, language switcher, quota banner, toast/live-region system, and theme persistence.
-14. Configure i18n with English bundled initially, lazy namespaces, locale resolution from account preference/local storage/browser, `<html lang>` updates, native language names, and `Accept-Language` on API calls. Define the locale manifest so adding Gaeilge or French does not require application-code changes.
-15. Configure TanStack Query with 60-second list/detail freshness defaults from the architecture, centralized query keys, mutation invalidation, local skeletons per data island, optimistic updates only where behavior is safe, and an MSW-backed development/test API.
-16. Add route-level and role-level code splitting, hover prefetch with TanStack Router, responsive image/media loading, reduced-motion handling, focus restoration, scroll restoration, and a bundle budget with an initial-route gzip target of 100 KB.
+12. **Implemented:** prototype gallery with six paired light/dark families, now named House Lights, Day Set, Tonal Key, Soundcheck, Soft Focus, and Blue Note. Continue by reviewing them on organizer screens and recording the selection decision.
+13. Record palette provenance, source/licensing notes, transformations, intended domain fit, and contrast tradeoffs. Prefer established systems such as Material 3, Radix Colors, Open Color, Solarized, Nord, and IBM Carbon over arbitrary hex values.
+14. Evaluate every theme in light and dark modes against public browsing, organizer operations, mobile registration, focus/hover/disabled/error/success states, multilingual expansion, high contrast, and low-glare use.
+15. **Partially implemented:** CSS-variable theme contracts, persisted selection, and system light/dark preference exist. Add contrast automation, formal theme provenance, and account synchronization once the preference API from Phase 0 is available.
+16. Select a default only after side-by-side review; keep at least two production-ready alternatives without component rewrites. Define content voice and ensure every visible string comes from i18n resources.
+17. **Partially implemented:** semantic controls, visible focus, reduced motion, live status messaging, and icon affordances exist. Add the Radix primitive layer, automated accessibility checks, skeleton primitives, banners, and tooltips.
+
+### Phase 2: Frontend foundation and real API integration
+18. **Implemented in part:** `apps/web`, `api`, `auth`, `features`, theme, i18n, and query foundations exist. Add the remaining architecture folders and formal route/feature boundaries.
+19. **Partially implemented:** root providers, lazy Amplify session adapter, API client, query client, error mapping, and local API proxy exist. Add one-401 refresh, generated OpenAPI types, quota/current-profile state, and authenticated preference synchronization.
+20. **Partially implemented:** app shell, responsive navigation, theme controls, error/loading states, and live status messaging exist. Add route error boundaries, toasts, permission-aware navigation, and account/profile switching.
+21. **Partially implemented:** English i18n seed, locale header support, query freshness, and local backend proxy exist. Add lazy namespaces, locale resolution, `<html lang>`, MSW, and locale expansion tests.
+22. **Partially implemented:** initial bundle budget and reduced-motion styles exist. Add TanStack Router route splitting, hover prefetch, focus/scroll restoration, and formal budget checks.
 
 ### Phase 3: Public browsing
-17. Implement the public home/directory experience using real API calls: upcoming events, active open-mic directory, filter/search controls, location radius search, empty/loading/error states, and mobile-first cards/list views. Make scan/comparison efficient on desktop without turning the page into nested cards.
-18. Implement public profile, open-mic, event, and registration entry routes, including canonical vanity route composition (`/@:handle`, nested event paths, durable registration links), UUID fallback handling, visibility-safe 404 states, and query-driven route loaders.
-19. Define a consistent social-affordance contract for every open-mic and event surface, and later for comment/review components: reaction, follow, and comment buttons appear in predictable locations on cards, detail pages, review/comment items, and relevant organizer/public views. Use real disabled or coming-soon states until the corresponding API operations exist; do not create fake counts, pretend mutations succeeded, or imply that unavailable actions are active.
-20. Implement shared public components: event/open-mic cards, profile headers, venue/location display, schedule/date formatting, registration state, capacity/closure messaging, reaction/follow/comment affordance slots, share/copy-link controls, referral capture and URL cleanup, and accessible responsive layouts.
-21. Add meaningful interaction polish: staggered page-load reveals, restrained route transitions, hover/focus affordances, sticky/mobile registration actions where appropriate, scroll-aware headers, skeleton-to-content transitions, and explicit offline/network retry states. Respect `prefers-reduced-motion`.
-20. Add meaningful interaction polish: staggered page-load reveals, restrained route transitions, hover/focus affordances, sticky/mobile registration actions where appropriate, scroll-aware headers, skeleton-to-content transitions, and explicit offline/network retry states. Respect `prefers-reduced-motion`.
+23. **Implemented in part:** seeded upcoming events, open-mic directory, radius API support, loading/error/empty states, and mobile-first cards exist. Add frontend filters/search and dedicated directory route composition.
+24. **Implemented in part:** event, open-mic, profile, registration, UUID-compatible, short-code, and detail routes exist. Add vanity handle routes, nested event routes, canonical redirects, and TanStack Router loaders.
+25. **Partially implemented:** disabled reaction/follow/comment affordances exist on public cards and detail views. Add consistent placement across all surfaces and future comment/review components.
+26. **Implemented in part:** shared cards, detail facts, registration state, capacity/error messaging, and social placeholders exist. Add share/referral controls, media slots, accessibility primitives, and localized formatters.
+27. Add remaining interaction polish: page-load reveals, route transitions, hover/focus affordances, sticky mobile actions, skeleton transitions, offline/retry states, and reduced-motion equivalents.
 
 ### Phase 4: Registration and identity flows
-21. Implement guest registration with minimal fields, explicit consent copy, validation, duplicate/capacity/closed-registration errors, confirmation state, and localized date/time/currency messaging.
-22. Implement authenticated performer registration using Amplify account state and an account-owned performer-profile selector. Keep organizer and performer profiles distinct; offer inline performer-profile creation only once the corresponding API operation exists.
-23. Implement email verification and magic-link flows: consume URL tokens once, call the API exchange endpoint, remove raw tokens from the visible URL, rely on the HttpOnly edit session, and never store tokens in React/Zustand/query state or analytics.
-24. Implement claimable registrations and explicit claim/adoption UX: dashboard banner, dedicated claim route, per-row claim and claim-all actions, profile adoption selection, success/error recovery, and query invalidation. Never auto-claim.
-25. Implement the organizer kiosk registration flow as a mobile/tablet-first, high-contrast, low-distraction workflow with large touch targets, rapid reset, clear confirmation feedback, keyboard support, and organizer-only permission gating.
-26. Add registration-specific analytics hooks as provider-neutral events only after the event names and privacy rules are agreed; keep external analytics deferred by default.
+28. **Implemented in part:** guest registration, optional city/phone/song fields, media consent, validation, duplicate/capacity/closed-registration errors, short-code routes, confirmation state, and friendly messages exist. Add localized formatting, referral attribution, and automated tests.
+29. Implement authenticated performer registration using the completed Amplify account/profile APIs. Keep organizer and performer profiles distinct and support inline performer-profile creation where the API permits it.
+30. Implement email verification and magic-link flows: consume URL tokens once, call the API exchange endpoint, remove raw tokens from the URL, rely on the HttpOnly edit session, and never store raw tokens in client state or analytics.
+31. Implement claimable registrations and explicit claim/adoption UX: dashboard banner, dedicated claim route, per-row claim and claim-all actions, profile adoption selection, conflict recovery, and query invalidation. Never auto-claim.
+32. Implement the organizer kiosk flow as a mobile/tablet-first, high-contrast workflow with large touch targets, rapid reset, confirmation feedback, keyboard support, and real permission gating.
+33. Add provider-neutral registration analytics only after event names and privacy rules are agreed.
 
 ### Phase 5: Organizer console
-27. Implement authenticated dashboard and current-profile state using Amplify identity plus the API account/profile operations. Add route-loader permission gates that render inline 403 states and never treat UI checks as security.
-28. Implement open-mic create/edit screens with React Hook Form/Zod, location fields, activity/tag selection, registration settings, handle availability, unsaved-change protection, responsive layout, and server error mapping.
-29. Implement event create/edit/lifecycle screens with inherited location defaults, date/time-zone handling, capacity and registration closure, activity validation, form feedback, and clear dirty/saved/error states.
-30. Implement roster and performance operations: organizer roster view, visibility-safe registration rows, sequence/status controls, organizer notes, performance editing/deletion, filters, mobile kiosk handoff, and live refresh boundaries once an SSE endpoint exists.
-31. Implement organizer media surfaces only after the media API contract is confirmed: upload progress, photo/video-link forms, captions/alt text, organizer permissions, soft-delete/recovery, and media failure/retry states.
-32. Add subtle but useful operational motion: save-state transitions, inline validation reveal, toast confirmations, roster reorder feedback, modal focus transitions, and no-motion equivalents.
+34. Implement authenticated dashboard and current-profile state using the completed account/profile/permission APIs. Add route-loader permission gates with inline 403 states.
+35. Implement open-mic create/edit screens with React Hook Form/Zod, location fields, activity/tag selection, registration settings, handle availability, unsaved-change protection, responsive layout, and server error mapping.
+36. Implement event create/edit/lifecycle screens with inherited location defaults, date/time-zone handling, capacity and registration closure, activity validation, form feedback, and saved/dirty/error states.
+37. Implement roster and performance operations: visibility-safe rows, sequence/status controls, organizer notes, performance editing/deletion, filters, kiosk handoff, and live refresh once the confirmed SSE endpoint exists.
+38. Implement organizer media after the media API and storage adapters are complete: upload progress, photo/video-link forms, captions/alt text, permissions, soft-delete/recovery, and failure/retry states.
+39. Add operational motion: save-state transitions, inline validation reveal, toast confirmations, roster reorder feedback, modal focus transitions, and no-motion equivalents.
 
 ### Phase 6: Quality, accessibility, and delivery
-33. Add unit tests for formatters, theme selection, locale resolution, referral persistence, auth state transitions, permission decisions, route helpers, and API error mapping.
-34. Add React Testing Library/MSW integration tests for public reads, registration, verification, claim/adoption, organizer forms, kiosk reset, loading/error/empty states, theme switching, and multilingual expansion.
-35. Add Playwright tests for mobile and desktop public browsing, guest registration, authenticated registration, magic-link exchange, organizer event setup, roster operation, and media upload once available. Include keyboard-only flows and reduced-motion checks.
-36. Run automated accessibility checks plus manual keyboard/focus/contrast review at mobile, tablet, and desktop widths. Verify long translated strings, empty states, touch targets, no text overlap, and screen-reader labels/live regions.
-37. Measure performance on throttled 3G/mobile profiles: FCP <1.5s, LCP <2.5s, TTI <3.0s, CLS <0.05, warm transitions <100ms, cold transitions <400ms, and initial JS <=100 KB gzip. Enforce route chunk budgets in CI.
-38. Configure Vite production build, static asset hashing, SPA fallback behavior, environment separation, CloudFront/S3 deployment documentation, preview environments, cache headers, and smoke tests. Keep Terraform separate until the frontend shell and deployment contract are stable.
-39. Add frontend scripts to the root CI-equivalent command and document local setup, Amplify environment configuration, API base URLs, MSW usage, Playwright prerequisites, supported locales, theme extension, and known backend contract gaps.
+40. Add unit tests for formatters, theme selection, locale resolution, referral persistence, auth state transitions, permission decisions, route helpers, and API error mapping.
+41. Add RTL/MSW integration tests for public reads, registration, verification, claim/adoption, organizer forms, kiosk reset, loading/error/empty states, theme switching, and multilingual expansion.
+42. Add Playwright tests for mobile and desktop browsing, guest/authenticated registration, magic-link exchange, organizer setup, roster operation, and media upload. Include keyboard-only and reduced-motion checks.
+43. Run automated accessibility and manual keyboard/focus/contrast review at mobile, tablet, and desktop widths, including translated string expansion and touch targets.
+44. Measure Web Vitals and bundle budgets on throttled mobile profiles; enforce FCP/LCP/TTI/CLS, transition, and initial-JS targets in CI.
+45. Configure Amplify frontend deployment, static asset hashing, SPA fallback, environment separation, preview environments, cache headers, and smoke tests. Keep Terraform validation for independently owned platform infrastructure.
+46. Add frontend commands to the root CI-equivalent workflow and document local setup, Amplify configuration, API URLs, seed data, MSW, Playwright, locales, themes, and remaining backend boundaries.
 
 **Relevant files**
 - `apps/web/` — new frontend workspace and all SPA implementation.
@@ -69,27 +89,28 @@ TL;DR: Create `apps/web` as a React 18 + TypeScript + Vite SPA that consumes the
 - `docs/architecture/api-design.md` and `docs/architecture/infrastructure.md` — JSON/API boundary, CloudFront/S3 deployment, and auth/storage integration constraints.
 - `docs/decisions.md` and `docs/concerns.md` — settled provenance/claim rules and unresolved consent/security/retention decisions.
 - `package.json`, `tsconfig.json`, and root CI scripts — add workspace/build/test/typecheck/lint commands without disrupting API checks.
+- `apps/api/migrations/`, `scripts/seed-dev.mjs`, `.env.example`, and Amplify environment configuration — provide repeatable backend fixtures and environment wiring before frontend feature work.
 
 **Verification**
-1. Before implementation, produce a contract-gap matrix mapping every selected frontend route to its API operation, response schema, auth requirement, loading/error/empty state, and test fixture.
+1. Complete Phase 0's contract-gap matrix and backend readiness checklist before marking any dependent frontend route complete.
 2. Validate the theme gallery in mobile, tablet, and desktop viewports; review focus visibility, WCAG AA contrast, reduced motion, long copy, light/dark readability, source provenance, and alternate-theme behavior before implementing full screens.
 3. Run frontend typecheck, lint/format checks, unit tests, RTL/MSW integration tests, Playwright E2E, accessibility checks, and production Vite build.
 4. Run API `npm test`, OpenAPI validation, link checks, and frontend contract coverage together for every cross-boundary change.
 5. Test the built SPA behind a static server/CloudFront-like fallback: every non-API route returns the same entry point, every `/api/*` request remains JSON, assets resolve with hashed URLs, and deep links reload correctly.
 6. Measure bundle and Web Vitals budgets on throttled mobile profiles; fail CI on route chunk regressions or accessibility violations in the selected critical flows.
-7. Verify Amplify/Cognito in a staging environment only after local/MSW flows are stable; keep production AWS/Terraform validation as a separate deployment phase.
+7. Verify the complete Amplify/Cognito staging flow, API JWT verification, SES/S3 adapter behavior, local seeded flow, and deployment ownership before production rollout. Keep Terraform validation limited to independently owned platform infrastructure.
 
 **Decisions**
 - Authentication: use AWS Amplify/Cognito from the initial frontend architecture, but isolate it behind `auth/` so tests and local development can inject deterministic identities.
-- Initial frontend milestone: public browsing, guest/authenticated registration, and organizer console; media is a follow-on within the same frontend architecture after its API contract is ready.
+- Initial frontend milestone: public browsing, guest/authenticated registration, organizer console, and organizer media, but only after their Phase 0 API/auth/storage contracts are complete.
 - Deployment: CloudFront/S3 serves the SPA independently; the API does not render entity-specific HTML or metadata.
 - Visual direction: prototype a generous gallery of source-informed light/dark theme families before choosing a default; keep at least two polished alternatives and record palette provenance, transformations, licensing notes, and contrast results.
 - Localization: English is bundled first; all UI strings are translatable and locale loading is namespace-based.
 - Accessibility: WCAG AA contrast, keyboard access, visible focus, semantic HTML, Radix primitives, screen-reader labels/live regions, and reduced-motion support are release requirements.
 - Scope exclusions: performer-authored media, reviews, comments, reactions, follows, messaging, suggestions, notifications beyond any confirmed API stream, advanced maps/discovery, and account deletion/export UI remain out of the first frontend milestone unless the API contract is explicitly expanded. Their UI affordances are still part of the information architecture: they render as clearly unavailable or coming soon, with accessible labels and no misleading interaction.
-- API gaps are surfaced and resolved before dependent screens are treated as complete; mocks cannot silently become production behavior.
+- API gaps are resolved in Phase 0 before dependent screens are treated as complete; mocks cannot silently become production behavior.
 
 **Further Considerations**
-1. The frontend document specifies both Amplify and direct Cognito patterns in different places. This plan chooses Amplify because that was selected for the initial implementation; reconcile the docs before coding.
-2. The current API contract does not yet expose every frontend dependency, especially account/auth profile, current-profile, permissions, media, and SSE operations. These should be tracked as explicit backend contract work in Phase 0.
-3. The entry-point HTML remains intentionally minimal until the SPA shell is designed; asset paths, metadata, and CloudFront fallback behavior should be finalized with the first frontend build rather than guessed now.
+1. The frontend architecture contains both Amplify and direct Cognito references; Phase 0 must reconcile them and make Amplify the single frontend infrastructure owner.
+2. Account/profile/permission, media, email, storage, and SSE operations must be present in the executable API contract before their frontend surfaces leave placeholder state.
+3. The entry-point HTML remains intentionally minimal until the SPA shell is finalized; asset paths, metadata, and CloudFront/Amplify fallback behavior should be defined with the frontend deployment configuration.

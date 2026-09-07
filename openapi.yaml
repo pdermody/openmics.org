@@ -1290,6 +1290,10 @@ components:
         bio:
           type: string
           nullable: true
+        phone:
+          type: string
+          nullable: true
+          description: Private contact phone for the profile owner and permitted organizers; never shown in public profile reads.
         profile_image_url:
           type: string
           format: uri
@@ -1902,6 +1906,9 @@ components:
             - performer
         bio:
           type: string
+        phone:
+          type: string
+          nullable: true
         visibility:
           $ref: "#/components/schemas/ProfileVisibility"
         theme_name:
@@ -1924,6 +1931,9 @@ components:
             - performer
         bio:
           type: string
+        phone:
+          type: string
+          nullable: true
         visibility:
           $ref: "#/components/schemas/ProfileVisibility"
         theme_name:

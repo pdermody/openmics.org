@@ -7,6 +7,7 @@ export type ProfileRow = {
   profile_name: string;
   profile_kind: string;
   bio: string | null;
+  phone: string | null;
   profile_image_url: string | null;
   theme_name: string | null;
   visibility: string;
@@ -27,19 +28,21 @@ export async function insertProfile(
     profileName: string;
     profileKind: string;
     bio?: string;
+    phone?: string | null;
     visibility?: string;
     themeName?: string;
   },
 ): Promise<ProfileRow> {
   const result = await client.query<ProfileRow>(
-    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, visibility, theme_name)
-     VALUES ($1, $2, $3, $4, COALESCE($5, 'public'), $6)
+    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, phone, visibility, theme_name)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'public'), $7)
      RETURNING *`,
     [
       input.createdByAccountId,
       input.profileName,
       input.profileKind,
       input.bio ?? null,
+      input.phone ?? null,
       input.visibility ?? null,
       input.themeName ?? null,
     ],
@@ -66,7 +69,7 @@ export async function findPublicProfiles(client: Queryable, limit: number, offse
   return { rows: result.rows, total: Number(count.rows[0].count) };
 }
 
-const UPDATABLE_COLUMNS = ['profile_name', 'profile_kind', 'bio', 'visibility', 'theme_name'] as const;
+const UPDATABLE_COLUMNS = ['profile_name', 'profile_kind', 'bio', 'phone', 'visibility', 'theme_name'] as const;
 
 export async function updateProfile(
   pool: Pool,
@@ -95,7 +98,7 @@ export async function updateProfile(
   return result.rows[0] ?? null;
 }
 
-export function serializeProfile(row: ProfileRow) {
+export function serializeProfile(row: ProfileRow, includePrivate = false) {
   return {
     id: row.id,
     created_by_account_id: row.created_by_account_id,
@@ -103,6 +106,7 @@ export function serializeProfile(row: ProfileRow) {
     profile_name: row.profile_name,
     profile_kind: row.profile_kind,
     bio: row.bio,
+    ...(includePrivate ? { phone: row.phone } : {}),
     profile_image_url: row.profile_image_url,
     theme_name: row.theme_name,
     visibility: row.visibility,
