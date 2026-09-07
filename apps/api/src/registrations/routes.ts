@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
 import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../errors.js';
-import { findEventById } from '../events/repository.js';
+import { findEventById, findEventByIdOrPublicCode } from '../events/repository.js';
 import { findOpenMicById } from '../open-mics/repository.js';
 import { findProfileById } from '../profiles/repository.js';
 import {
@@ -90,7 +90,7 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       const parsed = createRegistrationSchema.safeParse(request.body);
       if (!parsed.success) throw new ValidationError('Invalid registration payload', parsed.error.flatten());
       const input = parsed.data;
-      const event = await findEventById(pool, request.params.id);
+      const event = await findEventByIdOrPublicCode(pool, request.params.id);
       if (!event) throw new NotFoundError('Event not found');
       if (event.registrations_closed_at && new Date(event.registrations_closed_at).getTime() <= Date.now()) {
         throw new ConflictError('REGISTRATIONS_CLOSED', 'Registrations are closed for this event');

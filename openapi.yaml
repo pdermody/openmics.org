@@ -1460,6 +1460,10 @@ components:
       properties:
         id:
           $ref: "#/components/schemas/Id"
+        public_code:
+          type: string
+          pattern: "^[A-Z0-9]{10}$"
+          description: Short stable public identifier for URLs. The UUID id remains the internal identifier.
         open_mic_id:
           $ref: "#/components/schemas/Id"
         title:

@@ -7,6 +7,7 @@ import { parseGeoFilter } from '../geo.js';
 import { findOpenMicById } from '../open-mics/repository.js';
 import {
   findEventById,
+  findEventByIdOrPublicCode,
   findEventsByOpenMicId,
   findNextEventByOpenMicId,
   findUpcomingEvents,
@@ -101,7 +102,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
   );
 
   app.get<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
-    const event = await findEventById(pool, request.params.id);
+    const event = await findEventByIdOrPublicCode(pool, request.params.id);
     if (!event) throw new NotFoundError('Event not found');
     const openMic = await findOpenMicById(pool, event.open_mic_id);
     if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Event not found');
@@ -109,7 +110,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
   });
 
   app.get<{ Params: { id: string; eventId: string } }>('/open-mics/:id/events/:eventId', async (request, reply) => {
-    const event = await findEventById(pool, request.params.eventId);
+    const event = await findEventByIdOrPublicCode(pool, request.params.eventId);
     if (!event || event.open_mic_id !== request.params.id) throw new NotFoundError('Event not found');
     reply.send(serializeEvent(event));
   });

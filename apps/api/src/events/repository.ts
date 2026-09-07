@@ -4,6 +4,7 @@ type Queryable = Pool | PoolClient;
 
 export interface EventRow {
   id: string;
+  public_code: string;
   open_mic_id: string;
   title: string;
   starts_at: string;
@@ -100,6 +101,14 @@ export async function insertEvent(client: PoolClient, input: InsertEventInput): 
 
 export async function findEventById(client: Queryable, id: string): Promise<EventRow | null> {
   const result = await client.query<EventRow>('SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL', [id]);
+  return result.rows[0] ?? null;
+}
+
+export async function findEventByIdOrPublicCode(client: Queryable, identifier: string): Promise<EventRow | null> {
+  const result = await client.query<EventRow>(
+    'SELECT * FROM events WHERE (id::text = $1 OR public_code = upper($1)) AND deleted_at IS NULL',
+    [identifier],
+  );
   return result.rows[0] ?? null;
 }
 
@@ -211,6 +220,7 @@ export async function updateEvent(pool: Pool, id: string, changes: Partial<Inser
 export function serializeEvent(row: EventRow): Record<string, unknown> {
   return {
     id: row.id,
+    public_code: row.public_code,
     open_mic_id: row.open_mic_id,
     title: row.title,
     starts_at: row.starts_at,

@@ -20,6 +20,30 @@ export class ApiError extends Error {
   }
 }
 
+export function friendlyApiErrorMessage(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
+  if (!(error instanceof ApiError)) return fallback
+  switch (error.code) {
+    case 'NOT_FOUND':
+      return 'We could not find that page or event. It may have been removed or is no longer public.'
+    case 'UNAUTHORIZED':
+      return 'Please sign in to continue.'
+    case 'FORBIDDEN':
+      return 'You do not have permission to view or change this.'
+    case 'REGISTRATIONS_CLOSED':
+      return 'Registration is closed for this event.'
+    case 'CAPACITY_EXCEEDED':
+      return 'This event is full. Please check back in case a place opens up.'
+    case 'DUPLICATE_REGISTRATION':
+      return 'This email already has a registration for this event.'
+    case 'GONE':
+      return 'This page is no longer available.'
+    case 'VALIDATION_ERROR':
+      return 'Some details need attention before we can continue.'
+    default:
+      return error.message || fallback
+  }
+}
+
 export type ApiClientOptions = {
   baseUrl?: string
   getAccessToken?: () => Promise<string | undefined> | string | undefined

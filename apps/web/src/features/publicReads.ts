@@ -3,6 +3,7 @@ import { api } from '../api/client'
 
 export type Event = {
   id: string
+  public_code: string
   open_mic_id: string
   title: string
   starts_at: string
@@ -14,6 +15,7 @@ export type Event = {
   tags: string[]
   capacity: number | null
   registrations_closed_at: string | null
+  notes: string | null
 }
 
 export type OpenMic = {
@@ -21,6 +23,7 @@ export type OpenMic = {
   current_handle: string | null
   name: string
   description: string | null
+  venue_name: string
   city: string
   country: string
   activities: string[]
@@ -50,5 +53,21 @@ export function usePublicOpenMics(pageSize = 6) {
       const response = await api<OpenMicPage>(`/open-mics?page_size=${pageSize}`)
       return response.items
     },
+  })
+}
+
+export function usePublicEvent(id: string | undefined) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'event', id],
+    queryFn: () => api<Event>(`/events/${id}`),
+    enabled: Boolean(id),
+  })
+}
+
+export function usePublicOpenMic(id: string | undefined) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'open-mic', id],
+    queryFn: () => api<OpenMic>(`/open-mics/${id}`),
+    enabled: Boolean(id),
   })
 }
