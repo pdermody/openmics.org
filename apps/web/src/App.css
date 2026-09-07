@@ -52,6 +52,8 @@ h2 { font: 600 1.6rem/1.05 'Fraunces', serif; margin: 9px 0 0; }
 .swatches i { display: block; width: 19px; height: 7px; border-radius: 2px; background: var(--accent); }
 .swatches i:nth-child(2) { background: var(--soft-accent); }.swatches i:nth-child(3) { background: var(--tag); }
 .content-grid { padding: 66px 0 90px; }
+.read-state { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); padding: 20px; margin-bottom: 12px; font-size: .88rem; }
+.series-heading { margin-top: 54px; }
 .section-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 20px; }
 .link-button { color: var(--accent); font-weight: 700; }
 .event-card, .series-card { background: var(--surface); border: 1px solid var(--line); border-radius: 11px; padding: 20px; display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: start; margin-bottom: 12px; }
