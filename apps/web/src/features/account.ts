@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import { isAuthConfigured } from '../auth/session'
+import { getStoredSimulatedAuthToken, isAuthConfigured } from '../auth/session'
 
 export type Account = {
   id: string
@@ -29,9 +29,18 @@ export const accountKeys = {
   permissions: (profileId: string | undefined) => ['account', 'permissions', profileId] as const,
 }
 
+type QueryState<T> = {
+  data?: T
+  isPending: boolean
+  isError: boolean
+  error?: unknown
+}
+
 export function useAccountContext(enabled = true) {
   const queryClient = useQueryClient()
-  const hasAuth = isAuthConfigured || Boolean(import.meta.env.VITE_LOCAL_AUTH_TOKEN)
+  const simulatedAuthToken = getStoredSimulatedAuthToken()
+  const hasAuth = isAuthConfigured || Boolean(import.meta.env.VITE_LOCAL_AUTH_TOKEN) || Boolean(simulatedAuthToken)
+
   const account = useQuery({
     queryKey: accountKeys.me,
     queryFn: () => api<Account>('/me'),
@@ -44,17 +53,47 @@ export function useAccountContext(enabled = true) {
     enabled: hasAuth && Boolean(account.data?.id),
     retry: false,
   })
+
+  const effectiveAccount: QueryState<Account> = hasAuth ? {
+    data: account.data,
+    isPending: account.isPending,
+    isError: account.isError,
+    error: account.error,
+  } : {
+    data: undefined,
+    isPending: false,
+    isError: false,
+  }
+
+  const effectiveProfiles: QueryState<{ items: AccountProfile[] }> = hasAuth ? {
+    data: profiles.data ?? { items: [] },
+    isPending: profiles.isPending,
+    isError: profiles.isError,
+    error: profiles.error,
+  } : {
+    data: { items: [] },
+    isPending: false,
+    isError: false,
+  }
+
   const currentProfile = useMutation({
-    mutationFn: (profileId: string) => api<AccountProfile>(`/accounts/${account.data!.id}/current-profile`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile_id: profileId }),
-    }),
+    mutationFn: async (profileId: string) => {
+      if (!hasAuth || !account.data?.id) {
+        return null
+      }
+      return api<AccountProfile>(`/accounts/${account.data.id}/current-profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: profileId }),
+      })
+    },
     onSuccess: (profile) => {
+      if (!profile) return
       queryClient.setQueryData<Account>(accountKeys.me, (old) => old ? { ...old, current_profile_id: profile.id } : old)
       queryClient.invalidateQueries({ queryKey: accountKeys.permissions(profile.id) })
     },
   })
+
   const updateProfile = useMutation({
     mutationFn: (input: { id: string; profile_name: string; bio: string; phone: string; visibility: string }) => api<AccountProfile>(`/profiles/${input.id}`, {
       method: 'PATCH',
@@ -63,12 +102,25 @@ export function useAccountContext(enabled = true) {
     }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: accountKeys.profiles(account.data?.id) }),
   })
-  const selectedProfileId = account.data?.current_profile_id ?? undefined
+
+  const selectedProfileId = effectiveAccount.data?.current_profile_id ?? undefined
   const permissions = useQuery({
     queryKey: accountKeys.permissions(selectedProfileId),
     queryFn: () => api<{ permissions: string[] }>(`/me/permissions?profile=${selectedProfileId}`),
     enabled: hasAuth && Boolean(selectedProfileId),
     retry: false,
   })
-  return { account, profiles, currentProfile, permissions, updateProfile }
+
+  const effectivePermissions: QueryState<{ permissions: string[] }> = !hasAuth ? {
+    data: { permissions: [] },
+    isPending: false,
+    isError: false,
+  } : {
+    data: permissions.data ?? { permissions: [] },
+    isPending: permissions.isPending,
+    isError: permissions.isError,
+    error: permissions.error,
+  }
+
+  return { account: effectiveAccount, profiles: effectiveProfiles, currentProfile, permissions: effectivePermissions, updateProfile }
 }

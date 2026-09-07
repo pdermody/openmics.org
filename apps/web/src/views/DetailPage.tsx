@@ -1,8 +1,16 @@
 import { Clock3, MapPin } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
+import { useAccountContext } from '../features/account'
 import { useNextEvent, usePublicEvent, usePublicOpenMic, usePublicProfile } from '../features/publicReads'
 import type { ThemeProps } from './shared'
 import { ReadState, SiteHeader, SocialButton } from './shared'
+
+function focusProfileSwitcher() {
+  const select = document.getElementById('profile-switcher-select') as (HTMLSelectElement & { showPicker?: () => void }) | null
+  if (!select) return
+  select.focus()
+  try { select.showPicker?.() } catch { /* showPicker requires a user gesture in some browsers; focus is enough of a fallback */ }
+}
 
 export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mic' | 'profile'; id: string } & ThemeProps) {
   const event = usePublicEvent(kind === 'event' ? id : undefined)
@@ -10,6 +18,9 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   const nextEvent = useNextEvent(kind === 'open-mic' ? id : undefined)
   const profile = usePublicProfile(kind === 'profile' ? id : undefined)
   const parentOpenMic = usePublicOpenMic(kind === 'event' ? event.data?.open_mic_id : undefined)
+  const accountContext = useAccountContext()
+  const activeProfile = accountContext.profiles.data?.items.find((profileItem) => profileItem.id === accountContext.account.data?.current_profile_id)
+  const needsPerformerProfile = Boolean(accountContext.account.data) && activeProfile?.profile_kind !== 'performer'
   const loading = kind === 'event' ? event.isPending : kind === 'open-mic' ? openMic.isPending : profile.isPending
   const error = kind === 'event' ? event.isError : kind === 'open-mic' ? openMic.isError : profile.isError
   const title = event.data?.title ?? openMic.data?.name ?? profile.data?.profile_name
@@ -40,18 +51,31 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
                 <button className="primary-button" type="button" disabled aria-disabled="true">
                   Registration unavailable
                 </button>
+              ) : needsPerformerProfile ? (
+                <button className="primary-button" type="button" onClick={focusProfileSwitcher}>
+                  Switch to a performer profile to register
+                </button>
               ) : (
                 <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>Register for this event</a>
               )
             )}
             {kind === 'open-mic' && (
-              <a className="primary-button" href={nextEvent.data ? `/events/${nextEvent.data.public_code}` : `/open-mics/${id}/register`}>
-                {nextEvent.data ? 'See next event' : 'View registration link'}
-              </a>
+              nextEvent.data ? (
+                <a className="primary-button" href={`/events/${nextEvent.data.public_code}`}>See next event</a>
+              ) : needsPerformerProfile ? (
+                <button className="primary-button" type="button" onClick={focusProfileSwitcher}>
+                  Switch to a performer profile to register
+                </button>
+              ) : (
+                <a className="primary-button" href={`/open-mics/${id}/register`}>View registration link</a>
+              )
             )}
             {kind === 'profile' && <button className="primary-button" type="button">Follow profile</button>}
             <SocialButton label="React" icon="heart" /><SocialButton label="Comment" icon="message" />
           </div>
+          {kind === 'event' && !registrationDisabled && needsPerformerProfile && (
+            <p className="field-hint">Organizer profiles can’t register as the performer, even for their own events. Use the profile switcher above to pick a performer profile.</p>
+          )}
         </>}
       </section>
     </main>

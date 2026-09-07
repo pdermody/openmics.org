@@ -35,6 +35,32 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   registerErrorHandler(app);
   registerAuth(app, options.authVerifier ?? createAccountLookupVerifier(pool));
 
+  if (config.environment === 'development' && config.simulatedAuthMode) {
+    app.get('/api/dev/simulated-auth/config', async () => {
+      const result = await pool.query<{ account_id: string; cognito_id: string; display_name: string; profile_id: string; profile_name: string; profile_kind: string }>(`
+        SELECT a.id as account_id, a.cognito_id, a.display_name, p.id as profile_id, p.profile_name, p.profile_kind
+        FROM accounts a
+        JOIN profiles p ON p.created_by_account_id = a.id AND p.deleted_at IS NULL
+        WHERE a.cognito_id IN ('dev-owner', 'dev-organizer-2', 'dev-performer', 'dev-performer-2')
+        ORDER BY CASE p.profile_kind WHEN 'organizer' THEN 1 ELSE 2 END, p.profile_name
+      `);
+
+      return {
+        enabled: true,
+        roles: result.rows.map((row) => ({
+          id: row.profile_id,
+          label: `${row.profile_name} · ${row.profile_kind}`,
+          kind: row.profile_kind,
+          accountId: row.account_id,
+          profileId: row.profile_id,
+          profileName: row.profile_name,
+          accountDisplayName: row.display_name,
+          token: row.cognito_id,
+        })),
+      };
+    });
+  }
+
   const handlesOptions: HandlesPluginOptions =
     options.handles ?? { checkAvailability: (candidate) => checkHandleAvailability(pool, candidate) };
 

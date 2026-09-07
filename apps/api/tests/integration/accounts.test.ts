@@ -65,4 +65,51 @@ describe('account context routes (real database)', () => {
     expect(permissions.statusCode).toBe(200);
     expect(permissions.json().permissions).not.toContain('profiles:manage');
   });
+
+  it('exposes seeded local-dev simulated auth roles when enabled on the backend', async () => {
+    await pool.query(`
+      INSERT INTO accounts (cognito_id, email, display_name)
+      VALUES
+        ('dev-owner', 'owner-sim@openmic.test', 'Mara Quinn'),
+        ('dev-organizer-2', 'organizer-2-sim@openmic.test', 'Rosa Byrne'),
+        ('dev-performer', 'performer-sim@openmic.test', 'Noah Reed'),
+        ('dev-performer-2', 'performer-2-sim@openmic.test', 'Iona Park')
+      ON CONFLICT (cognito_id) DO NOTHING
+    `);
+
+    await pool.query(`
+      WITH seeded AS (
+        SELECT id, cognito_id FROM accounts WHERE cognito_id IN ('dev-owner', 'dev-organizer-2', 'dev-performer', 'dev-performer-2')
+      )
+      INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, visibility)
+      SELECT id, display_name, CASE WHEN cognito_id LIKE '%organizer%' THEN 'organizer' ELSE 'performer' END, 'public'
+      FROM (
+        SELECT a.id, a.cognito_id, a.display_name FROM accounts a WHERE a.cognito_id IN ('dev-owner', 'dev-organizer-2', 'dev-performer', 'dev-performer-2')
+      ) s
+      ON CONFLICT DO NOTHING
+    `);
+
+    const simulatedApp = buildApp({
+      db: pool,
+      logger: false,
+      config: {
+        databaseUrl: 'unused',
+        environment: 'development',
+        host: '127.0.0.1',
+        port: 3000,
+        simulatedAuthMode: true,
+      },
+    });
+    await simulatedApp.ready();
+
+    const response = await simulatedApp.inject({ method: 'GET', url: '/api/dev/simulated-auth/config' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().enabled).toBe(true);
+    expect(response.json().roles).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'organizer' }),
+      expect.objectContaining({ kind: 'performer' }),
+    ]));
+
+    await simulatedApp.close();
+  });
 });

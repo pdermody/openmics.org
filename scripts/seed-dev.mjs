@@ -25,6 +25,14 @@ try {
     `INSERT INTO accounts (cognito_id, email, display_name, city)
      VALUES ('dev-performer', 'performer@openmic.test', 'Noah Reed', 'Dublin') RETURNING id`,
   );
+  const organizerTwo = await pool.query(
+    `INSERT INTO accounts (cognito_id, email, display_name, city)
+     VALUES ('dev-organizer-2', 'organizer-2@openmic.test', 'Rosa Byrne', 'Cork') RETURNING id`,
+  );
+  const performerTwo = await pool.query(
+    `INSERT INTO accounts (cognito_id, email, display_name, city)
+     VALUES ('dev-performer-2', 'performer-2@openmic.test', 'Iona Park', 'Galway') RETURNING id`,
+  );
   const privateAccount = await pool.query(
     `INSERT INTO accounts (cognito_id, email, display_name)
      VALUES ('dev-private', 'private@openmic.test', 'Private Demo') RETURNING id`,
@@ -35,6 +43,11 @@ try {
      VALUES ($1, 'Mara Quinn', 'organizer', 'Host, songwriter, and keeper of welcoming rooms.', 'public') RETURNING id`,
     [owner.rows[0].id],
   );
+  const organizerTwoProfile = await pool.query(
+    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, visibility)
+     VALUES ($1, 'Rosa Byrne', 'organizer', 'A careful host for brave first sets and slow burners.', 'public') RETURNING id`,
+    [organizerTwo.rows[0].id],
+  );
   const ownerPerformer = await pool.query(
     `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, phone, visibility)
      VALUES ($1, 'Mara on Stage', 'performer', 'Acoustic covers, original songs, and a little spoken word.', '+353 87 555 0102', 'public') RETURNING id`,
@@ -44,6 +57,11 @@ try {
     `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, visibility)
      VALUES ($1, 'Noah Reed', 'performer', 'Acoustic songs and small stories.', 'public') RETURNING id`,
     [performer.rows[0].id],
+  );
+  const performerTwoProfile = await pool.query(
+    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, visibility)
+     VALUES ($1, 'Iona Park', 'performer', 'Soft rock, harmonies, and bright introspective songs.', 'public') RETURNING id`,
+    [performerTwo.rows[0].id],
   );
   const privateProfile = await pool.query(
     `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, visibility, is_hidden)
@@ -84,9 +102,11 @@ try {
   await pool.query(
     `INSERT INTO handles (handle, entity_type, profile_id, status) VALUES
       ('Mara-Quinn', 'profile', $1, 'current'),
-      ('Mara-on-Stage', 'profile', $2, 'current'),
-      ('Noah-Reed', 'profile', $3, 'current')`,
-    [organizer.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id],
+      ('Rosa-Byrne', 'profile', $2, 'current'),
+      ('Mara-on-Stage', 'profile', $3, 'current'),
+      ('Noah-Reed', 'profile', $4, 'current'),
+      ('Iona-Park', 'profile', $5, 'current')`,
+    [organizer.rows[0].id, organizerTwoProfile.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id],
   );
   await pool.query(
     `INSERT INTO handles (handle, entity_type, open_mic_id, status) VALUES
@@ -95,9 +115,25 @@ try {
     [houseLights.rows[0].id, blueNote.rows[0].id],
   );
   await pool.query(
-    `UPDATE profiles SET current_handle = CASE id WHEN $1 THEN 'Mara-Quinn' WHEN $2 THEN 'Mara-on-Stage' WHEN $3 THEN 'Noah-Reed' END
-     WHERE id IN ($1, $2, $3)`,
-    [organizer.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id],
+    `UPDATE profiles SET current_handle = CASE id WHEN $1 THEN 'Mara-Quinn' WHEN $2 THEN 'Rosa-Byrne' WHEN $3 THEN 'Mara-on-Stage' WHEN $4 THEN 'Noah-Reed' WHEN $5 THEN 'Iona-Park' END
+     WHERE id IN ($1, $2, $3, $4, $5)`,
+    [organizer.rows[0].id, organizerTwoProfile.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id],
+  );
+  await pool.query(
+    `UPDATE accounts SET current_profile_id = $1 WHERE id = $2`,
+    [organizer.rows[0].id, owner.rows[0].id],
+  );
+  await pool.query(
+    `UPDATE accounts SET current_profile_id = $1 WHERE id = $2`,
+    [organizerTwoProfile.rows[0].id, organizerTwo.rows[0].id],
+  );
+  await pool.query(
+    `UPDATE accounts SET current_profile_id = $1 WHERE id = $2`,
+    [performerProfile.rows[0].id, performer.rows[0].id],
+  );
+  await pool.query(
+    `UPDATE accounts SET current_profile_id = $1 WHERE id = $2`,
+    [performerTwoProfile.rows[0].id, performerTwo.rows[0].id],
   );
   await pool.query(
     `UPDATE open_mics SET current_handle = CASE id WHEN $1 THEN 'Lantern-Sessions' WHEN $2 THEN 'Blue-Note-Sundays' END

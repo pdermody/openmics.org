@@ -3,8 +3,36 @@ const userPoolClientId = import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID
 const cognitoDomain = import.meta.env.VITE_COGNITO_DOMAIN
 const localAuthToken = import.meta.env.VITE_LOCAL_AUTH_TOKEN
 
+export const LOCAL_SIMULATED_ROLE_KEY = 'openmic-simulated-auth-token'
+export type SimulatedAuthRole = {
+  id: string
+  label: string
+  kind: 'organizer' | 'performer'
+  accountId: string
+  profileId: string
+  profileName: string
+  accountDisplayName: string
+  token: string
+}
+
 export const isAuthConfigured = Boolean(userPoolId && userPoolClientId)
 let configured = false
+
+export function getStoredSimulatedAuthToken(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const storedValue = window.localStorage.getItem(LOCAL_SIMULATED_ROLE_KEY)
+  return storedValue || undefined
+}
+
+export async function fetchSimulatedAuthConfig(): Promise<{ enabled: boolean; roles: SimulatedAuthRole[] }> {
+  try {
+    const response = await fetch('/api/dev/simulated-auth/config')
+    if (!response.ok) return { enabled: false, roles: [] }
+    return (await response.json()) as { enabled: boolean; roles: SimulatedAuthRole[] }
+  } catch {
+    return { enabled: false, roles: [] }
+  }
+}
 
 async function authModules() {
   const [{ Amplify }, auth] = await Promise.all([
@@ -35,6 +63,8 @@ async function authModules() {
 }
 
 export async function getAccessToken(): Promise<string | undefined> {
+  const simulatedAuthToken = getStoredSimulatedAuthToken()
+  if (simulatedAuthToken) return simulatedAuthToken
   if (localAuthToken) return localAuthToken
   if (!isAuthConfigured) return undefined
   const { fetchAuthSession } = await authModules()
