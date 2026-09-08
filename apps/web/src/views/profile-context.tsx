@@ -74,7 +74,5 @@ export function ProfileSwitcher() {
 
 export function DashboardMenuLink() {
   const context = useAccountContext()
-  const selected = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
-  const canManage = selected?.profile_kind === 'organizer' && context.permissions.data?.permissions.includes('profiles:manage')
-  return canManage ? <a href="/dashboard">Dashboard</a> : null
+  return context.account.data ? <a href="/dashboard">Dashboard</a> : null
 }

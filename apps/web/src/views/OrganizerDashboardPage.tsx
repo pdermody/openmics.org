@@ -1,6 +1,7 @@
 import { Sparkles } from 'lucide-react'
 import { useAccountContext } from '../features/account'
 import type { ColorMode, ThemeId } from '../theme'
+import { ClaimableRegistrationsBanner } from './ClaimableRegistrationsBanner'
 import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
 
 export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }) {
@@ -11,9 +12,10 @@ export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: 
   return <main className="app" data-theme={theme} data-mode={mode}>
     <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
-      <div className="eyebrow">Organizer workspace</div>
+      <div className="eyebrow">Dashboard</div>
       <h1>Make the room ready.</h1>
-      {!context.account.data && <ReadState message="Sign in to open your organizer workspace." />}
+      {!context.account.data && <ReadState message="Sign in to open your dashboard." />}
+      <ClaimableRegistrationsBanner />
       {context.account.data && !isOrganizer && <ReadState message="Select an organizer profile to manage open mic series and events." />}
       {isOrganizer && <>
         <p className="detail-lede">You are working as <strong>{selected.profile_name}</strong>. Your next actions will be scoped to this organizer profile.</p>

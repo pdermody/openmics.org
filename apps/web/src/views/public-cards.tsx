@@ -1,9 +1,12 @@
 import { Clock3, MapPin } from 'lucide-react'
-import { usePublicOpenMic, type Event, type OpenMic } from '../features/publicReads'
+import { useMyRegisteredEventIds } from '../features/myRegistrations'
+import { isRegistrationClosed, usePublicOpenMic, type Event, type OpenMic } from '../features/publicReads'
 import { SocialButton } from './shared'
 
 export function EventCard({ event }: { event: Event }) {
   const parentOpenMic = usePublicOpenMic(event.open_mic_id)
+  const registeredEventIds = useMyRegisteredEventIds()
+  const isRegistered = registeredEventIds.has(event.id)
   const date = new Date(event.starts_at)
   const day = Number.isNaN(date.getTime()) ? '--' : date.getDate()
   const month = Number.isNaN(date.getTime())
@@ -12,7 +15,16 @@ export function EventCard({ event }: { event: Event }) {
   const time = Number.isNaN(date.getTime())
     ? 'Time to be announced'
     : date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  const registrationDisabled = parentOpenMic.data?.registration_mode === 'on_night_only' || parentOpenMic.data?.registration_mode === 'external'
+  const registrationClosed = isRegistrationClosed(event)
+  const registrationMode = parentOpenMic.data?.registration_mode
+  const registrationDisabled = registrationClosed || registrationMode === 'on_night_only' || registrationMode === 'external'
+  const registrationDisabledLabel = registrationClosed
+    ? 'Registration closed'
+    : registrationMode === 'external'
+      ? 'External registration'
+      : registrationMode === 'on_night_only'
+        ? 'In-person registration only'
+        : 'Registration unavailable'
 
   return (
     <article className="event-card">
@@ -42,9 +54,11 @@ export function EventCard({ event }: { event: Event }) {
         </div>
       </div>
       <div className="event-action">
-        {registrationDisabled ? (
+        {isRegistered ? (
+          <span className="profile-context" role="status">You're registered</span>
+        ) : registrationDisabled ? (
           <button className="primary-button" type="button" disabled aria-disabled="true">
-            Register
+            {registrationDisabledLabel}
           </button>
         ) : (
           <a className="primary-button" href={`/events/${event.public_code}/register`}>

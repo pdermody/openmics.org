@@ -9,6 +9,12 @@ describe('loadConfig', () => {
       environment: 'test',
       host: '127.0.0.1',
       port: 4321,
+      simulatedAuthMode: false,
+      emailAdapter: 'memory',
+      emailQueueUrl: undefined,
+      emailSenderAddress: 'noreply@openmics.org',
+      awsRegion: 'eu-west-1',
+      appBaseUrl: 'http://localhost:5173',
     });
   });
 });

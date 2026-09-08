@@ -45,24 +45,57 @@ export type Profile = {
 
 type OpenMicPage = { items: OpenMic[]; pagination: { page: number; page_size: number; total: number } }
 
-export const publicReadKeys = {
-  all: ['public'] as const,
-  upcomingEvents: (limit = 6) => [...publicReadKeys.all, 'upcoming-events', limit] as const,
-  openMics: (pageSize = 6) => [...publicReadKeys.all, 'open-mics', pageSize] as const,
+/** Mirrors the API's own registrations-closed check (apps/api/src/registrations/routes.ts). */
+export function isRegistrationClosed(event: Pick<Event, 'registrations_closed_at'>): boolean {
+  return Boolean(event.registrations_closed_at) && new Date(event.registrations_closed_at!).getTime() <= Date.now()
 }
 
-export function useUpcomingEvents(limit = 6) {
+/** Approximate coordinates for the seeded dev cities, so switching to a profile based in a
+ * different city (via the profile switcher) can demonstrate "near me" filtering locally. */
+const DEV_CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  dublin: { lat: 53.3498, lng: -6.2603 },
+  cork: { lat: 51.8985, lng: -8.4756 },
+  galway: { lat: 53.2707, lng: -9.0568 },
+  paris: { lat: 48.8566, lng: 2.3522 },
+}
+
+export function getCityCoordinates(city: string | null | undefined): { lat: number; lng: number } | undefined {
+  if (!city) return undefined
+  return DEV_CITY_COORDINATES[city.trim().toLowerCase()]
+}
+
+export const publicReadKeys = {
+  all: ['public'] as const,
+  upcomingEvents: (limit = 6, near?: { lat: number; lng: number; radiusKm?: number }) =>
+    [...publicReadKeys.all, 'upcoming-events', limit, near?.lat, near?.lng, near?.radiusKm] as const,
+  openMics: (pageSize = 6, near?: { lat: number; lng: number; radiusKm?: number }) =>
+    [...publicReadKeys.all, 'open-mics', pageSize, near?.lat, near?.lng, near?.radiusKm] as const,
+}
+
+export function useUpcomingEvents(limit = 6, near?: { lat: number; lng: number; radiusKm?: number }) {
   return useQuery({
-    queryKey: publicReadKeys.upcomingEvents(limit),
-    queryFn: () => api<Event[]>(`/events/upcoming?limit=${limit}`),
+    queryKey: publicReadKeys.upcomingEvents(limit, near),
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: String(limit) })
+      if (near) {
+        params.set('near', `${near.lat},${near.lng}`)
+        params.set('radius_km', String(near.radiusKm ?? 50))
+      }
+      return api<Event[]>(`/events/upcoming?${params.toString()}`)
+    },
   })
 }
 
-export function usePublicOpenMics(pageSize = 6) {
+export function usePublicOpenMics(pageSize = 6, near?: { lat: number; lng: number; radiusKm?: number }) {
   return useQuery({
-    queryKey: publicReadKeys.openMics(pageSize),
+    queryKey: publicReadKeys.openMics(pageSize, near),
     queryFn: async () => {
-      const response = await api<OpenMicPage>(`/open-mics?page_size=${pageSize}`)
+      const params = new URLSearchParams({ page_size: String(pageSize) })
+      if (near) {
+        params.set('near', `${near.lat},${near.lng}`)
+        params.set('radius_km', String(near.radiusKm ?? 50))
+      }
+      const response = await api<OpenMicPage>(`/open-mics?${params.toString()}`)
       return response.items
     },
   })

@@ -1,7 +1,8 @@
 import { Clock3, MapPin } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
 import { useAccountContext } from '../features/account'
-import { useNextEvent, usePublicEvent, usePublicOpenMic, usePublicProfile } from '../features/publicReads'
+import { useMyRegisteredEventIds } from '../features/myRegistrations'
+import { isRegistrationClosed, useNextEvent, usePublicEvent, usePublicOpenMic, usePublicProfile } from '../features/publicReads'
 import type { ThemeProps } from './shared'
 import { ReadState, SiteHeader, SocialButton } from './shared'
 
@@ -21,13 +22,25 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   const accountContext = useAccountContext()
   const activeProfile = accountContext.profiles.data?.items.find((profileItem) => profileItem.id === accountContext.account.data?.current_profile_id)
   const needsPerformerProfile = Boolean(accountContext.account.data) && activeProfile?.profile_kind !== 'performer'
+  const registeredEventIds = useMyRegisteredEventIds()
+  const isRegisteredForEvent = kind === 'event' && Boolean(event.data) && registeredEventIds.has(event.data!.id)
+  const isRegisteredForNextEvent = kind === 'open-mic' && Boolean(nextEvent.data) && registeredEventIds.has(nextEvent.data!.id)
   const loading = kind === 'event' ? event.isPending : kind === 'open-mic' ? openMic.isPending : profile.isPending
   const error = kind === 'event' ? event.isError : kind === 'open-mic' ? openMic.isError : profile.isError
   const title = event.data?.title ?? openMic.data?.name ?? profile.data?.profile_name
   const errorObject = kind === 'event' ? event.error : kind === 'open-mic' ? openMic.error : profile.error
   const retry = () => void (kind === 'event' ? event.refetch() : kind === 'open-mic' ? openMic.refetch() : profile.refetch())
   const registrationMode = kind === 'event' ? parentOpenMic.data?.registration_mode : openMic.data?.registration_mode
-  const registrationDisabled = registrationMode === 'on_night_only' || registrationMode === 'external'
+  const eventRegistrationClosed = kind === 'event' && Boolean(event.data) && isRegistrationClosed(event.data!)
+  const nextEventRegistrationClosed = kind === 'open-mic' && Boolean(nextEvent.data) && isRegistrationClosed(nextEvent.data!)
+  const registrationDisabled = eventRegistrationClosed || nextEventRegistrationClosed || registrationMode === 'on_night_only' || registrationMode === 'external'
+  const registrationDisabledLabel = (eventRegistrationClosed || nextEventRegistrationClosed)
+    ? 'Registration closed'
+    : registrationMode === 'external'
+      ? 'External registration'
+      : registrationMode === 'on_night_only'
+        ? 'In-person registration only'
+        : 'Registration unavailable'
 
   return (
     <main className="app" data-theme={theme} data-mode={mode}>
@@ -47,9 +60,11 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
           </div>
           <div className="detail-actions">
             {kind === 'event' && (
-              registrationDisabled ? (
+              isRegisteredForEvent ? (
+                <span className="profile-context" role="status">You're registered for this event</span>
+              ) : registrationDisabled ? (
                 <button className="primary-button" type="button" disabled aria-disabled="true">
-                  Registration unavailable
+                  {registrationDisabledLabel}
                 </button>
               ) : needsPerformerProfile ? (
                 <button className="primary-button" type="button" onClick={focusProfileSwitcher}>
@@ -60,7 +75,9 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
               )
             )}
             {kind === 'open-mic' && (
-              nextEvent.data ? (
+              isRegisteredForNextEvent ? (
+                <span className="profile-context" role="status">You're registered for the next event</span>
+              ) : nextEvent.data ? (
                 <a className="primary-button" href={`/events/${nextEvent.data.public_code}`}>See next event</a>
               ) : needsPerformerProfile ? (
                 <button className="primary-button" type="button" onClick={focusProfileSwitcher}>

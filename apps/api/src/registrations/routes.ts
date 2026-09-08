@@ -3,6 +3,7 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
+import type { EmailAdapter } from '../email/index.js';
 import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../errors.js';
 import { findEventById, findEventByIdOrPublicCode } from '../events/repository.js';
 import { findOpenMicById } from '../open-mics/repository.js';
@@ -12,13 +13,14 @@ import {
   findRegistrationById,
   findRegistrationByToken,
   findRegistrationsByEventId,
+  findRegistrationsByProfileId,
   insertRegistration,
   serializeRegistration,
   updateRegistration,
 } from './repository.js';
 import { claimRegistrationSchema, createRegistrationSchema, updateRegistrationSchema, verifyEmailSchema } from './validation.js';
 
-export type RegistrationsPluginOptions = { pool: Pool };
+export type RegistrationsPluginOptions = { pool: Pool; emailAdapter: EmailAdapter; appBaseUrl: string };
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -82,7 +84,7 @@ async function assertRegistrationAccess(pool: Pool, request: FastifyRequest, reg
   return registration;
 }
 
-export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions> = async (app, { pool }) => {
+export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions> = async (app, { pool, emailAdapter, appBaseUrl }) => {
   app.post<{ Params: { id: string } }>(
     '/events/:id/registrations',
     { preHandler: app.authenticateOptional },
@@ -184,6 +186,17 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
           });
         });
         reply.status(201).send(serializeRegistration(created));
+        if (input.contact_email && editToken && verificationToken) {
+          const confirmUrl = new URL(`/events/${event.public_code}/register`, appBaseUrl);
+          confirmUrl.searchParams.set('token', editToken.token);
+          confirmUrl.searchParams.set('verify', verificationToken.token);
+          void emailAdapter.send({
+            to: input.contact_email,
+            subject: `Confirm your spot at ${event.title}`,
+            text: `Confirm your registration for ${event.title}: ${confirmUrl.toString()}\n\nThis link also lets you edit your registration later. It expires in 7 days.`,
+            html: `<p>Confirm your registration for <strong>${event.title}</strong>:</p><p><a href="${confirmUrl.toString()}">${confirmUrl.toString()}</a></p><p>This link also lets you edit your registration later. It expires in 7 days.</p>`,
+          }).catch((error) => app.log.error({ error }, 'Failed to send registration confirmation email'));
+        }
       } catch (error) {
         if ((error as { code?: string }).code === '23505') {
           throw new ConflictError('DUPLICATE_REGISTRATION', 'A verified registration already exists for this event and email');
@@ -205,6 +218,16 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
   app.get('/me/claimable-registrations', { preHandler: app.authenticate }, async (request, reply) => {
     const email = await accountEmail(pool, request.account!.accountId);
     reply.send((await findClaimableRegistrations(pool, email)).map(serializeRegistration));
+  });
+
+  app.get<{ Querystring: { profile?: string } }>('/me/registrations', { preHandler: app.authenticate }, async (request, reply) => {
+    const profileId = request.query.profile;
+    if (!profileId) throw new ValidationError('profile query parameter is required', { field: 'profile' });
+    const profile = await findProfileById(pool, profileId);
+    if (!profile || (profile.created_by_account_id !== request.account!.accountId && !request.account!.isPlatformAdmin)) {
+      throw new ForbiddenError('You do not own the profile specified in the profile query parameter');
+    }
+    reply.send((await findRegistrationsByProfileId(pool, profileId)).map(serializeRegistration));
   });
 
   app.get<{ Querystring: { token: string } }>('/registrations/edit', async (request, reply) => {

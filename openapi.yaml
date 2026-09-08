@@ -153,6 +153,26 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/RegistrationListResponse"
+  /me/registrations:
+    get:
+      tags:
+        - Registrations
+      operationId: listMyRegistrations
+      description: Lists registrations owned by the given account-owned profile, across all events. Used to show "already registered" status.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          $ref: "#/components/responses/RegistrationListResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /profiles:
     get:
       tags:

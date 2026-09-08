@@ -37,6 +37,10 @@ try {
     `INSERT INTO accounts (cognito_id, email, display_name)
      VALUES ('dev-private', 'private@openmic.test', 'Private Demo') RETURNING id`,
   );
+  const organizerThree = await pool.query(
+    `INSERT INTO accounts (cognito_id, email, display_name, city)
+     VALUES ('dev-organizer-3', 'organizer-3@openmic.test', 'Camille Laurent', 'Paris') RETURNING id`,
+  );
 
   const organizer = await pool.query(
     `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, visibility)
@@ -68,6 +72,11 @@ try {
      VALUES ($1, 'Private Demo Profile', 'performer', 'private', false) RETURNING id`,
     [privateAccount.rows[0].id],
   );
+  const organizerThreeProfile = await pool.query(
+    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, visibility)
+     VALUES ($1, 'Camille Laurent', 'organizer', 'Runs a cosy weekly cabaret night in the Marais.', 'public') RETURNING id`,
+    [organizerThree.rows[0].id],
+  );
 
   const houseLights = await pool.query(
     `INSERT INTO open_mics (
@@ -91,6 +100,39 @@ try {
     ) RETURNING id`,
     [organizer.rows[0].id],
   );
+  const soundcheck = await pool.query(
+    `INSERT INTO open_mics (
+      owner_profile_id, name, description, activities, tags, venue_name, address_line1, city, country,
+      lat, lng, time_zone, schedule_summary, age_policy, registration_mode, status
+    ) VALUES (
+      $1, 'Soundcheck Late Show', 'A walk-in-only late slot for whoever shows up ready to go.',
+      ARRAY['singing', 'comedy'], ARRAY['late-night', 'walk-in'], 'The Backroom', '22 Fade Street',
+      'Dublin', 'IE', 53.3412, -6.2631, 'Europe/Dublin', 'Every Thursday at 21:30', 'both', 'on_night_only', 'active'
+    ) RETURNING id`,
+    [organizer.rows[0].id],
+  );
+  const rebelCity = await pool.query(
+    `INSERT INTO open_mics (
+      owner_profile_id, name, description, activities, tags, venue_name, address_line1, city, country,
+      lat, lng, time_zone, schedule_summary, age_policy, registration_mode, status
+    ) VALUES (
+      $1, 'Rebel City Sessions', 'A friendly Cork room for first-timers and regulars alike.',
+      ARRAY['singing', 'poetry'], ARRAY['cork', 'all-levels'], 'The Long Room', '10 Oliver Plunkett Street',
+      'Cork', 'IE', 51.8985, -8.4756, 'Europe/Dublin', 'Every second Wednesday at 20:00', 'both', 'both', 'active'
+    ) RETURNING id`,
+    [organizerTwoProfile.rows[0].id],
+  );
+  const petitMicro = await pool.query(
+    `INSERT INTO open_mics (
+      owner_profile_id, name, description, activities, tags, venue_name, address_line1, city, country,
+      lat, lng, time_zone, schedule_summary, age_policy, registration_mode, status
+    ) VALUES (
+      $1, 'Le Petit Micro', 'A cosy weekly cabaret night in the Marais.',
+      ARRAY['singing', 'comedy', 'poetry'], ARRAY['marais', 'cabaret'], 'La Petite Scene', '5 Rue des Rosiers',
+      'Paris', 'FR', 48.8586, 2.3603, 'Europe/Paris', 'Every Wednesday at 20:30', 'both', 'both', 'active'
+    ) RETURNING id`,
+    [organizerThreeProfile.rows[0].id],
+  );
   await pool.query(
     `INSERT INTO open_mics (
       owner_profile_id, name, description, activities, venue_name, address_line1, city, country,
@@ -105,19 +147,23 @@ try {
       ('Rosa-Byrne', 'profile', $2, 'current'),
       ('Mara-on-Stage', 'profile', $3, 'current'),
       ('Noah-Reed', 'profile', $4, 'current'),
-      ('Iona-Park', 'profile', $5, 'current')`,
-    [organizer.rows[0].id, organizerTwoProfile.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id],
+      ('Iona-Park', 'profile', $5, 'current'),
+      ('Camille-Laurent', 'profile', $6, 'current')`,
+    [organizer.rows[0].id, organizerTwoProfile.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id, organizerThreeProfile.rows[0].id],
   );
   await pool.query(
     `INSERT INTO handles (handle, entity_type, open_mic_id, status) VALUES
       ('Lantern-Sessions', 'open_mic', $1, 'current'),
-      ('Blue-Note-Sundays', 'open_mic', $2, 'current')`,
-    [houseLights.rows[0].id, blueNote.rows[0].id],
+      ('Blue-Note-Sundays', 'open_mic', $2, 'current'),
+      ('Soundcheck-Late-Show', 'open_mic', $3, 'current'),
+      ('Rebel-City-Sessions', 'open_mic', $4, 'current'),
+      ('Le-Petit-Micro', 'open_mic', $5, 'current')`,
+    [houseLights.rows[0].id, blueNote.rows[0].id, soundcheck.rows[0].id, rebelCity.rows[0].id, petitMicro.rows[0].id],
   );
   await pool.query(
-    `UPDATE profiles SET current_handle = CASE id WHEN $1 THEN 'Mara-Quinn' WHEN $2 THEN 'Rosa-Byrne' WHEN $3 THEN 'Mara-on-Stage' WHEN $4 THEN 'Noah-Reed' WHEN $5 THEN 'Iona-Park' END
-     WHERE id IN ($1, $2, $3, $4, $5)`,
-    [organizer.rows[0].id, organizerTwoProfile.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id],
+    `UPDATE profiles SET current_handle = CASE id WHEN $1 THEN 'Mara-Quinn' WHEN $2 THEN 'Rosa-Byrne' WHEN $3 THEN 'Mara-on-Stage' WHEN $4 THEN 'Noah-Reed' WHEN $5 THEN 'Iona-Park' WHEN $6 THEN 'Camille-Laurent' END
+     WHERE id IN ($1, $2, $3, $4, $5, $6)`,
+    [organizer.rows[0].id, organizerTwoProfile.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id, organizerThreeProfile.rows[0].id],
   );
   await pool.query(
     `UPDATE accounts SET current_profile_id = $1 WHERE id = $2`,
@@ -129,6 +175,10 @@ try {
   );
   await pool.query(
     `UPDATE accounts SET current_profile_id = $1 WHERE id = $2`,
+    [organizerThreeProfile.rows[0].id, organizerThree.rows[0].id],
+  );
+  await pool.query(
+    `UPDATE accounts SET current_profile_id = $1 WHERE id = $2`,
     [performerProfile.rows[0].id, performer.rows[0].id],
   );
   await pool.query(
@@ -136,9 +186,9 @@ try {
     [performerTwoProfile.rows[0].id, performerTwo.rows[0].id],
   );
   await pool.query(
-    `UPDATE open_mics SET current_handle = CASE id WHEN $1 THEN 'Lantern-Sessions' WHEN $2 THEN 'Blue-Note-Sundays' END
-     WHERE id IN ($1, $2)`,
-    [houseLights.rows[0].id, blueNote.rows[0].id],
+    `UPDATE open_mics SET current_handle = CASE id WHEN $1 THEN 'Lantern-Sessions' WHEN $2 THEN 'Blue-Note-Sundays' WHEN $3 THEN 'Soundcheck-Late-Show' WHEN $4 THEN 'Rebel-City-Sessions' WHEN $5 THEN 'Le-Petit-Micro' END
+     WHERE id IN ($1, $2, $3, $4, $5)`,
+    [houseLights.rows[0].id, blueNote.rows[0].id, soundcheck.rows[0].id, rebelCity.rows[0].id, petitMicro.rows[0].id],
   );
 
   const event = await pool.query(
@@ -167,6 +217,29 @@ try {
     `INSERT INTO events (open_mic_id, title, starts_at, time_zone, venue_name, address_line1, city, country, activities)
      VALUES ($1, 'Blue Note Showcase', now() + interval '12 days', 'Europe/Dublin', 'The Blue Note', '8 Crown Alley', 'Dublin', 'IE', ARRAY['singing', 'storytelling'])`,
     [blueNote.rows[0].id],
+  );
+  await pool.query(
+    `INSERT INTO events (open_mic_id, title, starts_at, time_zone, venue_name, address_line1, city, country, activities, capacity)
+     VALUES ($1, 'Thursday Late Show', now() + interval '5 days', 'Europe/Dublin', 'The Backroom', '22 Fade Street', 'Dublin', 'IE', ARRAY['singing', 'comedy'], 15)`,
+    [soundcheck.rows[0].id],
+  );
+  await pool.query(
+    `INSERT INTO events (
+      open_mic_id, title, starts_at, time_zone, venue_name, address_line1, city, country, lat, lng, activities, capacity
+    ) VALUES (
+      $1, 'Rebel City Sessions: Open Night', now() + interval '6 days', 'Europe/Dublin', 'The Long Room', '10 Oliver Plunkett Street',
+      'Cork', 'IE', 51.8985, -8.4756, ARRAY['singing', 'poetry'], 18
+    )`,
+    [rebelCity.rows[0].id],
+  );
+  await pool.query(
+    `INSERT INTO events (
+      open_mic_id, title, starts_at, time_zone, venue_name, address_line1, city, country, lat, lng, activities, capacity
+    ) VALUES (
+      $1, 'Le Petit Micro: Soiree', now() + interval '9 days', 'Europe/Paris', 'La Petite Scene', '5 Rue des Rosiers',
+      'Paris', 'FR', 48.8586, 2.3603, ARRAY['singing', 'comedy', 'poetry'], 25
+    )`,
+    [petitMicro.rows[0].id],
   );
 
   const verifiedRegistration = await pool.query(

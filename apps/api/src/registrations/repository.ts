@@ -124,6 +124,14 @@ export async function findClaimableRegistrations(client: Queryable, email: strin
   return result.rows;
 }
 
+export async function findRegistrationsByProfileId(client: Queryable, profileId: string): Promise<RegistrationRow[]> {
+  const result = await client.query<RegistrationRow>(
+    'SELECT * FROM registrations WHERE profile_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC',
+    [profileId],
+  );
+  return result.rows;
+}
+
 export async function updateRegistration(
   pool: Pool,
   id: string,

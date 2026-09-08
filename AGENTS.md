@@ -18,4 +18,5 @@
 - Run `npm run validate:openapi` after OpenAPI changes.
 - Run `npm run lint:openapi` after API contract changes.
 - Run `npm run check:links` after moving or renaming documents.
+- Run `cd infra && npm run synth` after changes under `infra/`; deploying (`cdk deploy`) requires explicit user confirmation since it touches real AWS resources.
 - Markdown documents are not linted; do not run or reintroduce Markdown lint checks.

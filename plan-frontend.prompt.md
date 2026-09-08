@@ -27,7 +27,7 @@ Completed items remain in the phases below as verification or follow-up work. On
 6. Add profile contact storage for phone numbers, including migration, validation/normalization policy, ownership controls, OpenAPI fields, serializer behavior, privacy rules, local seed fixtures, and profile editor support. Authenticated performer registration should use the stored profile phone/city where appropriate and must not ask for duplicate values.
 7. Define API adapter boundaries for SES email, S3/Amplify Storage, and any SSE infrastructure. Provide local fakes and deterministic test adapters; keep AWS implementation details out of feature components.
 8. Extend the existing repeatable local integration data: Docker Postgres/PostGIS, migrations, and development seed data already cover public/private profiles, active/paused/draft series, upcoming/closed events, registrations, performances, handles, and test accounts. Add permissions, profile phone fixtures, media, authenticated users, and token lifecycle fixtures.
-9. Define infrastructure ownership: Amplify manages frontend-adjacent resources such as Cognito, frontend hosting, and storage resources it owns; Terraform manages independently owned API/platform resources. No AWS resource may be managed by both.
+9. **Superseded — see [docs/decisions.md](docs/decisions.md#infrastructure):** infrastructure is provisioned via AWS CDK (TypeScript, under `infra/`), not split between Amplify and Terraform. Amplify is used only as the frontend's Cognito client SDK; it does not own hosting, storage, or any other AWS resource.
 10. Record the browser boundary: CloudFront/Amplify serves the SPA independently; the API remains JSON/API-only with a generic non-API entry point; no API-rendered metadata or entity-specific HTML.
 11. Keep MSW/local fixtures for isolated component tests only. Do not use mocks to conceal missing production API operations or to mark a feature complete.
 
@@ -98,10 +98,10 @@ Completed items remain in the phases below as verification or follow-up work. On
 4. Run API `npm test`, OpenAPI validation, link checks, and frontend contract coverage together for every cross-boundary change.
 5. Test the built SPA behind a static server/CloudFront-like fallback: every non-API route returns the same entry point, every `/api/*` request remains JSON, assets resolve with hashed URLs, and deep links reload correctly.
 6. Measure bundle and Web Vitals budgets on throttled mobile profiles; fail CI on route chunk regressions or accessibility violations in the selected critical flows.
-7. Verify the complete Amplify/Cognito staging flow, API JWT verification, SES/S3 adapter behavior, local seeded flow, and deployment ownership before production rollout. Keep Terraform validation limited to independently owned platform infrastructure.
+7. Verify the complete Amplify/Cognito staging flow (client SDK only), API JWT verification, SES/S3 adapter behavior, and the local seeded flow before production rollout. Infrastructure validation runs against the CDK app in `infra/` (see [docs/decisions.md](docs/decisions.md#infrastructure)).
 
 **Decisions**
-- Authentication: use AWS Amplify/Cognito from the initial frontend architecture, but isolate it behind `auth/` so tests and local development can inject deterministic identities.
+- Authentication: use AWS Cognito from the initial frontend architecture, accessed via the Amplify **client SDK only** (not Amplify Hosting/backend), isolated behind `auth/` so tests and local development can inject deterministic identities.
 - Initial frontend milestone: public browsing, guest/authenticated registration, organizer console, and organizer media, but only after their Phase 0 API/auth/storage contracts are complete.
 - Deployment: CloudFront/S3 serves the SPA independently; the API does not render entity-specific HTML or metadata.
 - Visual direction: prototype a generous gallery of source-informed light/dark theme families before choosing a default; keep at least two polished alternatives and record palette provenance, transformations, licensing notes, and contrast results.

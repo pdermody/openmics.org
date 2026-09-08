@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 
 import { buildApp } from '../../src/app.js';
+import { createMemoryEmailAdapter } from '../../src/email/index.js';
 import { startTestDatabase, stopTestDatabase, type TestDatabase } from './database.js';
 
 describe('registration routes (real database)', () => {
@@ -13,6 +14,7 @@ describe('registration routes (real database)', () => {
   let claimantAccountId: string;
   let claimantProfileId: string;
   let app: ReturnType<typeof buildApp>;
+  let emailAdapter: ReturnType<typeof createMemoryEmailAdapter>;
 
   beforeAll(async () => {
     database = await startTestDatabase();
@@ -51,7 +53,8 @@ describe('registration routes (real database)', () => {
       [openMic.rows[0].id],
     );
     eventId = event.rows[0].id;
-    app = buildApp({ db: pool, logger: false, config: { databaseUrl: 'unused', environment: 'test', host: '127.0.0.1', port: 3000 } });
+    emailAdapter = createMemoryEmailAdapter();
+    app = buildApp({ db: pool, logger: false, emailAdapter, config: { databaseUrl: 'unused', environment: 'test', host: '127.0.0.1', port: 3000, appBaseUrl: 'http://localhost:5173' } });
     await app.ready();
   }, 120_000);
 
@@ -74,6 +77,14 @@ describe('registration routes (real database)', () => {
     expect(guest.statusCode).toBe(201);
     expect(guest.json().visibility_state).toBe('pending');
 
+    const confirmationEmail = emailAdapter.sent.find((message) => message.to === 'guest@example.test');
+    expect(confirmationEmail).toBeDefined();
+    expect(confirmationEmail?.subject).toContain('Registration Event');
+    const confirmUrl = new URL(confirmationEmail!.text.match(/https?:\/\/\S+/)![0]);
+    expect(confirmUrl.pathname).toMatch(/\/events\/.+\/register/);
+    expect(confirmUrl.searchParams.get('token')).toBeTruthy();
+    expect(confirmUrl.searchParams.get('verify')).toBeTruthy();
+
     const kiosk = await app.inject({
       method: 'POST',
       url: `/api/events/${eventId}/registrations`,
@@ -87,6 +98,30 @@ describe('registration routes (real database)', () => {
     expect(kiosk.statusCode).toBe(201);
     expect(kiosk.json().visibility_state).toBe('valid');
     expect(kiosk.json().verification_method).toBe('organizer_kiosk');
+  });
+
+  it('resolves the magic edit link with the originally submitted song names', async () => {
+    const guest = await app.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/registrations`,
+      payload: {
+        performer_name: 'Song Performer',
+        contact_email: 'song-performer@example.test',
+        submission_channel: 'organic',
+        organizer_supervised: false,
+        song_names: ['Wonderwall', 'Creep'],
+      },
+    });
+    expect(guest.statusCode).toBe(201);
+    expect(guest.json().song_names).toEqual(['Wonderwall', 'Creep']);
+
+    const confirmationEmail = emailAdapter.sent.find((message) => message.to === 'song-performer@example.test');
+    const confirmUrl = new URL(confirmationEmail!.text.match(/https?:\/\/\S+/)![0]);
+    const editToken = confirmUrl.searchParams.get('token');
+
+    const edit = await app.inject({ method: 'GET', url: `/api/registrations/edit?token=${editToken}` });
+    expect(edit.statusCode).toBe(200);
+    expect(edit.json().song_names).toEqual(['Wonderwall', 'Creep']);
   });
 
   it('requires an authenticated organizer to select a performer profile for self-registration', async () => {
@@ -166,6 +201,36 @@ describe('registration routes (real database)', () => {
     expect(response.json().claimed_by_account_id).toBe(claimantAccountId);
     expect(response.json().adopted_profile_id).toBe(claimantProfileId);
     expect(response.json().performer_name).toBe('Claimed Performer');
+  });
+
+  it('lists a profile\'s own registrations across events, and forbids checking another account\'s profile', async () => {
+    const performerRegistration = await app.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/registrations`,
+      headers: { authorization: 'Bearer registration-claimant' },
+      payload: {
+        profile_id: claimantProfileId,
+        performer_name: 'Claimed Performer',
+        submission_channel: 'organic',
+        organizer_supervised: false,
+      },
+    });
+    expect(performerRegistration.statusCode).toBe(201);
+
+    const mine = await app.inject({
+      method: 'GET',
+      url: `/api/me/registrations?profile=${claimantProfileId}`,
+      headers: { authorization: 'Bearer registration-claimant' },
+    });
+    expect(mine.statusCode).toBe(200);
+    expect(mine.json().some((registration: { event_id: string }) => registration.event_id === eventId)).toBe(true);
+
+    const forbidden = await app.inject({
+      method: 'GET',
+      url: `/api/me/registrations?profile=${claimantProfileId}`,
+      headers: { authorization: 'Bearer registration-owner' },
+    });
+    expect(forbidden.statusCode).toBe(403);
   });
 
   it('enforces event capacity atomically', async () => {
