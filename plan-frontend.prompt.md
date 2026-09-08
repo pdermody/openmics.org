@@ -1,5 +1,10 @@
 ## Plan: Build The Frontend SPA
 
+> **Superseded:** This frontend plan has been consolidated into the
+> [Open Mic Canonical Implementation Plan](IMPLEMENTATION-PLAN.md). Retain this
+> file only as historical planning context; do not use it to select or sequence
+> new work.
+
 TL;DR: Complete the API, Cognito/Amplify contract, local seed data, adapter boundaries, and infrastructure ownership first; then build `apps/web` as a React 18 + TypeScript + Vite SPA with a source-informed light/dark theme gallery, public browsing, registration, and organizer workflows. The API remains JSON-only while Amplify owns frontend-adjacent infrastructure and Terraform owns independently managed platform resources.
 
 **Current status**

@@ -1,5 +1,10 @@
 # Plan: Build The Phase 1 API
 
+> **Superseded:** This API-first plan has been consolidated into the
+> [Open Mic Canonical Implementation Plan](IMPLEMENTATION-PLAN.md). Retain this
+> file only as historical planning context; do not use it to select or sequence
+> new work.
+
 TL;DR: Build a TypeScript/Fastify API first, using an OpenAPI-first Phase 1 contract, explicit SQL migrations managed by node-pg-migrate, and three test layers: DB-free Vitest unit tests, ephemeral Postgres/PostGIS integration tests with Testcontainers for constraints/triggers/concurrency, and Fastify.inject API tests. Production authentication will use Cognito behind an adapter; tests will use deterministic injected identities. Node 22 LTS and Terraform are the agreed platform baselines.
 
 ## Phase 1: Contract and Decisions
