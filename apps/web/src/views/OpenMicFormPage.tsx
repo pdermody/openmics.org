@@ -1,0 +1,341 @@
+import { useEffect } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm, type UseFormSetError } from 'react-hook-form'
+import { z } from 'zod'
+import { CircleAlert, CircleCheck, Sparkles } from 'lucide-react'
+import { ApiError } from '../api/client'
+import { LocationPicker } from '../components/location/LocationPicker'
+import { useAccountContext } from '../features/account'
+import { useHandleAvailability } from '../features/handles'
+import { CURRENCIES } from '../features/currencies'
+import { baseLocationFieldsSchema } from '../features/location'
+import { useCreateOpenMic, useOpenMicDetail, useUpdateOpenMic, type OpenMicFormInput } from '../features/organizer'
+import { suggestHandle } from '../features/slugify'
+import type { ColorMode, ThemeId } from '../theme'
+import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
+
+const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
+
+const openMicFormSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Series name is required'),
+    description: z.string().trim().optional(),
+    handle: z.string().trim().optional(),
+    venue_name: z.string().trim().min(1, 'Venue name is required'),
+    time_zone: z.string().trim().min(1, 'Time zone is required'),
+    website: z.union([z.literal(''), z.string().trim().url('Enter a valid URL, e.g. https://example.com')]).optional(),
+    contact_email: z.union([z.literal(''), z.string().trim().email('Please enter a valid email address, such as you@example.com.')]).optional(),
+    schedule_summary: z.string().trim().optional(),
+    schedule_details: z.string().trim().optional(),
+    originals_only: z.boolean(),
+    amplification_available: z.boolean(),
+    age_policy: z.enum(['adults_only', 'children_only', 'both']),
+    activities: z.array(z.string()).min(1, 'Select at least one activity'),
+    tags: z.string().optional(),
+    registration_mode: z.enum(['pre_only', 'on_night_only', 'both', 'external']),
+    external_registration_url: z.string().trim().optional(),
+    entry_fee_amount: z.string().optional(),
+    entry_fee_currency: z.string().optional(),
+    entry_fee_note: z.string().trim().optional(),
+  })
+  .extend(baseLocationFieldsSchema.shape)
+  .superRefine((value, ctx) => {
+    if ((value.lat === undefined) !== (value.lng === undefined)) {
+      ctx.addIssue({ code: 'custom', message: 'Latitude and longitude must be set together', path: ['lng'] })
+    }
+    if (value.registration_mode === 'external' && !value.external_registration_url) {
+      ctx.addIssue({ code: 'custom', message: 'External registration URL is required', path: ['external_registration_url'] })
+    }
+    const feeAmount = value.entry_fee_amount ? Number(value.entry_fee_amount) : 0
+    if (feeAmount > 0 && !value.entry_fee_currency) {
+      ctx.addIssue({ code: 'custom', message: 'Select a currency for the entry fee', path: ['entry_fee_currency'] })
+    }
+  })
+
+type OpenMicFormValues = z.infer<typeof openMicFormSchema>
+
+const DEFAULT_VALUES: OpenMicFormValues = {
+  name: '',
+  description: '',
+  handle: '',
+  venue_name: '',
+  address_line1: '',
+  address_line2: '',
+  postcode: '',
+  city: '',
+  country: '',
+  lat: undefined,
+  lng: undefined,
+  time_zone: '',
+  website: '',
+  contact_email: '',
+  schedule_summary: '',
+  schedule_details: '',
+  originals_only: false,
+  amplification_available: false,
+  age_policy: 'both',
+  activities: [],
+  tags: '',
+  registration_mode: 'both',
+  external_registration_url: '',
+  entry_fee_amount: '',
+  entry_fee_currency: '',
+  entry_fee_note: '',
+}
+
+function openMicErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return 'We could not save this open mic. Please try again.'
+  if (error.code === 'HANDLE_UNAVAILABLE') return 'That handle is already taken. Please choose another.'
+  const fieldErrors = (error.details as { fieldErrors?: Record<string, string[]> } | undefined)?.fieldErrors
+  const firstField = fieldErrors && Object.keys(fieldErrors)[0]
+  if (firstField) return `${firstField.replace(/_/g, ' ')}: ${fieldErrors![firstField][0]}`
+  return 'Please check the fields below and try again.'
+}
+
+function applyServerFieldErrors(error: unknown, setError: UseFormSetError<OpenMicFormValues>): void {
+  if (!(error instanceof ApiError)) return
+  const fieldErrors = (error.details as { fieldErrors?: Record<string, string[]> } | undefined)?.fieldErrors
+  if (!fieldErrors) return
+  Object.entries(fieldErrors).forEach(([field, messages]) => {
+    setError(field as keyof OpenMicFormValues, { type: 'server', message: messages[0] })
+  })
+}
+
+export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; theme: ThemeId; mode: ColorMode }) {
+  const isEdit = Boolean(seriesId)
+  const context = useAccountContext()
+  const activeProfile = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
+  const isOrganizer = activeProfile?.profile_kind === 'organizer' && context.permissions.data?.permissions.includes('profiles:manage')
+  const existing = useOpenMicDetail(seriesId)
+  const createOpenMic = useCreateOpenMic(activeProfile?.id)
+  const updateOpenMic = useUpdateOpenMic(seriesId)
+
+  const { register, handleSubmit, watch, setValue, setError, reset, formState } = useForm<OpenMicFormValues>({
+    resolver: zodResolver(openMicFormSchema),
+    defaultValues: DEFAULT_VALUES,
+  })
+  const { errors, dirtyFields, isDirty } = formState
+
+  const name = watch('name')
+  const handle = watch('handle') ?? ''
+  const contactEmail = watch('contact_email') ?? ''
+  const lat = watch('lat')
+  const lng = watch('lng')
+  const addressLine1 = watch('address_line1')
+  const city = watch('city')
+  const country = watch('country')
+  const postcode = watch('postcode')
+  const activities = watch('activities')
+  const entryFeeAmount = watch('entry_fee_amount')
+  const registrationMode = watch('registration_mode')
+
+  const handleCheck = useHandleAvailability(handle, !isEdit)
+
+  // Suggest a handle from the series name until the organizer supplies a non-empty custom value.
+  useEffect(() => {
+    if (isEdit || (dirtyFields.handle && handle)) return
+    setValue('handle', suggestHandle(name ?? ''))
+  }, [name, dirtyFields.handle, handle, isEdit, setValue])
+
+  // Default the open mic's contact email to the organizer's account email; they can still
+  // override it with a separate address, which we validate the same way as any other email field.
+  useEffect(() => {
+    if (dirtyFields.contact_email || contactEmail || !context.account.data?.email) return
+    setValue('contact_email', context.account.data.email)
+  }, [dirtyFields.contact_email, contactEmail, context.account.data?.email, setValue])
+
+  useEffect(() => {
+    if (!existing.data) return
+    reset({
+      name: existing.data.name,
+      description: existing.data.description ?? '',
+      handle: '',
+      venue_name: existing.data.venue_name,
+      address_line1: existing.data.address_line1,
+      address_line2: existing.data.address_line2 ?? '',
+      postcode: existing.data.postcode ?? '',
+      city: existing.data.city,
+      country: existing.data.country,
+      lat: existing.data.lat ?? undefined,
+      lng: existing.data.lng ?? undefined,
+      time_zone: existing.data.time_zone,
+      website: existing.data.website ?? '',
+      contact_email: existing.data.contact_email ?? '',
+      schedule_summary: existing.data.schedule_summary ?? '',
+      schedule_details: existing.data.schedule_details ?? '',
+      originals_only: existing.data.originals_only,
+      amplification_available: existing.data.amplification_available,
+      age_policy: existing.data.age_policy,
+      activities: existing.data.activities,
+      tags: (existing.data.tags ?? []).join(', '),
+      registration_mode: existing.data.registration_mode,
+      external_registration_url: existing.data.external_registration_url ?? '',
+      entry_fee_amount: existing.data.entry_fee_amount ? String(existing.data.entry_fee_amount) : '',
+      entry_fee_currency: existing.data.entry_fee_currency ?? '',
+      entry_fee_note: existing.data.entry_fee_note ?? '',
+    })
+  }, [existing.data, reset])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  const mutation = isEdit ? updateOpenMic : createOpenMic
+
+  useEffect(() => {
+    if (mutation.error) applyServerFieldErrors(mutation.error, setError)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mutation.error])
+
+  function toggleActivity(activity: string) {
+    const next = activities.includes(activity) ? activities.filter((item) => item !== activity) : [...activities, activity]
+    setValue('activities', next, { shouldDirty: true, shouldValidate: true })
+  }
+
+  function onSubmit(values: OpenMicFormValues) {
+    if (!isEdit && values.handle && handleCheck.state !== 'available') return
+    const input: OpenMicFormInput = {
+      name: values.name,
+      description: values.description || undefined,
+      venue_name: values.venue_name,
+      address_line1: values.address_line1,
+      address_line2: values.address_line2 || undefined,
+      postcode: values.postcode || undefined,
+      city: values.city,
+      country: values.country,
+      lat: values.lat,
+      lng: values.lng,
+      time_zone: values.time_zone,
+      website: values.website || undefined,
+      contact_email: values.contact_email || undefined,
+      schedule_summary: values.schedule_summary || undefined,
+      schedule_details: values.schedule_details || undefined,
+      originals_only: values.originals_only,
+      amplification_available: values.amplification_available,
+      age_policy: values.age_policy,
+      activities: values.activities,
+      tags: (values.tags ?? '').split(',').map((tag) => tag.trim()).filter(Boolean),
+      registration_mode: values.registration_mode,
+      external_registration_url: values.registration_mode === 'external' ? values.external_registration_url : undefined,
+      entry_fee_amount: values.entry_fee_amount ? Number(values.entry_fee_amount) : undefined,
+      entry_fee_currency: values.entry_fee_currency || undefined,
+      entry_fee_note: values.entry_fee_note || undefined,
+      ...(isEdit ? {} : { handle: values.handle || undefined }),
+    }
+    if (isEdit) {
+      updateOpenMic.mutate(input, { onSuccess: () => reset(values) })
+    } else {
+      createOpenMic.mutate(input, {
+        onSuccess: (created) => { reset(values); window.location.href = `/dashboard/series/${created.id}` },
+      })
+    }
+  }
+
+  if (context.account.isPending || context.profiles.isPending || (isEdit && existing.isPending)) {
+    return <main className="app" data-theme={theme} data-mode={mode}><ReadState message="Loading…" /></main>
+  }
+  if (!context.account.data || !isOrganizer) {
+    return <main className="app" data-theme={theme} data-mode={mode}>
+      <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+      <section className="dashboard-page"><ReadState message="Switch to an organizer profile to manage open mic series." /></section>
+    </main>
+  }
+  if (isEdit && existing.isError) {
+    return <main className="app" data-theme={theme} data-mode={mode}><ReadState message="We could not load this open mic." retry={() => void existing.refetch()} /></main>
+  }
+
+  return <main className="app" data-theme={theme} data-mode={mode}>
+    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <section className="dashboard-page">
+      <a className="back-link" href={isEdit ? `/dashboard/series/${seriesId}` : '/dashboard/series'}>← Back to {isEdit ? 'series' : 'series list'}</a>
+      <div className="eyebrow">Organizer workspace</div>
+      <h1>{isEdit ? `Edit ${existing.data?.name ?? 'series'}` : 'Create an open mic series'}</h1>
+      <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <label>Series name<input {...register('name')} /></label>
+        {errors.name && <p className="form-error" role="alert">{errors.name.message}</p>}
+        <label>Description <span className="field-hint">Optional</span><textarea {...register('description')} /></label>
+        {!isEdit && <label>Handle <span className="field-hint">Optional · used in the public URL, suggested from the series name until you edit it</span><span className="handle-input"><span aria-hidden="true">@</span><input {...register('handle')} /></span></label>}
+        {!isEdit && handle && <p className={`handle-feedback ${handleCheck.state === 'available' ? 'form-success' : handleCheck.state === 'checking' ? 'field-hint' : 'form-error'}`} role={handleCheck.state === 'unavailable' || handleCheck.state === 'invalid' ? 'alert' : 'status'}>
+          {handleCheck.state === 'available' && <CircleCheck aria-hidden="true" size={16} />}
+          {(handleCheck.state === 'unavailable' || handleCheck.state === 'invalid') && <CircleAlert aria-hidden="true" size={16} />}
+          {handleCheck.state === 'checking' ? 'Checking availability…' : handleCheck.message}
+        </p>}
+
+        <label>Venue name<input {...register('venue_name')} /></label>
+        {errors.venue_name && <p className="form-error" role="alert">{errors.venue_name.message}</p>}
+        <label>Address<input {...register('address_line1')} /></label>
+        {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
+        <label>Address line 2 <span className="field-hint">Optional</span><input {...register('address_line2')} /></label>
+        <label>Postcode <span className="field-hint">Optional</span><input {...register('postcode')} /></label>
+        <label>City<input {...register('city')} /></label>
+        {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
+        <label>Country <span className="field-hint">Two-letter code, e.g. IE</span><input maxLength={2} {...register('country')} /></label>
+        {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
+
+        <LocationPicker
+          lat={lat}
+          lng={lng}
+          onChange={({ lat: nextLat, lng: nextLng }) => {
+            setValue('lat', nextLat, { shouldDirty: true, shouldValidate: true })
+            setValue('lng', nextLng, { shouldDirty: true, shouldValidate: true })
+          }}
+          addressQuery={[addressLine1, postcode, city, country].filter(Boolean).join(', ')}
+          latInputId="open-mic-lat"
+          lngInputId="open-mic-lng"
+        />
+        {errors.lng && <p className="form-error" role="alert">{errors.lng.message}</p>}
+
+        <label>Time zone <span className="field-hint">IANA name, e.g. Europe/Dublin</span><input {...register('time_zone')} /></label>
+        {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
+
+        <label>Website <span className="field-hint">Optional</span><input type="url" {...register('website')} /></label>
+        {errors.website && <p className="form-error" role="alert">{errors.website.message}</p>}
+        <label>Contact email <span className="field-hint">Optional · defaults to your account email, but can be a separate address for this series</span><input type="email" {...register('contact_email')} /></label>
+        {errors.contact_email && <p className="form-error" role="alert">{errors.contact_email.message}</p>}
+        <label>Schedule summary <span className="field-hint">Optional · e.g. "Every Tuesday at 19:30"</span><input {...register('schedule_summary')} /></label>
+        <label>Schedule details <span className="field-hint">Optional</span><textarea {...register('schedule_details')} /></label>
+
+        <fieldset>
+          <legend>Activities</legend>
+          {ACTIVITIES.map((activity) => (
+            <label className="checkbox-label" key={activity}><input type="checkbox" checked={activities.includes(activity)} onChange={() => toggleActivity(activity)} /><span>{activity}</span></label>
+          ))}
+        </fieldset>
+        {errors.activities && <p className="form-error" role="alert">{errors.activities.message}</p>}
+        <label>Tags <span className="field-hint">Optional · separate with commas</span><input {...register('tags')} /></label>
+
+        <label className="checkbox-label"><input type="checkbox" {...register('originals_only')} /><span>Originals only</span></label>
+        <label className="checkbox-label"><input type="checkbox" {...register('amplification_available')} /><span>Amplification available</span></label>
+        <label>Age policy<select {...register('age_policy')}>
+          <option value="both">All ages</option>
+          <option value="adults_only">Adults only</option>
+          <option value="children_only">Children only</option>
+        </select></label>
+
+        <label>Registration mode<select {...register('registration_mode')}>
+          <option value="both">Online and on the night</option>
+          <option value="pre_only">Online only</option>
+          <option value="on_night_only">On the night only</option>
+          <option value="external">External link</option>
+        </select></label>
+        {registrationMode === 'external' && <label>External registration URL<input type="url" {...register('external_registration_url')} /></label>}
+        {errors.external_registration_url && <p className="form-error" role="alert">{errors.external_registration_url.message}</p>}
+
+        <label>Entry fee amount <span className="field-hint">Optional · 0 for free</span><input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
+        {Number(entryFeeAmount) > 0 && <label>Entry fee currency<select {...register('entry_fee_currency')}><option value="">Select currency</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
+        {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
+        <label>Entry fee note <span className="field-hint">Optional</span><input {...register('entry_fee_note')} /></label>
+
+        {mutation.isError && <p className="form-error" role="alert">{openMicErrorMessage(mutation.error)}</p>}
+        {mutation.isSuccess && isEdit && <p className="form-success" role="status">Saved.</p>}
+        <button className="primary-button" type="submit" disabled={mutation.isPending || activities.length === 0 || (!isEdit && Boolean(handle) && handleCheck.state !== 'available')}>
+          {mutation.isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create series'}
+        </button>
+        {activities.length === 0 && <p className="field-hint">Select at least one activity.</p>}
+      </form>
+    </section>
+  </main>
+}

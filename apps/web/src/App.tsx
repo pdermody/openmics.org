@@ -12,6 +12,8 @@ const ProfileEditor = lazy(() => import('./views/ProfileEditorPage').then((modul
 const OrganizerDashboard = lazy(() => import('./views/OrganizerDashboardPage').then((module) => ({ default: module.OrganizerDashboardPage })))
 const OrganizerSeries = lazy(() => import('./views/OrganizerSeriesPage').then((module) => ({ default: module.OrganizerSeriesPage })))
 const OrganizerEvents = lazy(() => import('./views/OrganizerEventsPage').then((module) => ({ default: module.OrganizerEventsPage })))
+const OpenMicForm = lazy(() => import('./views/OpenMicFormPage').then((module) => ({ default: module.OpenMicFormPage })))
+const EventForm = lazy(() => import('./views/EventFormPage').then((module) => ({ default: module.EventFormPage })))
 
 function LazyView({ children }: { children: ReactNode }) {
   return <Suspense fallback={<main className="app"><div className="route-loading" role="status">Loading workspace…</div></main>}>{children}</Suspense>
@@ -29,7 +31,11 @@ function App() {
   const themeMatch = pathname === '/settings/theme'
   const dashboardMatch = pathname === '/dashboard'
   const seriesMatch = pathname === '/dashboard/series'
+  const seriesNewMatch = pathname === '/dashboard/series/new'
+  const seriesEditMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/edit$/)
   const seriesEventsMatch = pathname.match(/^\/dashboard\/series\/([^/]+)$/)
+  const eventNewMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/events\/new$/)
+  const eventEditMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/events\/([^/]+)\/edit$/)
 
   useEffect(() => localStorage.setItem(THEME_STORAGE_KEY, theme), [theme])
   useEffect(() => localStorage.setItem(MODE_STORAGE_KEY, mode), [mode])
@@ -37,6 +43,10 @@ function App() {
   if (themeMatch) return <ThemePage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} />
   if (dashboardMatch) return <LazyView><OrganizerDashboard theme={theme} mode={mode} /></LazyView>
   if (seriesMatch) return <LazyView><OrganizerSeries theme={theme} mode={mode} /></LazyView>
+  if (seriesNewMatch) return <LazyView><OpenMicForm theme={theme} mode={mode} /></LazyView>
+  if (seriesEditMatch) return <LazyView><OpenMicForm seriesId={seriesEditMatch[1]} theme={theme} mode={mode} /></LazyView>
+  if (eventNewMatch) return <LazyView><EventForm seriesId={eventNewMatch[1]} theme={theme} mode={mode} /></LazyView>
+  if (eventEditMatch) return <LazyView><EventForm seriesId={eventEditMatch[1]} eventId={eventEditMatch[2]} theme={theme} mode={mode} /></LazyView>
   if (seriesEventsMatch) return <LazyView><OrganizerEvents seriesId={seriesEventsMatch[1]} theme={theme} mode={mode} /></LazyView>
   if (profileEditMatch) return <LazyView><ProfileEditor profileId={profileEditMatch[1]} theme={theme} mode={mode} /></LazyView>
   if (eventMatch) return <EventPage id={eventMatch[1]} theme={theme} mode={mode} />

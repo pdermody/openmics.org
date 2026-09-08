@@ -19,9 +19,10 @@ This document is an index. Detailed content lives in the linked files so each co
 | Architecture overview | [architecture/overview.md](architecture/overview.md) | Goals, constraints, high-level system diagram |
 | Infrastructure, scaling, security, deployment | [architecture/infrastructure.md](architecture/infrastructure.md) | AWS components (EC2, RDS, S3, Cognito, SES, networking, monitoring, CI/CD, SSE), scalability path, cost estimation, security considerations, deployment strategy |
 | Data model | [architecture/data-model.md](architecture/data-model.md) | Full PostgreSQL schema for all entities, constraints, indexes, triggers, and permission/notification/deletion mechanics |
-| API design | [architecture/api-design.md](architecture/api-design.md) | REST conventions, error envelope, endpoint list, quotas, home page feed rules |
+| API design | [architecture/api-design.md](architecture/api-design.md) | REST conventions, error envelope, endpoint list, quotas, home page feed rules, [geocoding proxy](architecture/api-design.md#geocoding) |
 | Frontend architecture | [5-open-mic-frontend-architecture.md](5-open-mic-frontend-architecture.md) | Stack, routing, the canonical [Key Pages (Route Map)](5-open-mic-frontend-architecture.md#key-pages-route-map), data fetching, auth, accessibility, i18n |
 | Handle lifecycle | [6-open-mic-vanity-urls.md](6-open-mic-vanity-urls.md) | Vanity URL and handle policy |
 | Development workflow, limitations, roadmap | [architecture/development.md](architecture/development.md) | Local setup, known limitations, implementation next steps, team responsibilities, open questions |
+| Map/location-picker research | [research/open-mic-map-location-picker.md](research/open-mic-map-location-picker.md) | Options considered for the venue map/geocoding picker; background for the decisions recorded in [decisions.md](decisions.md#forms-and-location-picker) |
 
 Use [decisions.md](decisions.md) first for any settled cross-document policy; only open the detailed files above when the specific implementation detail is needed.

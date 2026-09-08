@@ -1,0 +1,19 @@
+.location-picker { display: grid; gap: 10px; }
+.location-picker-search { position: relative; display: flex; gap: 8px; align-items: start; flex-wrap: wrap; }
+.location-picker-search input { flex: 1 1 260px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); padding: 13px 14px; outline: none; }
+.location-picker-search input:focus { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 20%, transparent); }
+.location-picker-candidates { position: absolute; z-index: 500; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 12px 28px color-mix(in srgb, var(--ink) 16%, transparent); max-height: 260px; overflow-y: auto; }
+.location-picker-candidates-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 6px; }
+.location-picker-dismiss { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
+.location-picker-dismiss:hover { background: var(--surface-2); color: var(--ink); }
+.location-picker-candidates ul { margin: 0; padding: 0; list-style: none; }
+.location-picker-candidates li + li { margin-top: 2px; }
+.location-picker-candidates li button { display: block; width: 100%; text-align: left; background: transparent; border: 0; padding: 9px 10px; border-radius: 4px; color: var(--ink); font-size: .84rem; }
+.location-picker-candidates li button:hover { background: var(--surface-2); }
+.location-picker-notice { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .82rem; margin: 0; }
+.location-picker-map { height: 280px; border-radius: 7px; overflow: hidden; border: 1px solid var(--line); }
+.location-picker-map .leaflet-container { height: 100%; width: 100%; background: var(--surface-2); }
+.location-picker-coords { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.location-picker-coords label { display: grid; gap: 8px; color: var(--ink); font-weight: 600; }
+.location-picker-coords input { width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); padding: 13px 14px; outline: none; }
+.location-picker-coords input:focus { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 20%, transparent); }

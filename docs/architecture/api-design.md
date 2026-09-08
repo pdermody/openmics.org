@@ -260,6 +260,19 @@ Sort order: `is_followed DESC, has_registered DESC, has_attended DESC, dist_m AS
 
 **Location handling.** The client requests `navigator.geolocation.getCurrentPosition()` behind a small explanatory prompt on first visit, caches the result in `sessionStorage` for the session, and sends it as `near=` on every home request. If the user declines or the browser denies, the client omits `near=` and the endpoint falls back cleanly. There is no server-side IP geolocation for MVP.
 
+---
+
+## Geocoding
+
+`GET /geocoding/search?q=<address>` and `GET /geocoding/reverse?lat=<num>&lng=<num>` back the organizer-facing map/location picker embedded in the OpenMic and Event create/edit forms (see [../research/open-mic-map-location-picker.md](../research/open-mic-map-location-picker.md) for the options considered). Both are authenticated (`profiles:manage`-adjacent org tooling, not public) and proxy [LocationIQ](https://locationiq.com/):
+
+- **Backend proxy, never a browser-held key.** The LocationIQ API key lives only in the API's `LOCATIONIQ_API_KEY` config and is never sent to the client. The frontend calls `/geocoding/*` on this API, which forwards to LocationIQ server-side.
+- **Shared rate-limit throttling.** LocationIQ's free tier caps requests at ~2/sec *per account*, shared across every concurrent app user — not per-user. The proxy implements an in-process token-bucket throttle (`apps/api/src/geocoding/service.ts`) so the app as a whole stays within quota; once the local queue is saturated or LocationIQ itself returns `429`, the endpoint returns `429 GEOCODING_RATE_LIMITED` rather than queuing indefinitely.
+- **Graceful frontend degradation.** The reusable `LocationPicker` component and `useGeocoding` hook (`apps/web/src/components/location/`, `apps/web/src/features/location.ts`) disable the address-lookup assist for the rest of the session on a `GEOCODING_RATE_LIMITED` response (or a `503 GEOCODING_UNAVAILABLE`), logging the event via a pluggable reporter. The map's draggable pin and the always-present, keyboard-accessible numeric latitude/longitude inputs keep working with zero API calls regardless of assist availability — coordinates only ever reach the database from those two paths, never invented client-side.
+- Both endpoints share the standard error envelope; see `openapi.yaml` for the full request/response schema (`GeocodeCandidate`, `GeocodingRateLimited`, `GeocodingUnavailable`).
+
+---
+
 **CTAs on the home page** (rendered above the two feeds):
 
 - **Signed in** with `open_mics:create` on any of their profiles: a **Register a new open mic** button, and for every open mic the caller can manage, an **Add an event to *〈open-mic-name〉*** button.

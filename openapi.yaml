@@ -17,6 +17,7 @@ tags:
   - name: Performances
   - name: Media
   - name: Admin
+  - name: Geocoding
 paths:
   /openapi.json:
     get:
@@ -272,6 +273,57 @@ paths:
           $ref: "#/components/responses/AvailabilityResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
+  /geocoding/search:
+    get:
+      tags:
+        - Geocoding
+      operationId: searchGeocode
+      summary: Forward-geocode an address query into candidate coordinates
+      description: Server-side proxy over the configured geocoding provider (LocationIQ).
+        Used by the map location picker to move the map/marker as an organizer types an
+        address. Requires authentication and is throttled server-side to stay within the
+        provider's shared rate limit.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/GeocodeQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/GeocodeSearchResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/GeocodingRateLimited"
+        "503":
+          $ref: "#/components/responses/GeocodingUnavailable"
+  /geocoding/reverse:
+    get:
+      tags:
+        - Geocoding
+      operationId: reverseGeocode
+      summary: Reverse-geocode coordinates into a candidate address
+      description: Server-side proxy over the configured geocoding provider (LocationIQ).
+        Used by the map location picker to optionally suggest address text after an
+        organizer drags the map marker. Requires authentication and is throttled
+        server-side to stay within the provider's shared rate limit.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/GeocodeLat"
+        - $ref: "#/components/parameters/GeocodeLng"
+      responses:
+        "200":
+          $ref: "#/components/responses/GeocodeReverseResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/GeocodingRateLimited"
+        "503":
+          $ref: "#/components/responses/GeocodingUnavailable"
   /open-mics:
     get:
       tags:
@@ -756,6 +808,30 @@ components:
       schema:
         type: string
         minLength: 1
+    GeocodeQuery:
+      name: q
+      in: query
+      required: true
+      description: Free-text address, postcode, and/or country to forward-geocode.
+      schema:
+        type: string
+        minLength: 1
+    GeocodeLat:
+      name: lat
+      in: query
+      required: true
+      schema:
+        type: number
+        minimum: -90
+        maximum: 90
+    GeocodeLng:
+      name: lng
+      in: query
+      required: true
+      schema:
+        type: number
+        minimum: -180
+        maximum: 180
     ProfileQuery:
       name: profile
       in: query
@@ -1040,6 +1116,32 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Availability"
+    GeocodeSearchResponse:
+      description: Forward-geocode candidates
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - candidates
+            properties:
+              candidates:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeocodeCandidate"
+    GeocodeReverseResponse:
+      description: Reverse-geocode candidate, or null if none was found
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - candidate
+            properties:
+              candidate:
+                allOf:
+                  - $ref: "#/components/schemas/GeocodeCandidate"
+                nullable: true
     UploadUrlResponse:
       description: Presigned upload
       content:
@@ -1141,6 +1243,20 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
     RateLimited:
       description: Too many registration submissions from this source; retry later.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    GeocodingRateLimited:
+      description: The geocoding provider (or the server-side proxy's shared rate
+        limit) rejected the request; back off and retry later, or continue without
+        geocoding assist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    GeocodingUnavailable:
+      description: Geocoding is not configured on this server (no provider API key set).
       content:
         application/json:
           schema:
@@ -1786,6 +1902,24 @@ components:
             - quarantined
             - tombstoned
           nullable: true
+    GeocodeCandidate:
+      type: object
+      required:
+        - label
+        - lat
+        - lng
+      properties:
+        label:
+          type: string
+          description: Human-readable formatted address returned by the geocoding provider.
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
     Pagination:
       type: object
       properties:

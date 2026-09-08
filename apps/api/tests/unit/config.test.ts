@@ -15,6 +15,8 @@ describe('loadConfig', () => {
       emailSenderAddress: 'noreply@openmics.org',
       awsRegion: 'eu-west-1',
       appBaseUrl: 'http://localhost:5173',
-    });
+      locationIqApiKey: '',
+      locationIqBaseUrl: 'https://us1.locationiq.com',
+    })
   });
 });

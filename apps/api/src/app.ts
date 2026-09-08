@@ -10,6 +10,8 @@ import { createEmailAdapter, type EmailAdapter } from './email/index.js';
 import { registerErrorHandler } from './errors.js';
 import { checkHandleAvailability } from './handles/repository.js';
 import { handlesRoutes, type HandlesPluginOptions } from './handles/routes.js';
+import { createGeocodingService } from './geocoding/service.js';
+import { geocodingRoutes, type GeocodingPluginOptions } from './geocoding/routes.js';
 import { eventsRoutes } from './events/routes.js';
 import { openMicsRoutes } from './open-mics/routes.js';
 import { profilesRoutes } from './profiles/routes.js';
@@ -23,6 +25,7 @@ export type BuildAppOptions = {
   logger?: boolean;
   db?: Pool;
   handles?: HandlesPluginOptions;
+  geocoding?: GeocodingPluginOptions;
   authVerifier?: AuthVerifier;
   emailAdapter?: EmailAdapter;
 };
@@ -66,9 +69,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   const handlesOptions: HandlesPluginOptions =
     options.handles ?? { checkAvailability: (candidate) => checkHandleAvailability(pool, candidate) };
+  const geocodingOptions: GeocodingPluginOptions =
+    options.geocoding ?? { service: createGeocodingService({ apiKey: config.locationIqApiKey, baseUrl: config.locationIqBaseUrl }) };
 
   app.get('/health', async () => ({ status: 'ok' }));
   app.register(handlesRoutes, { ...handlesOptions, prefix: '/api' });
+  app.register(geocodingRoutes, { ...geocodingOptions, prefix: '/api' });
   app.register(profilesRoutes, { pool, prefix: '/api' });
   app.register(openMicsRoutes, { pool, prefix: '/api' });
   app.register(eventsRoutes, { pool, prefix: '/api' });

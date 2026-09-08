@@ -47,6 +47,18 @@ export class GoneError extends AppError {
   }
 }
 
+export class RateLimitedError extends AppError {
+  constructor(message = 'Too many requests. Please try again shortly.') {
+    super(429, 'GEOCODING_RATE_LIMITED', message);
+  }
+}
+
+export class GeocodingUnavailableError extends AppError {
+  constructor(message = 'Geocoding is not configured on this server.') {
+    super(503, 'GEOCODING_UNAVAILABLE', message);
+  }
+}
+
 export class HandleConflictError extends AppError {
   constructor(
     public readonly holderType: 'profile' | 'open_mic' | null,

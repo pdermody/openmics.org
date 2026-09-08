@@ -11,6 +11,8 @@ const environmentSchema = z.object({
   EMAIL_SENDER_ADDRESS: z.string().default('noreply@openmics.org'),
   AWS_REGION: z.string().default('eu-west-1'),
   APP_BASE_URL: z.string().default('http://localhost:5173'),
+  LOCATIONIQ_API_KEY: z.string().default(''),
+  LOCATIONIQ_BASE_URL: z.string().default('https://us1.locationiq.com'),
 });
 
 export type AppConfig = {
@@ -24,6 +26,8 @@ export type AppConfig = {
   emailSenderAddress: string;
   awsRegion: string;
   appBaseUrl: string;
+  locationIqApiKey: string;
+  locationIqBaseUrl: string;
 };
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -41,5 +45,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     emailSenderAddress: parsed.EMAIL_SENDER_ADDRESS,
     awsRegion: parsed.AWS_REGION,
     appBaseUrl: parsed.APP_BASE_URL,
+    locationIqApiKey: parsed.LOCATIONIQ_API_KEY,
+    locationIqBaseUrl: parsed.LOCATIONIQ_BASE_URL,
   };
 }

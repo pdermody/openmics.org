@@ -28,6 +28,15 @@ This file records settled decisions that affect more than one planning document.
 - Media consent can be revoked after registration, but revocation is future-only: it blocks new media publication under that registration and is not retroactive against media already published. `Registration.media_consent_updated_at` records when consent last changed, for audit purposes.
 - Guest registration submission is rate-limited per source (e.g. per IP) to deter abuse; exceeding the limit returns `429`.
 
+## Forms and location picker
+
+- React Hook Form + Zod is the standard for every form in `apps/web`, including forms that don't touch location (e.g. the profile editor). Shared per-form Zod schemas live near each page; shared cross-form pieces (e.g. `baseLocationFieldsSchema`) live in `apps/web/src/features/location.ts`.
+- The venue/event location fields (map, address, latitude/longitude) are implemented once as a reusable `LocationPicker` component (`apps/web/src/components/location/`) plus a `useGeocoding` hook, embedded via any form that collects a location — today the OpenMic and Event forms, and any future form that needs one.
+- Map rendering uses Leaflet + react-leaflet with public OpenStreetMap raster tiles (no API key required for the map itself), chosen over MapLibre/Google/Mapbox/OpenLayers per the comparison in [research/open-mic-map-location-picker.md](research/open-mic-map-location-picker.md).
+- Geocoding (address → coordinates and reverse) uses LocationIQ, accessed only through a backend proxy (`GET /geocoding/search`, `GET /geocoding/reverse` — see [architecture/api-design.md#geocoding](architecture/api-design.md#geocoding)); the LocationIQ API key never reaches the browser.
+- The backend proxy throttles outgoing LocationIQ calls to stay within the shared free-tier rate limit across all concurrent users, and returns a distinct `GEOCODING_RATE_LIMITED`/`GEOCODING_UNAVAILABLE` error the frontend can detect.
+- On rate-limiting or provider failure, the frontend disables the address-lookup assist for the rest of the session and logs the event through a pluggable reporter (console-only for now; swappable for real telemetry later without changing call sites). The map's draggable pin and the always-present numeric latitude/longitude inputs keep working regardless — the assist is a progressive enhancement, never a requirement to submit a location.
+
 ## Media
 
 - Organizer-owned media `source_url` is validated server-side: photos must be objects in the platform's own S3 media bucket (via the upload-url flow); videos must link to an allowlisted host (`youtube.com`, `youtu.be`, or `vimeo.com`). Arbitrary hosts are rejected.
