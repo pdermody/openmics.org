@@ -84,7 +84,7 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
                   Switch to a performer profile to register
                 </button>
               ) : (
-                <a className="primary-button" href={`/open-mics/${id}/register`}>View registration link</a>
+                <a className="primary-button" href={`/open-mics/${openMic.data?.public_code ?? id}/register`}>View registration link</a>
               )
             )}
             {kind === 'profile' && <button className="primary-button" type="button">Follow profile</button>}

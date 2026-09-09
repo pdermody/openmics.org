@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { z } from 'zod'
 import { api, ApiError } from '../api/client'
 
@@ -67,17 +67,17 @@ export type UseGeocodingResult = {
 }
 
 /**
- * Debounced address -> candidate coordinates lookup, backed by the server-side
- * `/geocoding` proxy (never calls the geocoding provider directly from the browser).
+ * Explicit address -> candidate coordinates lookup, backed by the server-side `/geocoding`
+ * proxy (never calls the geocoding provider directly from the browser). `search` is only
+ * ever called when the user takes an explicit action (clicking "Find on map" or pressing
+ * Enter in the search box) — never on every keystroke or on unrelated form-field changes —
+ * to keep LocationIQ request volume proportional to deliberate lookups.
  */
 export function useGeocoding(): UseGeocodingResult {
   const [candidates, setCandidates] = useState<GeocodeCandidate[]>([])
   const [searching, setSearching] = useState(false)
   const [assistDisabled, setAssistDisabled] = useState(false)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const requestIdRef = useRef(0)
-
-  useEffect(() => () => clearTimeout(timeoutRef.current), [])
 
   function handleFailure(error: unknown, context: unknown, message: string) {
     if (error instanceof ApiError && error.code === 'GEOCODING_RATE_LIMITED') {
@@ -96,28 +96,25 @@ export function useGeocoding(): UseGeocodingResult {
 
   function search(query: string) {
     const trimmed = query.trim()
-    if (assistDisabled || trimmed.length < 3) {
-      setCandidates([])
+    if (assistDisabled || trimmed.length < 3 || searching) {
+      if (!searching) setCandidates([])
       return
     }
-    clearTimeout(timeoutRef.current)
     const requestId = ++requestIdRef.current
-    timeoutRef.current = setTimeout(() => {
-      setSearching(true)
-      void api<{ candidates: GeocodeCandidate[] }>(`/geocoding/search?q=${encodeURIComponent(trimmed)}`)
-        .then((result) => {
-          if (requestIdRef.current !== requestId) return
-          setCandidates(result.candidates)
-        })
-        .catch((error: unknown) => {
-          if (requestIdRef.current !== requestId) return
-          setCandidates([])
-          handleFailure(error, { query: trimmed }, 'Geocoding search failed.')
-        })
-        .finally(() => {
-          if (requestIdRef.current === requestId) setSearching(false)
-        })
-    }, 500)
+    setSearching(true)
+    void api<{ candidates: GeocodeCandidate[] }>(`/geocoding/search?q=${encodeURIComponent(trimmed)}`)
+      .then((result) => {
+        if (requestIdRef.current !== requestId) return
+        setCandidates(result.candidates)
+      })
+      .catch((error: unknown) => {
+        if (requestIdRef.current !== requestId) return
+        setCandidates([])
+        handleFailure(error, { query: trimmed }, 'Geocoding search failed.')
+      })
+      .finally(() => {
+        if (requestIdRef.current === requestId) setSearching(false)
+      })
   }
 
   async function reverseGeocode(lat: number, lng: number): Promise<GeocodeCandidate | null> {

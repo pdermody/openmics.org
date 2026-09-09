@@ -6,7 +6,7 @@ import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { parseGeoFilter } from '../geo.js';
 import { assignHandle } from '../handles/service.js';
 import { requireOwnedProfile } from '../profiles/current-profile.js';
-import { findOpenMicById, findPublicOpenMics, insertOpenMic, serializeOpenMic, updateOpenMic } from './repository.js';
+import { findOpenMicById, findOpenMicByIdOrPublicCode, findPublicOpenMics, insertOpenMic, serializeOpenMic, updateOpenMic } from './repository.js';
 import { createOpenMicSchema, updateOpenMicSchema } from './validation.js';
 
 export type OpenMicsPluginOptions = { pool: Pool };
@@ -82,7 +82,7 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
   });
 
   app.get<{ Params: { id: string } }>('/open-mics/:id', async (request, reply) => {
-    const openMic = await findOpenMicById(pool, request.params.id);
+    const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic) throw new NotFoundError('Open mic not found');
     reply.send(serializeOpenMic(openMic));
   });
@@ -91,7 +91,7 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     const parsed = updateOpenMicSchema.safeParse(request.body);
     if (!parsed.success) throw new ValidationError('Invalid open mic payload', parsed.error.flatten());
 
-    const existing = await findOpenMicById(pool, request.params.id);
+    const existing = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!existing) throw new NotFoundError('Open mic not found');
 
     const account = request.account!;
@@ -100,7 +100,7 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
       throw new ForbiddenError('You do not own this open mic');
     }
 
-    const updated = await updateOpenMic(pool, request.params.id, parsed.data);
+    const updated = await updateOpenMic(pool, existing.id, parsed.data);
     reply.send(serializeOpenMic(updated!));
   });
 };

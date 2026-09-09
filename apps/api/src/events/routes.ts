@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import { withTransaction } from '../db.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { parseGeoFilter } from '../geo.js';
-import { findOpenMicById } from '../open-mics/repository.js';
+import { findOpenMicByIdOrPublicCode } from '../open-mics/repository.js';
 import {
   findEventById,
   findEventByIdOrPublicCode,
@@ -28,7 +28,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (!parsed.success) throw new ValidationError('Invalid event payload', parsed.error.flatten());
       const input = parsed.data;
 
-      const openMic = await findOpenMicById(pool, request.params.id);
+      const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
       if (!openMic) throw new NotFoundError('Open mic not found');
 
       // Verify ownership: the requester must own the open mic
@@ -71,7 +71,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
   );
 
   app.get<{ Params: { id: string } }>('/open-mics/:id/events', async (request, reply) => {
-    const openMic = await findOpenMicById(pool, request.params.id);
+    const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Open mic not found');
 
     const events = await findEventsByOpenMicId(pool, openMic.id);
@@ -79,7 +79,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
   });
 
   app.get<{ Params: { id: string } }>('/open-mics/:id/next-event', async (request, reply) => {
-    const openMic = await findOpenMicById(pool, request.params.id);
+    const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Open mic not found');
     const event = await findNextEventByOpenMicId(pool, openMic.id);
     if (!event) throw new NotFoundError('No upcoming event found');
@@ -104,14 +104,16 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
   app.get<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
     const event = await findEventByIdOrPublicCode(pool, request.params.id);
     if (!event) throw new NotFoundError('Event not found');
-    const openMic = await findOpenMicById(pool, event.open_mic_id);
+    const openMic = await findOpenMicByIdOrPublicCode(pool, event.open_mic_id);
     if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Event not found');
     reply.send(serializeEvent(event));
   });
 
   app.get<{ Params: { id: string; eventId: string } }>('/open-mics/:id/events/:eventId', async (request, reply) => {
+    const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
+    if (!openMic) throw new NotFoundError('Event not found');
     const event = await findEventByIdOrPublicCode(pool, request.params.eventId);
-    if (!event || event.open_mic_id !== request.params.id) throw new NotFoundError('Event not found');
+    if (!event || event.open_mic_id !== openMic.id) throw new NotFoundError('Event not found');
     reply.send(serializeEvent(event));
   });
 
@@ -122,12 +124,11 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       const parsed = updateEventSchema.safeParse(request.body);
       if (!parsed.success) throw new ValidationError('Invalid event payload', parsed.error.flatten());
 
-      const existing = await findEventById(pool, request.params.eventId);
-      if (!existing || existing.open_mic_id !== request.params.id) throw new NotFoundError('Event not found');
-
-      // Verify ownership via the parent open mic
-      const openMic = await findOpenMicById(pool, existing.open_mic_id);
+      const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
       if (!openMic) throw new NotFoundError('Parent open mic not found');
+
+      const existing = await findEventById(pool, request.params.eventId);
+      if (!existing || existing.open_mic_id !== openMic.id) throw new NotFoundError('Event not found');
 
       const account = request.account!;
       const ownerProfile = await findOpenMicOwnerAccountId(pool, openMic.owner_profile_id);

@@ -1493,6 +1493,10 @@ components:
       properties:
         id:
           $ref: "#/components/schemas/Id"
+        public_code:
+          type: string
+          pattern: "^[A-Z0-9]{10}$"
+          description: Short stable public identifier for URLs. The UUID id remains the internal identifier.
         owner_profile_id:
           $ref: "#/components/schemas/Id"
         current_handle:

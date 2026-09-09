@@ -90,7 +90,7 @@ export function SeriesCard({ openMic }: { openMic: OpenMic }) {
       <div className="series-copy">
         <div className="event-type">Open mic series</div>
         <h3>
-          <a className="card-link" href={`/open-mics/${openMic.id}`}>
+          <a className="card-link" href={`/open-mics/${openMic.public_code}`}>
             {openMic.name}
           </a>
         </h3>

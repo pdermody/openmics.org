@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 
 export type OpenMicRow = {
   id: string;
+  public_code: string;
   owner_profile_id: string;
   current_handle: string | null;
   name: string;
@@ -113,6 +114,14 @@ export async function insertOpenMic(client: PoolClient, input: InsertOpenMicInpu
 
 export async function findOpenMicById(client: Queryable, id: string): Promise<OpenMicRow | null> {
   const result = await client.query<OpenMicRow>('SELECT * FROM open_mics WHERE id = $1 AND deleted_at IS NULL', [id]);
+  return result.rows[0] ?? null;
+}
+
+export async function findOpenMicByIdOrPublicCode(client: Queryable, identifier: string): Promise<OpenMicRow | null> {
+  const result = await client.query<OpenMicRow>(
+    'SELECT * FROM open_mics WHERE (id::text = $1 OR public_code = upper($1)) AND deleted_at IS NULL',
+    [identifier],
+  );
   return result.rows[0] ?? null;
 }
 
@@ -228,6 +237,7 @@ export async function updateOpenMic(
 export function serializeOpenMic(row: OpenMicRow) {
   return {
     id: row.id,
+    public_code: row.public_code,
     owner_profile_id: row.owner_profile_id,
     current_handle: row.current_handle,
     name: row.name,

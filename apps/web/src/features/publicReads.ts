@@ -20,6 +20,7 @@ export type Event = {
 
 export type OpenMic = {
   id: string
+  public_code: string
   current_handle: string | null
   name: string
   description: string | null

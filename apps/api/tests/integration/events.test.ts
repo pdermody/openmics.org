@@ -228,4 +228,40 @@ describe('events routes (real database)', () => {
     expect(updateResponse.statusCode).toBe(403);
     await instance.close();
   });
+
+  it('resolves the parent open mic by its public_code for nested event routes', async () => {
+    const instance = app();
+
+    const openMicResponse = await instance.inject({ method: 'GET', url: `/api/open-mics/${openMicId}` });
+    const openMicPublicCode = openMicResponse.json().public_code as string;
+    expect(openMicPublicCode).toMatch(/^[A-Z0-9]{10}$/);
+
+    const created = await instance.inject({
+      method: 'POST',
+      url: `/api/open-mics/${openMicPublicCode}/events`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: validPayload({ title: 'Created Via Open Mic Public Code' }),
+    });
+    expect(created.statusCode).toBe(201);
+    const eventId = created.json().id as string;
+
+    const listed = await instance.inject({ method: 'GET', url: `/api/open-mics/${openMicPublicCode}/events` });
+    expect(listed.statusCode).toBe(200);
+    expect((listed.json() as Array<{ id: string }>).some((event) => event.id === eventId)).toBe(true);
+
+    const fetched = await instance.inject({ method: 'GET', url: `/api/open-mics/${openMicPublicCode}/events/${eventId}` });
+    expect(fetched.statusCode).toBe(200);
+    expect(fetched.json().id).toBe(eventId);
+
+    const updated = await instance.inject({
+      method: 'PATCH',
+      url: `/api/open-mics/${openMicPublicCode}/events/${eventId}`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: { notes: 'Updated via open mic public code' },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().notes).toBe('Updated via open mic public code');
+
+    await instance.close();
+  });
 });

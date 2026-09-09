@@ -156,4 +156,32 @@ describe('open-mics routes (real database)', () => {
     expect(response.statusCode).toBe(404);
     await instance.close();
   });
+
+  it('exposes a short public_code and allows reads/updates by that code as well as the UUID', async () => {
+    const instance = app();
+
+    const created = await instance.inject({
+      method: 'POST',
+      url: '/api/open-mics',
+      headers: { authorization: 'Bearer open-mics-owner', 'x-current-profile': organizerProfileId },
+      payload: validPayload({ name: 'Public Code Lookup Test' }),
+    });
+    const body = created.json();
+    expect(body.public_code).toMatch(/^[A-Z0-9]{10}$/);
+
+    const byCode = await instance.inject({ method: 'GET', url: `/api/open-mics/${body.public_code}` });
+    expect(byCode.statusCode).toBe(200);
+    expect(byCode.json().id).toBe(body.id);
+
+    const updateByCode = await instance.inject({
+      method: 'PATCH',
+      url: `/api/open-mics/${body.public_code}`,
+      headers: { authorization: 'Bearer open-mics-owner' },
+      payload: { description: 'Updated via public code' },
+    });
+    expect(updateByCode.statusCode).toBe(200);
+    expect(updateByCode.json().description).toBe('Updated via public code');
+
+    await instance.close();
+  });
 });

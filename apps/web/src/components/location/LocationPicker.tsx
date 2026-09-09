@@ -64,15 +64,12 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
   const mapRef = useRef<L.Map | null>(null)
   const searchContainerRef = useRef<HTMLDivElement | null>(null)
 
+  // Keep the search box pre-filled with the address the user is typing elsewhere in the form,
+  // but never search automatically: a LocationIQ lookup only happens when the user explicitly
+  // clicks "Find on map" (or presses Enter in the search box), to avoid firing a request per
+  // keystroke/field across the whole form.
   useEffect(() => {
     setQuery(addressQuery)
-    if (addressQuery.trim().length >= 3) {
-      setShowCandidates(true)
-      geocoding.search(addressQuery)
-    }
-    // geocoding.search is stable in behavior but not identity across renders; only
-    // addressQuery changing should re-trigger a (debounced) lookup.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addressQuery])
 
   // Close the suggestions dropdown on an outside click, so it never has to be dismissed by
@@ -125,10 +122,8 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
         aria-expanded={showCandidates && geocoding.candidates.length > 0}
         aria-controls="location-picker-candidates"
         onChange={(event) => {
-          const value = event.target.value
-          setQuery(value)
-          setShowCandidates(true)
-          geocoding.search(value)
+          setQuery(event.target.value)
+          setShowCandidates(false)
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter') { event.preventDefault(); handleSearch() }
