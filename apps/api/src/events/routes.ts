@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
+import type { AuthenticatedAccount } from '../auth/types.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { parseGeoFilter } from '../geo.js';
 import { findOpenMicByIdOrPublicCode } from '../open-mics/repository.js';
@@ -73,17 +74,25 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     },
   );
 
-  app.get<{ Params: { id: string } }>('/open-mics/:id/events', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/open-mics/:id/events', { preHandler: app.authenticateOptional }, async (request, reply) => {
     const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
-    if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Open mic not found');
+    if (!openMic) throw new NotFoundError('Open mic not found');
+    const isDraftOrEnded = openMic.status === 'draft' || openMic.status === 'ended';
+    if (isDraftOrEnded && !(await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account))) {
+      throw new NotFoundError('Open mic not found');
+    }
 
     const events = await findEventsByOpenMicId(pool, openMic.id);
     reply.send(events.map(serializeEvent));
   });
 
-  app.get<{ Params: { id: string } }>('/open-mics/:id/next-event', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/open-mics/:id/next-event', { preHandler: app.authenticateOptional }, async (request, reply) => {
     const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
-    if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Open mic not found');
+    if (!openMic) throw new NotFoundError('Open mic not found');
+    const isDraftOrEnded = openMic.status === 'draft' || openMic.status === 'ended';
+    if (isDraftOrEnded && !(await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account))) {
+      throw new NotFoundError('Open mic not found');
+    }
     const event = await findNextEventByOpenMicId(pool, openMic.id);
     if (!event) throw new NotFoundError('No upcoming event found');
     reply.send(serializeEvent(event));
@@ -300,4 +309,21 @@ async function findOpenMicOwnerAccountId(pool: Pool, ownerProfileId: string): Pr
   );
   if (result.rows.length === 0) throw new NotFoundError('Owner profile not found');
   return result.rows[0].created_by_account_id;
+}
+
+// Draft/ended open mics are hidden from the public directory and its event listings, but the
+// owning organizer (or a platform admin) must still be able to see their own draft/ended series'
+// events from the dashboard. `request.account` is undefined for anonymous callers.
+async function isOpenMicOwnerOrAdmin(
+  pool: Pool,
+  ownerProfileId: string,
+  account: AuthenticatedAccount | undefined,
+): Promise<boolean> {
+  if (!account) return false;
+  if (account.isPlatformAdmin) return true;
+  const result = await pool.query<{ created_by_account_id: string }>(
+    'SELECT created_by_account_id FROM profiles WHERE id = $1',
+    [ownerProfileId],
+  );
+  return result.rows[0]?.created_by_account_id === account.accountId;
 }

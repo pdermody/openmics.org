@@ -386,4 +386,36 @@ describe('events routes (real database)', () => {
 
     await instance.close();
   });
+
+  it('lets the owning organizer (but not the public or other accounts) list events for a draft open mic', async () => {
+    const draftOpenMic = await pool.query<{ id: string }>(
+      `INSERT INTO open_mics (owner_profile_id, name, venue_name, address_line1, city, country, time_zone, activities, age_policy, status)
+       VALUES ($1, 'Draft Open Mic', 'Draft Venue', '1 Draft St', 'Dublin', 'IE', 'Europe/Dublin', ARRAY['singing'], 'both', 'draft')
+       RETURNING id`,
+      [organizerProfileId],
+    );
+    const draftOpenMicId = draftOpenMic.rows[0].id;
+
+    const instance = app();
+
+    const anonymous = await instance.inject({ method: 'GET', url: `/api/open-mics/${draftOpenMicId}/events` });
+    expect(anonymous.statusCode).toBe(404);
+
+    const nonOwner = await instance.inject({
+      method: 'GET',
+      url: `/api/open-mics/${draftOpenMicId}/events`,
+      headers: { authorization: 'Bearer events-hijacker' },
+    });
+    expect(nonOwner.statusCode).toBe(404);
+
+    const owner = await instance.inject({
+      method: 'GET',
+      url: `/api/open-mics/${draftOpenMicId}/events`,
+      headers: { authorization: 'Bearer events-owner' },
+    });
+    expect(owner.statusCode).toBe(200);
+    expect(owner.json()).toEqual([]);
+
+    await instance.close();
+  });
 });
