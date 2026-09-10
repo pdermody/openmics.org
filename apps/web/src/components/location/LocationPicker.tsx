@@ -7,6 +7,7 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import 'leaflet/dist/leaflet.css'
 import { CircleAlert, X } from 'lucide-react'
 import { useGeocoding, type GeocodeCandidate } from '../../features/location'
+import { Required } from '../../views/shared'
 import './LocationPicker.css'
 
 // react-leaflet ships without the default marker image URLs wired up for bundlers; point them
@@ -186,25 +187,27 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
     </div>
 
     <div className="location-picker-coords">
-      <label htmlFor={latInputId}>Latitude <span className="field-hint">Click the map, or drag the pin</span>
+      <label htmlFor={latInputId}><span>Latitude<Required /></span> <span className="field-hint">Click the map, or drag the pin</span>
         <input
           id={latInputId}
           type="number"
           step="any"
           min={-90}
           max={90}
+          required
           disabled={disabled}
           value={lat ?? ''}
           onChange={(event) => onChange({ lat: event.target.value === '' ? undefined : Number(event.target.value), lng })}
         />
       </label>
-      <label htmlFor={lngInputId}>Longitude
+      <label htmlFor={lngInputId}><span>Longitude<Required /></span>
         <input
           id={lngInputId}
           type="number"
           step="any"
           min={-180}
           max={180}
+          required
           disabled={disabled}
           value={lng ?? ''}
           onChange={(event) => onChange({ lat, lng: event.target.value === '' ? undefined : Number(event.target.value) })}

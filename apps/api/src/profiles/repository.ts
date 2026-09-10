@@ -10,6 +10,7 @@ export type ProfileRow = {
   phone: string | null;
   profile_image_url: string | null;
   theme_name: string | null;
+  color_mode: string | null;
   visibility: string;
   is_hidden: boolean;
   is_blacklisted: boolean;
@@ -31,11 +32,12 @@ export async function insertProfile(
     phone?: string | null;
     visibility?: string;
     themeName?: string;
+    colorMode?: string;
   },
 ): Promise<ProfileRow> {
   const result = await client.query<ProfileRow>(
-    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, phone, visibility, theme_name)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'public'), $7)
+    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, phone, visibility, theme_name, color_mode)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'public'), $7, $8)
      RETURNING *`,
     [
       input.createdByAccountId,
@@ -45,6 +47,7 @@ export async function insertProfile(
       input.phone ?? null,
       input.visibility ?? null,
       input.themeName ?? null,
+      input.colorMode ?? null,
     ],
   );
   return result.rows[0];
@@ -69,7 +72,7 @@ export async function findPublicProfiles(client: Queryable, limit: number, offse
   return { rows: result.rows, total: Number(count.rows[0].count) };
 }
 
-const UPDATABLE_COLUMNS = ['profile_name', 'profile_kind', 'bio', 'phone', 'visibility', 'theme_name'] as const;
+const UPDATABLE_COLUMNS = ['profile_name', 'profile_kind', 'bio', 'phone', 'visibility', 'theme_name', 'color_mode'] as const;
 
 export async function updateProfile(
   pool: Pool,
@@ -109,6 +112,7 @@ export function serializeProfile(row: ProfileRow, includePrivate = false) {
     ...(includePrivate ? { phone: row.phone } : {}),
     profile_image_url: row.profile_image_url,
     theme_name: row.theme_name,
+    color_mode: row.color_mode,
     visibility: row.visibility,
     links: [],
     created_at: row.created_at,

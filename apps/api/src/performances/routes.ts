@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { findEventById } from '../events/repository.js';
+import { notifyRoster } from '../events/roster-stream.js';
 import { findOpenMicById } from '../open-mics/repository.js';
 import { findRegistrationById } from '../registrations/repository.js';
 import {
@@ -84,6 +85,9 @@ export const performancesRoutes: FastifyPluginAsync<PerformancesPluginOptions> =
       notes: parsed.data.notes,
     });
     reply.status(201).send(serializePerformance(created, true));
+    void notifyRoster(pool, context.event.id, 'performance.created', { performance_id: created.id, registration_id: created.registration_id }).catch(
+      (error) => app.log.error({ error }, 'Failed to publish roster notification'),
+    );
   });
 
   app.put<{ Params: { id: string } }>('/performances/:id', { preHandler: app.authenticate }, async (request, reply) => {
@@ -95,6 +99,15 @@ export const performancesRoutes: FastifyPluginAsync<PerformancesPluginOptions> =
     assertActivityAllowed(parsed.data.activity, context.event.activities, context.openMic.activities);
     const updated = await updatePerformance(pool, existing.id, parsed.data);
     reply.send(serializePerformance(updated!, true));
+    // "reordered" is a more specific event than "updated" for the common case of only the
+    // running-order position changing; other field changes fall back to the generic event.
+    const onlySequenceChanged = parsed.data.sequence !== undefined && Object.keys(parsed.data).length === 1;
+    void notifyRoster(
+      pool,
+      context.event.id,
+      onlySequenceChanged ? 'performance.reordered' : 'performance.updated',
+      { performance_id: updated!.id, registration_id: updated!.registration_id },
+    ).catch((error) => app.log.error({ error }, 'Failed to publish roster notification'));
   });
 
   app.delete<{ Params: { id: string } }>('/performances/:id', { preHandler: app.authenticate }, async (request, reply) => {
@@ -104,5 +117,8 @@ export const performancesRoutes: FastifyPluginAsync<PerformancesPluginOptions> =
     const deleted = await softDeletePerformance(pool, existing.id, context.openMic.owner_profile_id);
     if (!deleted) throw new NotFoundError('Performance not found');
     reply.status(204).send();
+    void notifyRoster(pool, context.event.id, 'performance.deleted', { performance_id: existing.id, registration_id: existing.registration_id }).catch(
+      (error) => app.log.error({ error }, 'Failed to publish roster notification'),
+    );
   });
 };

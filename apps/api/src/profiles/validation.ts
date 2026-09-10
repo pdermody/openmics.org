@@ -11,6 +11,7 @@ export const createProfileSchema = z.object({
   phone: z.string().trim().min(7).max(32).nullable().optional(),
   visibility: profileVisibilitySchema.optional(),
   theme_name: z.string().optional(),
+  color_mode: z.enum(['light', 'dark']).optional(),
 });
 
 export type CreateProfileInput = z.infer<typeof createProfileSchema>;
@@ -26,6 +27,7 @@ export const updateProfileSchema = z
     phone: z.string().trim().min(7).max(32).nullable().optional(),
     visibility: profileVisibilitySchema.optional(),
     theme_name: z.string().nullable().optional(),
+    color_mode: z.enum(['light', 'dark']).nullable().optional(),
   })
   .strict();
 

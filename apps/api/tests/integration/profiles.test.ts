@@ -117,4 +117,31 @@ describe('profiles routes (real database)', () => {
 
     await instance.close();
   });
+
+  it('stores and updates theme_name and color_mode preferences on a profile', async () => {
+    const instance = app();
+
+    const created = await instance.inject({
+      method: 'POST',
+      url: '/api/profiles',
+      headers: { authorization: `Bearer ${ownerAccount.cognitoId}` },
+      payload: { profile_name: 'Preferences Test', profile_kind: 'performer', theme_name: 'sunset', color_mode: 'dark' },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().theme_name).toBe('sunset');
+    expect(created.json().color_mode).toBe('dark');
+
+    const profileId = created.json().id as string;
+    const updated = await instance.inject({
+      method: 'PATCH',
+      url: `/api/profiles/${profileId}`,
+      headers: { authorization: `Bearer ${ownerAccount.cognitoId}` },
+      payload: { color_mode: 'light' },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().color_mode).toBe('light');
+    expect(updated.json().theme_name).toBe('sunset');
+
+    await instance.close();
+  });
 });

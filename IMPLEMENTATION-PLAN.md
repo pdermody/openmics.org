@@ -152,22 +152,25 @@ The milestones below are dependency ordered. A later milestone may be explored i
 
 **Goal:** Replace development identity assumptions with a secure production boundary.
 
-1. Implement Cognito access-token verification behind `AuthVerifier`:
+1. Implement Cognito ID-token verification behind `AuthVerifier` (the client attaches the ID token, not the access token, per docs/5-open-mic-frontend-architecture.md — only the ID token carries the verified `email` claim account provisioning needs):
    - fetch and cache the configured user-pool JWKS;
    - verify signature, algorithm, issuer, expiry, token use, and configured app-client audience/client ID;
-   - extract the Cognito `sub`;
-   - reject malformed, expired, wrong-pool, wrong-client, and ID-token misuse with the standard unauthorized envelope.
+   - extract the Cognito `sub` and verified `email`;
+   - reject malformed, expired, wrong-pool, wrong-client, and access-token misuse with the standard unauthorized envelope.
 2. Add account provisioning for the first valid Cognito identity, including verified email handling and idempotent concurrent requests.
 3. Keep deterministic injected identities for unit/API tests and simulated local development without AWS calls.
 4. Complete Amplify client configuration, callback/logout URLs, refresh behavior, sign-in failure handling, and logout cache cleanup.
 5. Add one-401 refresh-and-retry to the frontend API client. Retry once only; do not loop or replay unsafe requests after a failed refresh.
-6. Implement `PATCH /accounts/{id}` for:
-   - preferred language;
-   - selected theme;
-   - color mode;
-   - supported display/account fields defined by OpenAPI.
-7. Synchronize anonymous local preferences after sign-in, with saved account preferences taking precedence across devices. Keep local choice usable if preference persistence fails, and retry through a later mutation.
-8. Ensure organizer navigation and route loaders rely on real permission responses and an account-owned active profile.
+6. Implement `PATCH /accounts/{id}` for the account-level fields defined by OpenAPI (`display_name`, `city`, `preferred_language`). Theme and color mode are profile-level preferences, not account-level — see item 7.
+7. Add profile-level preferences and mandatory onboarding:
+   - add `Profiles.color_mode` (nullable, `light`/`dark`) alongside the existing `theme_name`, via migration; extend `POST /profiles` and `PATCH /profiles/{id}` to accept it;
+   - add a mandatory frontend onboarding step that runs whenever a signed-in account has zero profiles: ask performer vs. organizer, plus theme/color-mode, then create the profile via `POST /profiles` and select it via `PUT /accounts/{id}/current-profile`; block other routes until this completes;
+   - make the same theme/color-mode picker reusable whenever any new profile is created, not only during onboarding;
+   - synchronize the theme settings page (`/settings/theme`) to read/write `theme_name`/`color_mode` on the signed-in user's current profile via `PATCH /profiles/{id}`, with saved profile preferences taking precedence over local storage once signed in, but keeping local choice usable if preference persistence fails, and retrying through a later mutation;
+   - add a "set up your first open-mic" call-to-action on the organizer dashboard when the current organizer profile has no open-mic series yet (reuses `useOrganizerOpenMics`).
+8. Ensure organizer navigation and route loaders rely on real permission responses and an account-owned active profile:
+   - consolidate the duplicated "is this account an organizer working as a profile it owns" check into one hook (`useOrganizerProfile`, in `features/organizer.ts`), backed by the real `/me/permissions` response and the real `/accounts/{id}/profiles` list, rather than ad hoc per-page logic;
+   - the open-mic and event edit forms additionally verify the resource being edited is actually owned by the active organizer profile (`owner_profile_id` match) before rendering the form, not just that the active profile has the `profiles:manage` permission in general — closes a gap where an organizer could open another organizer's edit URL by ID guessing (the API already rejected the mutation; this closes the equivalent frontend-side gap).
 
 **Tests**
 

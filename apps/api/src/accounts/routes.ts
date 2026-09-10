@@ -3,7 +3,8 @@ import type { Pool } from 'pg';
 
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { serializeProfile } from '../profiles/repository.js';
-import { findAccountById, findAccountProfiles, serializeAccount, setCurrentProfile } from './repository.js';
+import { findAccountById, findAccountProfiles, serializeAccount, setCurrentProfile, updateAccount } from './repository.js';
+import { updateAccountSchema } from './validation.js';
 
 export type AccountsPluginOptions = { pool: Pool };
 
@@ -20,6 +21,20 @@ export const accountsRoutes: FastifyPluginAsync<AccountsPluginOptions> = async (
 
   app.get('/me', { preHandler: app.authenticate }, async (request, reply) => {
     reply.send(await accountResponse(request.account!.accountId));
+  });
+
+  app.patch<{ Params: { id: string } }>('/accounts/:id', { preHandler: app.authenticate }, async (request, reply) => {
+    const account = request.account!;
+    if (request.params.id !== account.accountId && !account.isPlatformAdmin) {
+      throw new ForbiddenError('You cannot update another account');
+    }
+
+    const parsed = updateAccountSchema.safeParse(request.body);
+    if (!parsed.success) throw new ValidationError('Invalid account payload', parsed.error.flatten());
+
+    const updated = await updateAccount(pool, request.params.id, parsed.data);
+    if (!updated) throw new NotFoundError('Account not found');
+    reply.send(serializeAccount(updated));
   });
 
   app.get<{ Params: { id: string } }>('/accounts/:id/profiles', { preHandler: app.authenticate }, async (request, reply) => {

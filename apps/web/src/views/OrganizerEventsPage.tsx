@@ -1,15 +1,12 @@
 import { Clock3, MapPin, Sparkles } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
-import { useAccountContext } from '../features/account'
-import { useOrganizerOpenMics, useOrganizerSeriesEvents } from '../features/organizer'
+import { useOrganizerOpenMics, useOrganizerProfile, useOrganizerSeriesEvents } from '../features/organizer'
 import type { ColorMode, ThemeId } from '../theme'
 import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
 
 export function OrganizerEventsPage({ seriesId, theme, mode }: { seriesId: string; theme: ThemeId; mode: ColorMode }) {
-  const context = useAccountContext()
-  const selected = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
-  const isOrganizer = selected?.profile_kind === 'organizer' && context.permissions.data?.permissions.includes('profiles:manage')
-  const series = useOrganizerOpenMics(isOrganizer ? selected.id : undefined, isOrganizer)
+  const { context, activeProfile: selected, isOrganizer } = useOrganizerProfile()
+  const series = useOrganizerOpenMics(isOrganizer ? selected?.id : undefined, isOrganizer)
   const openMic = series.data?.find((item) => item.id === seriesId)
   const events = useOrganizerSeriesEvents(seriesId, Boolean(isOrganizer && openMic))
 
@@ -27,7 +24,7 @@ export function OrganizerEventsPage({ seriesId, theme, mode }: { seriesId: strin
       {isOrganizer && openMic && events.isPending && <ReadState message="Loading events…" />}
       {isOrganizer && openMic && events.isError && <ReadState message={friendlyApiErrorMessage(events.error, 'We could not load the events for this series.')} retry={() => void events.refetch()} />}
       {isOrganizer && openMic && events.isSuccess && events.data.length === 0 && <ReadState message="This series does not have any events yet." />}
-      {isOrganizer && openMic && events.data?.map((event) => <article className="dashboard-series-card" key={event.id}><div><span className="panel-label">{event.registrations_closed_at ? 'Registration closed' : 'Upcoming event'}</span><h2>{event.title}</h2><p><Clock3 size={15} /> {new Date(event.starts_at).toLocaleString()}</p><span className="event-meta"><MapPin size={15} /> {event.venue_name}, {event.city}</span></div><div className="dashboard-series-card-actions"><a className="quiet-button" href={`/dashboard/series/${seriesId}/events/${event.id}/edit`}>Edit</a><a className="quiet-button" href={`/events/${event.public_code}`}>View event</a></div></article>)}
+      {isOrganizer && openMic && events.data?.map((event) => <article className="dashboard-series-card" key={event.id}><div><span className="panel-label">{event.registrations_closed_at ? 'Registration closed' : 'Upcoming event'}</span><h2>{event.title}</h2><p><Clock3 size={15} /> {new Date(event.starts_at).toLocaleString()}</p><span className="event-meta"><MapPin size={15} /> {event.venue_name}, {event.city}</span></div><div className="dashboard-series-card-actions"><a className="quiet-button" href={`/dashboard/series/${seriesId}/events/${event.id}/edit`}>Edit</a><a className="quiet-button" href={`/dashboard/series/${seriesId}/events/${event.id}/roster`}>Manage roster</a><a className="quiet-button" href={`/events/${event.public_code}`}>View event</a></div></article>)}
     </section>
   </main>
 }

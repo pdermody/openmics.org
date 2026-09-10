@@ -46,6 +46,17 @@ export async function findPerformancesByRegistrationId(pool: Queryable, registra
   return result.rows;
 }
 
+// Batch lookup for the organizer roster page, so listing an event's registrations doesn't
+// require one performances query per registration.
+export async function findPerformancesByRegistrationIds(pool: Queryable, registrationIds: string[]): Promise<PerformanceRow[]> {
+  if (registrationIds.length === 0) return [];
+  const result = await pool.query<PerformanceRow>(
+    'SELECT * FROM performances WHERE registration_id = ANY($1) AND deleted_at IS NULL ORDER BY sequence ASC, created_at ASC',
+    [registrationIds],
+  );
+  return result.rows;
+}
+
 export async function updatePerformance(
   pool: Pool,
   id: string,

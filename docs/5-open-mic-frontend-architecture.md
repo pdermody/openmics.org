@@ -254,49 +254,48 @@ export const eventKeys = {
 **Freshness rules** (product-facing, not technical):
 - Lists (open mics, events, profiles): 60 s.
 - Detail pages: 30 s (they're the "focused" surface).
-- Notification unread count: 5 s or SSE-driven (see below).
 - Current profile / permissions: cached until logout or explicit switch.
 
 ---
 
 ## 6) Real-Time (SSE) Integration
 
-The API exposes `GET /api/notifications/stream` and event-scoped streams. A single hook wires SSE messages into the query cache; no component polls.
+**Phase 1 scope:** the only SSE stream in Phase 1 is the organizer-scoped event roster stream, `GET /events/{id}/roster/stream` (see [decisions.md → Live updates](decisions.md#live-updates) for the full contract: authentication, event names, ordering, heartbeat, missed-event recovery, and multi-instance fan-out). There is no general account-level or notifications stream in Phase 1 — `/notifications*` is deferred (see [architecture/api-design.md](architecture/api-design.md#deferred-later-phase-api-surface)) and must not be assumed by any Phase 1 component. A single hook wires roster SSE messages into the query cache for the currently open event-operations page; no component polls while that stream is connected.
 
 ```ts
 // src/api/sse.ts
-export function useSseSubscription() {
+export function useRosterStream(eventId: string, streamToken: string) {
   const qc = useQueryClient();
   useEffect(() => {
-    const es = new EventSource('/api/notifications/stream', { withCredentials: true });
-
-    es.addEventListener('notification', (ev) => {
-      const n = JSON.parse((ev as MessageEvent).data);
-      qc.setQueryData(notificationKeys.list(), (old = []) => [n, ...old]);
-      qc.setQueryData(notificationKeys.unreadCount(), (c = 0) => c + 1);
+    const es = new EventSource(`/api/events/${eventId}/roster/stream?stream_token=${streamToken}`, {
+      withCredentials: true,
     });
 
-    es.addEventListener('event.updated', (ev) => {
-      const e = JSON.parse((ev as MessageEvent).data);
-      qc.setQueryData(eventKeys.detail(e.id), e);
-    });
-
-    es.addEventListener('registration.added', (ev) => {
+    es.addEventListener('registration.created', (ev) => {
       const r = JSON.parse((ev as MessageEvent).data);
-      qc.invalidateQueries({ queryKey: eventKeys.registrations(r.eventId) });
+      qc.invalidateQueries({ queryKey: eventKeys.registrations(eventId) });
+    });
+
+    es.addEventListener('registration.updated', (ev) => {
+      const r = JSON.parse((ev as MessageEvent).data);
+      qc.invalidateQueries({ queryKey: eventKeys.registrations(eventId) });
+    });
+
+    es.addEventListener('performance.updated', (ev) => {
+      qc.invalidateQueries({ queryKey: eventKeys.registrations(eventId) });
     });
 
     es.onerror = () => scheduleReconnectWithBackoff(es);
     return () => es.close();
-  }, [qc]);
+  }, [qc, eventId, streamToken]);
 }
 ```
 
 Points to enforce in review:
-- The hook is mounted **once** in `AppShell` for the account-level stream.
-- Component-scoped SSE (e.g., a live "event running" indicator on an open event page) mounts a **separate** EventSource in that route and closes it on unmount.
-- Reconnect uses exponential backoff, capped at 30 s.
+- The hook is mounted only while an organizer/assistant has the event-operations page open, and closes on unmount.
+- Reconnect uses exponential backoff, capped at 30 s. The browser's native `Last-Event-ID` replay handles brief disconnects; on an unresolvable gap the client falls back to refetching the roster via the existing `GET /events/{id}/registrations`.
 - We never mix SSE-driven updates with polling for the same key.
+- If the Milestone 0 stream is not yet implemented for a given deployment, the page must fall back to explicit polling rather than silently showing stale data (see [decisions.md → Live updates](decisions.md#live-updates)).
 
 ---
 
@@ -334,7 +333,7 @@ React Suspense boundaries provide the fallback; TanStack Query's `useSuspenseQue
 - **Kiosk walk-in email nudge:** the `/events/:eventId/collect` kiosk still sends a verification email when a walk-in supplies `contact_email`, but never blocks on it — the row is visible immediately. The confirmation copy explains the one concrete benefit of verifying: only a confirmed email lets the performer later find and claim this exact attendance from their own account.
 - **Authenticated self-registration:** a signed-in caller must choose a separate account-owned profile with `profile_kind='performer'`. Organizers registering for their own events must create and select a performer profile; the organizer profile itself cannot be used as the performer identity. Organizer permissions never bypass capacity, ordering, visibility, or verification rules. If no performer profile exists, the form offers inline performer-profile creation and then selects the new profile for the registration.
 - **Smart "next event" link and QR code:** the organizer console's event and open-mic pages expose **Copy link** and **Download QR code** for two link types: the event-specific `/events/:eventId/register` and the durable series-level `/open-mics/:id/register` (`/@:handle/register`), which always resolves to whichever event is next scheduled. Both are shared through the same `<ShareButton>` described above, so referral attribution is handled identically.
-- **Magic-link registration edit:** the `/events/:eventId/register` route accepts an optional `?token=<edit_token>` search param. The server exchanges it for a short-lived HttpOnly edit session, returns `Cache-Control: no-store` and `Referrer-Policy: no-referrer`, and redirects or renders with the token removed. The client then calls `GET /api/registrations/edit` and uses the edit-session cookie for subsequent `GET`/`PUT` requests; the raw token is never retained in client state or reused for the `PUT`.
+- **Magic-link registration edit:** the `/events/:eventId/register` route accepts an optional `?token=<edit_token>` search param. The server exchanges it for a short-lived HttpOnly edit session, returns `Cache-Control: no-store` and `Referrer-Policy: no-referrer`, and redirects or renders with the token removed. The client then calls `GET /api/registrations/edit` and uses the edit-session cookie for subsequent `GET`/`PATCH` requests; the raw token is never retained in client state or reused for the `PATCH`.
 
 ### Permission-driven UI
 
@@ -345,7 +344,7 @@ The API is the sole authorization boundary (see the server-side design under [Da
 - **Type-safe permission keys.** The `PermissionKey` string-literal union is generated from Fastify's OpenAPI export into `openapi.d.ts`, so a component that asks for a permission that doesn't exist fails at build time.
 - **Route loader is the hard gate.** Every editor route calls `context.queryClient.ensureQueryData(permissionKeys.forProfile(id))` in `beforeLoad` and throws a typed `PermissionError` if the required key is missing. The error boundary renders a 403 panel; the editor bundle and its loader data are **never** fetched for unauthorized users. This is the same route-level guard called out in [§3.3](#create-and-edit-routes).
 - **Component is the soft gate.** A `useHasPermission(key)` hook and a `<Show when={…}>` primitive hide affordances the caller can't use. Hidden UI is UX only — it is not a security boundary; a savvy user hitting the endpoint directly still gets a 403 from the API.
-- **Profile switch and SSE invalidation.** Switching profiles invalidates `permissionKeys.forProfile(previous)` and prefetches the new profile's set. A `permissions.invalidated` SSE event (fired when an admin edits the caller's roles) also calls `invalidateQueries` on the same key; UI degrades in place without a reload.
+- **Profile switch invalidation.** Switching profiles invalidates `permissionKeys.forProfile(previous)` and prefetches the new profile's set. (A `permissions.invalidated` SSE event for multi-admin role changes is Phase 2+, once `/profiles/{id}/roles` ships — see [architecture/api-design.md](architecture/api-design.md#deferred-later-phase-api-surface).)
 - **No redirect on permission failure.** A 403 renders inline (with a "request access" affordance where applicable). Redirecting on 403 authenticates existence, and can loop when the post-login landing page is itself the denied page.
 
 ---
@@ -371,7 +370,7 @@ Every `fetch` response is also inspected for `X-Quota-<Dimension>-Used` / `-Limi
 - All interactive elements reachable by keyboard; focus rings visible.
 - Colour contrast ≥ WCAG AA in every theme (see `Profiles.theme_name`).
 - Media (photos, videos) uses provided `caption` for `alt` where present; falls back to a sensible default.
-- SSE-driven live regions announce new notifications politely (`aria-live="polite"`).
+- SSE-driven roster updates on the event-operations page announce new registrations politely (`aria-live="polite"`).
 
 ---
 
@@ -406,7 +405,7 @@ Every string in the UI is translatable; **user-generated content is not** — op
 
 **API integration.** `api/client.ts` sets `Accept-Language: <current>` on every request. The API error envelope is English-only for now; the header is in place so backend-generated messages can localize later without a client change.
 
-**Backend touch.** The `Accounts` schema now carries `preferred_language` (`text`, BCP 47, nullable); `GET /auth/profile` returns it and `PUT /accounts/:id` accepts it in the body.
+**Backend touch.** The `Accounts` schema now carries `preferred_language` (`text`, BCP 47, nullable); `GET /auth/profile` returns it and `PATCH /accounts/:id` accepts it in the body.
 
 **Supported set at launch.** English only. Adding a new locale is a manifest entry in `src/i18n/supported.ts` plus a matching folder under `src/locales/` — no app code changes.
 

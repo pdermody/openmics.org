@@ -21,6 +21,8 @@ export type AccountProfile = {
   bio: string | null
   phone: string | null
   visibility: string
+  theme_name: string | null
+  color_mode: string | null
 }
 
 export const accountKeys = {
@@ -103,6 +105,45 @@ export function useAccountContext(enabled = true) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: accountKeys.profiles(account.data?.id) }),
   })
 
+  const updatePreferences = useMutation({
+    mutationFn: (input: { id: string; theme_name?: string; color_mode?: string }) => api<AccountProfile>(`/profiles/${input.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(input.theme_name !== undefined ? { theme_name: input.theme_name } : {}),
+        ...(input.color_mode !== undefined ? { color_mode: input.color_mode } : {}),
+      }),
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: accountKeys.profiles(account.data?.id) }),
+  })
+
+  const createProfile = useMutation({
+    mutationFn: (input: { profile_name: string; profile_kind: 'performer' | 'organizer'; theme_name?: string; color_mode?: string; handle?: string }) => api<AccountProfile>('/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+    onSuccess: (profile) => {
+      queryClient.invalidateQueries({ queryKey: accountKeys.profiles(account.data?.id) })
+      return currentProfile.mutateAsync(profile.id)
+    },
+  })
+
+  const updateAccount = useMutation({
+    mutationFn: (input: { display_name?: string; city?: string; preferred_language?: string }) => {
+      if (!account.data?.id) return Promise.resolve(null)
+      return api<Account>(`/accounts/${account.data.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+    },
+    onSuccess: (updated) => {
+      if (!updated) return
+      queryClient.setQueryData<Account>(accountKeys.me, updated)
+    },
+  })
+
   const selectedProfileId = effectiveAccount.data?.current_profile_id ?? undefined
   const permissions = useQuery({
     queryKey: accountKeys.permissions(selectedProfileId),
@@ -122,5 +163,5 @@ export function useAccountContext(enabled = true) {
     error: permissions.error,
   }
 
-  return { account: effectiveAccount, profiles: effectiveProfiles, currentProfile, permissions: effectivePermissions, updateProfile }
+  return { account: effectiveAccount, profiles: effectiveProfiles, currentProfile, permissions: effectivePermissions, updateProfile, updatePreferences, createProfile, updateAccount }
 }

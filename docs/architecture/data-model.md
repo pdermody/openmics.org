@@ -32,11 +32,13 @@ Profiles (unified performer & organizer identities)
 ├── bio
 ├── profile_image_url (S3 URL or NULL)
 ├── theme_name (named theme for UI customization; themes defined separately)
+├── color_mode ("light" | "dark", nullable) — accompanies theme_name; both are per-profile preferences captured during profile creation and editable afterward via `PATCH /profiles/{id}`
 ├── visibility ("public" | "unlisted" | "private") — default "public"
 ├── created_at, updated_at
 ├── deleted_at, deleted_by_profile_id (FK, nullable), recovery_deadline
 # UNIQUE (slug); CHECK (visibility IN ('public','unlisted','private'))
 # CHECK (profile_kind IN ('organizer','performer'));
+# CHECK (color_mode IN ('light','dark'));
 
 ProfileLinks (contact and social links for a profile)
 ├── id (UUID)
@@ -457,6 +459,11 @@ Notifications (in-app inbox + email debounce state; one row per notifiable event
 - Multi-admin collaboration is post-MVP. During MVP, the account in `Profiles.created_by_account_id` is the sole owner and the only account that can manage that profile's open mics, events, registrations, media, and settings.
 - MVP authorization checks the authenticated account against `created_by_account_id` for profile-scoped mutations; platform admins retain their platform-level bypass.
 - `Roles`, `Permissions`, `RolePermissions`, `AccountProfileRoles`, and `ProfileInvitations` are reserved for the post-MVP collaboration release. They are not required on MVP request paths, and invitations, membership changes, team quotas, and role-management UI are excluded from the MVP delivery plan.
+
+**Onboarding and profile-scoped preferences:**
+- An account should never be left without at least one profile in practice. This is enforced client-side: after first sign-in, the frontend blocks all other routes behind a mandatory onboarding step (asking performer vs. organizer, plus theme/color_mode) until `POST /profiles` has created a first profile and `PUT /accounts/{id}/current-profile` has selected it. It is not a hard database constraint, since `profile_kind` is not known until the user answers the onboarding question.
+- `theme_name` and `color_mode` are profile-level preferences, not account-level, because a single account may hold both a performer and an organizer profile that should look different. `AccountUpdateRequest` (display_name, city, preferred_language) intentionally excludes them.
+- The same theme/color_mode selection UI is reusable whenever any new profile is created, not just during onboarding.
 
 **Post-MVP permission-based design:**
 - **Profiles** no longer have a type; instead, what a profile "can do" is determined by the roles assigned to accounts via `AccountProfileRoles`.

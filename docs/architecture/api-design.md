@@ -223,6 +223,8 @@ Quota errors use the same envelope with a stable `code` so the frontend can catc
 
 Always excludes `status IN ('draft','ended')` and `deleted_at IS NOT NULL`. `paused` rows are returned with an `on_break: true` flag so cards can show "On break" without dropping the entry from search results. Response items are a summary shape (`{ id, handle, name, city, country, rating_avg, rating_count, activities, tags, schedule_summary, registration_mode, entry_fee_amount, entry_fee_currency, entry_fee_note, primary_photo_url, distance_km? }`) — deliberately smaller than `GET /open-mics/:id` so the list renders fast.
 
+`GET /me/open-mics` — the authenticated organizer-dashboard listing (owner_profile_id required, must belong to the caller's account). Unlike `GET /open-mics`, this endpoint does **not** filter by status: it returns every non-deleted series owned by the profile, including `draft` and `ended`, so an organizer can see and manage a series they just created before it's published. Follows the `GET /me/permissions` / `GET /me/registrations` pattern of account-scoped endpoints rather than adding undocumented owner filters to the public directory query.
+
 `GET /open-mics/map` — for the interactive map on the directory home:
 
 - `bbox=<west>,<south>,<east>,<north>` — required; longitude/latitude bounding box.

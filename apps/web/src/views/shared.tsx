@@ -1,8 +1,19 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Heart, Menu, MessageCircle, Sparkles } from 'lucide-react'
-import { beginSignIn } from '../auth/session'
+import { beginSignIn, consumeSignInError, endSession, getAuthenticatedUser } from '../auth/session'
 
 export type ThemeProps = { theme: import('../theme').ThemeId; mode: import('../theme').ColorMode }
+
+// Visual marker for a required form field, paired with a legend (see RequiredFieldsNote) so
+// screen-reader users get an equivalent text explanation instead of relying on the asterisk alone.
+export function Required() {
+  return <span className="required-mark" aria-hidden="true"> *</span>
+}
+
+export function RequiredFieldsNote() {
+  return <p className="field-hint required-fields-note"><span className="required-mark" aria-hidden="true">*</span> Required fields</p>
+}
 
 export function SocialButton({ label, icon }: { label: string; icon: 'heart' | 'message' }) {
   const Icon = icon === 'heart' ? Heart : MessageCircle
@@ -14,7 +25,25 @@ export function ReadState({ message, retry }: { message: string; retry?: () => v
 }
 
 export function SignInButton() {
+  const queryClient = useQueryClient()
   const [message, setMessage] = useState('')
+  const [signedIn, setSignedIn] = useState(false)
+
+  useEffect(() => {
+    const failure = consumeSignInError()
+    if (failure) setMessage(failure)
+    void getAuthenticatedUser().then((user) => setSignedIn(Boolean(user)))
+  }, [])
+
+  if (signedIn) {
+    return <div className="auth-slot"><button className="text-button" type="button" onClick={() => {
+      void endSession().then(() => {
+        setSignedIn(false)
+        queryClient.clear()
+      })
+    }}>Sign out</button></div>
+  }
+
   return <div className="auth-slot"><button className="text-button" type="button" onClick={() => void beginSignIn().catch((error: Error) => setMessage(error.message))}>Sign in</button>{message && <span className="auth-note" role="status">{message}</span>}</div>
 }
 

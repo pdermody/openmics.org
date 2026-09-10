@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { Sparkles } from 'lucide-react'
 import { useAccountContext } from '../features/account'
 import type { ColorMode, ThemeId } from '../theme'
-import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
+import { HeaderMenu, ProfileSwitcher, ReadState, Required, RequiredFieldsNote, SignInButton } from './shared'
 
 const profileFormSchema = z.object({
   profile_name: z.string().trim().min(1, 'Profile name is required'),
@@ -51,7 +51,8 @@ export function ProfileEditorPage({ profileId, theme, mode }: { profileId: strin
       <div className="eyebrow">Profile settings</div>
       <h1>Edit {profile.profile_name}</h1>
       <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>
-        <label>Profile name<input {...register('profile_name')} /></label>
+        <RequiredFieldsNote />
+        <label><span>Profile name<Required /></span><input required {...register('profile_name')} /></label>
         {errors.profile_name && <p className="form-error" role="alert">{errors.profile_name.message}</p>}
         <label>Bio <span className="field-hint">Optional</span><textarea {...register('bio')} /></label>
         <label>Phone <span className="field-hint">Private contact detail</span><input type="tel" {...register('phone')} /></label>

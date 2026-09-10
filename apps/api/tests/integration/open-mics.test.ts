@@ -184,4 +184,55 @@ describe('open-mics routes (real database)', () => {
 
     await instance.close();
   });
+
+  it('GET /me/open-mics returns a newly-created (draft) series that the public directory hides', async () => {
+    const instance = app();
+
+    const created = await instance.inject({
+      method: 'POST',
+      url: '/api/open-mics',
+      headers: { authorization: 'Bearer open-mics-owner', 'x-current-profile': organizerProfileId },
+      payload: validPayload({ name: 'My Dashboard Draft Series' }),
+    });
+    const body = created.json();
+    expect(body.status).toBe('draft');
+
+    // The public directory always excludes draft/ended series, even when filtered to this owner.
+    const publicList = await instance.inject({
+      method: 'GET',
+      url: `/api/open-mics?owner_profile_id=${organizerProfileId}`,
+    });
+    expect(publicList.json().items.some((item: { id: string }) => item.id === body.id)).toBe(false);
+
+    // The authenticated organizer-dashboard endpoint must still return it.
+    const mine = await instance.inject({
+      method: 'GET',
+      url: `/api/me/open-mics?owner_profile_id=${organizerProfileId}`,
+      headers: { authorization: 'Bearer open-mics-owner' },
+    });
+    expect(mine.statusCode).toBe(200);
+    expect(mine.json().items.some((item: { id: string }) => item.id === body.id)).toBe(true);
+
+    await instance.close();
+  });
+
+  it('GET /me/open-mics requires owner_profile_id and forbids listing another account\'s profile', async () => {
+    const instance = app();
+
+    const missingParam = await instance.inject({
+      method: 'GET',
+      url: '/api/me/open-mics',
+      headers: { authorization: 'Bearer open-mics-owner' },
+    });
+    expect(missingParam.statusCode).toBe(400);
+
+    const forbidden = await instance.inject({
+      method: 'GET',
+      url: `/api/me/open-mics?owner_profile_id=${otherOrganizerProfileId}`,
+      headers: { authorization: 'Bearer open-mics-owner' },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    await instance.close();
+  });
 });

@@ -1,18 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
 import { CircleAlert, CircleCheck, Sparkles } from 'lucide-react'
 import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
-import { useAccountContext } from '../features/account'
 import { useHandleAvailability } from '../features/handles'
 import { CURRENCIES } from '../features/currencies'
 import { baseLocationFieldsSchema } from '../features/location'
-import { useCreateOpenMic, useOpenMicDetail, useUpdateOpenMic, type OpenMicFormInput } from '../features/organizer'
+import { useCreateOpenMic, useOpenMicDetail, useOrganizerProfile, useUpdateOpenMic, type OpenMicFormInput } from '../features/organizer'
 import { suggestHandle } from '../features/slugify'
 import type { ColorMode, ThemeId } from '../theme'
-import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
+import { HeaderMenu, ProfileSwitcher, ReadState, Required, RequiredFieldsNote, SignInButton } from './shared'
 
 const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
 
@@ -103,9 +102,7 @@ function applyServerFieldErrors(error: unknown, setError: UseFormSetError<OpenMi
 
 export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; theme: ThemeId; mode: ColorMode }) {
   const isEdit = Boolean(seriesId)
-  const context = useAccountContext()
-  const activeProfile = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
-  const isOrganizer = activeProfile?.profile_kind === 'organizer' && context.permissions.data?.permissions.includes('profiles:manage')
+  const { context, activeProfile, isOrganizer } = useOrganizerProfile()
   const existing = useOpenMicDetail(seriesId)
   const createOpenMic = useCreateOpenMic(activeProfile?.id)
   const updateOpenMic = useUpdateOpenMic(seriesId)
@@ -130,12 +127,17 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   const registrationMode = watch('registration_mode')
 
   const handleCheck = useHandleAvailability(handle, !isEdit)
+  const handleTouchedRef = useRef(false)
+  const { onChange: handleFieldOnChange, ...handleFieldProps } = register('handle')
 
-  // Suggest a handle from the series name until the organizer supplies a non-empty custom value.
+  // Suggest a handle from the series name until the organizer directly edits the handle field.
+  // Tracking "touched" via a ref (set only from the handle input's own onChange) rather than
+  // reading `dirtyFields.handle`/`handle` back out of the form keeps this effect a one-way
+  // sync from name -> handle, avoiding a feedback loop through the watched `handle` value.
   useEffect(() => {
-    if (isEdit || (dirtyFields.handle && handle)) return
+    if (isEdit || handleTouchedRef.current) return
     setValue('handle', suggestHandle(name ?? ''))
-  }, [name, dirtyFields.handle, handle, isEdit, setValue])
+  }, [name, isEdit, setValue])
 
   // Default the open mic's contact email to the organizer's account email; they can still
   // override it with a separate address, which we validate the same way as any other email field.
@@ -196,7 +198,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   }
 
   function onSubmit(values: OpenMicFormValues) {
-    if (!isEdit && values.handle && handleCheck.state !== 'available') return
+    if (!isEdit && values.handle && (handleCheck.state === 'unavailable' || handleCheck.state === 'invalid')) return
     const input: OpenMicFormInput = {
       name: values.name,
       description: values.description || undefined,
@@ -234,10 +236,12 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
     }
   }
 
+  const isOwner = !isEdit || !existing.data || existing.data.owner_profile_id === activeProfile?.id
+
   if (context.account.isPending || context.profiles.isPending || (isEdit && existing.isPending)) {
     return <main className="app" data-theme={theme} data-mode={mode}><ReadState message="Loading…" /></main>
   }
-  if (!context.account.data || !isOrganizer) {
+  if (!context.account.data || !isOrganizer || (isEdit && existing.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
       <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
       <section className="dashboard-page"><ReadState message="Switch to an organizer profile to manage open mic series." /></section>
@@ -254,25 +258,26 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
       <div className="eyebrow">Organizer workspace</div>
       <h1>{isEdit ? `Edit ${existing.data?.name ?? 'series'}` : 'Create an open mic series'}</h1>
       <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>
-        <label>Series name<input {...register('name')} /></label>
+        <RequiredFieldsNote />
+        <label><span>Series name<Required /></span><input required {...register('name')} /></label>
         {errors.name && <p className="form-error" role="alert">{errors.name.message}</p>}
         <label>Description <span className="field-hint">Optional</span><textarea {...register('description')} /></label>
-        {!isEdit && <label>Handle <span className="field-hint">Optional · used in the public URL, suggested from the series name until you edit it</span><span className="handle-input"><span aria-hidden="true">@</span><input {...register('handle')} /></span></label>}
+        {!isEdit && <label>Handle <span className="field-hint">Optional · used in the public URL, suggested from the series name until you edit it</span><span className="handle-input"><span aria-hidden="true">@</span><input {...handleFieldProps} onChange={(event) => { handleTouchedRef.current = true; void handleFieldOnChange(event) }} /></span></label>}
         {!isEdit && handle && <p className={`handle-feedback ${handleCheck.state === 'available' ? 'form-success' : handleCheck.state === 'checking' ? 'field-hint' : 'form-error'}`} role={handleCheck.state === 'unavailable' || handleCheck.state === 'invalid' ? 'alert' : 'status'}>
           {handleCheck.state === 'available' && <CircleCheck aria-hidden="true" size={16} />}
           {(handleCheck.state === 'unavailable' || handleCheck.state === 'invalid') && <CircleAlert aria-hidden="true" size={16} />}
           {handleCheck.state === 'checking' ? 'Checking availability…' : handleCheck.message}
         </p>}
 
-        <label>Venue name<input {...register('venue_name')} /></label>
+        <label><span>Venue name<Required /></span><input required {...register('venue_name')} /></label>
         {errors.venue_name && <p className="form-error" role="alert">{errors.venue_name.message}</p>}
-        <label>Address<input {...register('address_line1')} /></label>
+        <label><span>Address<Required /></span><input required {...register('address_line1')} /></label>
         {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
         <label>Address line 2 <span className="field-hint">Optional</span><input {...register('address_line2')} /></label>
         <label>Postcode <span className="field-hint">Optional</span><input {...register('postcode')} /></label>
-        <label>City<input {...register('city')} /></label>
+        <label><span>City<Required /></span><input required {...register('city')} /></label>
         {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
-        <label>Country <span className="field-hint">Two-letter code, e.g. IE</span><input maxLength={2} {...register('country')} /></label>
+        <label><span>Country<Required /></span> <span className="field-hint">Two-letter code, e.g. IE</span><input required maxLength={2} {...register('country')} /></label>
         {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
 
         <LocationPicker
@@ -288,7 +293,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
         />
         {errors.lng && <p className="form-error" role="alert">{errors.lng.message}</p>}
 
-        <label>Time zone <span className="field-hint">IANA name, e.g. Europe/Dublin</span><input {...register('time_zone')} /></label>
+        <label><span>Time zone<Required /></span> <span className="field-hint">IANA name, e.g. Europe/Dublin</span><input required {...register('time_zone')} /></label>
         {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
 
         <label>Website <span className="field-hint">Optional</span><input type="url" {...register('website')} /></label>
@@ -299,7 +304,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
         <label>Schedule details <span className="field-hint">Optional</span><textarea {...register('schedule_details')} /></label>
 
         <fieldset>
-          <legend>Activities</legend>
+          <legend>Activities<Required /></legend>
           {ACTIVITIES.map((activity) => (
             <label className="checkbox-label" key={activity}><input type="checkbox" checked={activities.includes(activity)} onChange={() => toggleActivity(activity)} /><span>{activity}</span></label>
           ))}
@@ -321,17 +326,17 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
           <option value="on_night_only">On the night only</option>
           <option value="external">External link</option>
         </select></label>
-        {registrationMode === 'external' && <label>External registration URL<input type="url" {...register('external_registration_url')} /></label>}
+        {registrationMode === 'external' && <label><span>External registration URL<Required /></span><input required type="url" {...register('external_registration_url')} /></label>}
         {errors.external_registration_url && <p className="form-error" role="alert">{errors.external_registration_url.message}</p>}
 
         <label>Entry fee amount <span className="field-hint">Optional · 0 for free</span><input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
-        {Number(entryFeeAmount) > 0 && <label>Entry fee currency<select {...register('entry_fee_currency')}><option value="">Select currency</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
+        {Number(entryFeeAmount) > 0 && <label><span>Entry fee currency<Required /></span><select required {...register('entry_fee_currency')}><option value="">Select currency</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
         {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
         <label>Entry fee note <span className="field-hint">Optional</span><input {...register('entry_fee_note')} /></label>
 
         {mutation.isError && <p className="form-error" role="alert">{openMicErrorMessage(mutation.error)}</p>}
         {mutation.isSuccess && isEdit && <p className="form-success" role="status">Saved.</p>}
-        <button className="primary-button" type="submit" disabled={mutation.isPending || activities.length === 0 || (!isEdit && Boolean(handle) && handleCheck.state !== 'available')}>
+        <button className="primary-button" type="submit" disabled={mutation.isPending || activities.length === 0 || (!isEdit && Boolean(handle) && (handleCheck.state === 'unavailable' || handleCheck.state === 'invalid'))}>
           {mutation.isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create series'}
         </button>
         {activities.length === 0 && <p className="field-hint">Select at least one activity.</p>}

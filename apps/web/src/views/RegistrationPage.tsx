@@ -4,7 +4,7 @@ import { useAccountContext } from '../features/account'
 import { markEventRegisteredLocally } from '../features/guestRegistrations'
 import { isRegistrationClosed, usePublicEvent, usePublicOpenMic } from '../features/publicReads'
 import type { ThemeProps } from './shared'
-import { ReadState, SiteHeader } from './shared'
+import { ReadState, Required, RequiredFieldsNote, SiteHeader } from './shared'
 
 type Registration = {
   id: string
@@ -146,7 +146,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
     try {
       if (editRegistration) {
         await api(`/registrations/${editRegistration.id}`, {
-          method: 'PUT',
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             performer_name: performerName,
@@ -211,14 +211,15 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
           {performerProfile && !editRegistration && <div className="profile-context" role="status">Registering as <strong>{performerProfile.profile_name}</strong> · performer profile</div>}
           {performerProfile && editRegistration && <div className="profile-context" role="status">Performer name and city stay as originally submitted (<strong>{editRegistration.performer_name}</strong>). Switch away from your performer profile above to edit them here.</div>}
           {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong>{!editRegistration && !performerProfile && <p>Your place is pending email confirmation.</p>}</div> : (needsPerformerProfile && !editRegistration) || (standardRegistrationDisabled && !editRegistration) || editState === 'loading' ? null : <form className="registration-form" noValidate onSubmit={submit}>
+            {(!performerProfile || editRegistration) && <RequiredFieldsNote />}
             {!performerProfile && !editRegistration && <>
-              <label>Performer name<input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
-              <label>Contact email<input required type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
+              <label><span>Performer name<Required /></span><input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
+              <label><span>Contact email<Required /></span><input required type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
               <label>City <span className="field-hint">Optional</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
               <label>Phone <span className="field-hint">Optional, for organizer contact</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
             </>}
             {editRegistration && !performerProfile && <>
-              <label>Performer name<input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
+              <label><span>Performer name<Required /></span><input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
               <label>City <span className="field-hint">Optional</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
             </>}
             <label>What will you perform? <span className="field-hint">Optional · separate songs with commas</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>

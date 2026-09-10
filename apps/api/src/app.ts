@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import { registerAuth } from './auth/plugin.js';
 import type { AuthVerifier } from './auth/types.js';
 import { createAccountLookupVerifier } from './auth/verifier.js';
+import { createCognitoVerifier } from './auth/cognito-verifier.js';
 import { loadConfig, type AppConfig } from './config.js';
 import { createPool } from './db.js';
 import { createEmailAdapter, type EmailAdapter } from './email/index.js';
@@ -30,6 +31,40 @@ export type BuildAppOptions = {
   emailAdapter?: EmailAdapter;
 };
 
+// Real Cognito verification is only used once a user pool and app client are actually
+// configured (staging/production, or a developer testing real sign-in locally). Automated
+// tests never call AWS and virtually always inject their own `authVerifier` regardless.
+export function createDefaultAuthVerifier(
+  pool: Pool,
+  config: AppConfig,
+  deps: { createCognitoVerifier: typeof createCognitoVerifier } = { createCognitoVerifier },
+): AuthVerifier {
+  const cognitoVerifier = config.cognitoUserPoolId && config.cognitoClientId
+    ? deps.createCognitoVerifier(pool, {
+        region: config.awsRegion,
+        userPoolId: config.cognitoUserPoolId,
+        clientId: config.cognitoClientId,
+      })
+    : null;
+
+  // The interim lookup verifier treats the bearer token as `accounts.cognito_id` directly; it
+  // backs both the general dev/test fallback and the local simulated-auth profile switcher
+  // (its seeded tokens, e.g. "dev-owner", are exactly a `cognito_id`).
+  const lookupVerifier = createAccountLookupVerifier(pool);
+
+  if (!cognitoVerifier) return lookupVerifier;
+  if (config.environment !== 'development' || !config.simulatedAuthMode) return cognitoVerifier;
+
+  // Both a real user pool and local simulated auth are configured at once (developer testing
+  // real Cognito sign-in without giving up the profile switcher). Real Cognito ID tokens are
+  // JWTs (three dot-separated segments); simulated tokens are plain seeded cognito_id strings
+  // and never contain a dot. Route by shape so neither mechanism can be confused for the other.
+  return async (token) => {
+    if (token.split('.').length === 3) return cognitoVerifier(token);
+    return lookupVerifier(token);
+  };
+}
+
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const config = { ...loadConfig(), ...options.config };
   const app = Fastify({ logger: options.logger ?? config.environment !== 'test' });
@@ -39,7 +74,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   if (!options.db) app.addHook('onClose', async () => pool.end());
 
   registerErrorHandler(app);
-  registerAuth(app, options.authVerifier ?? createAccountLookupVerifier(pool));
+  registerAuth(app, options.authVerifier ?? createDefaultAuthVerifier(pool, config));
 
   if (config.environment === 'development' && config.simulatedAuthMode) {
     app.get('/api/dev/simulated-auth/config', async () => {
@@ -77,7 +112,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.register(geocodingRoutes, { ...geocodingOptions, prefix: '/api' });
   app.register(profilesRoutes, { pool, prefix: '/api' });
   app.register(openMicsRoutes, { pool, prefix: '/api' });
-  app.register(eventsRoutes, { pool, prefix: '/api' });
+  app.register(eventsRoutes, { pool, streamTokenSecret: config.streamTokenSecret, prefix: '/api' });
   app.register(registrationsRoutes, { pool, emailAdapter, appBaseUrl: config.appBaseUrl, prefix: '/api' });
   app.register(performancesRoutes, { pool, prefix: '/api' });
   app.register(accountsRoutes, { pool, prefix: '/api' });

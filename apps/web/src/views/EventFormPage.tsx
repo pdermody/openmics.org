@@ -5,12 +5,11 @@ import { z } from 'zod'
 import { Sparkles } from 'lucide-react'
 import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
-import { useAccountContext } from '../features/account'
-import { useCreateEvent, useEventDetail, useOpenMicDetail, useUpdateEvent, type EventFormInput } from '../features/organizer'
+import { useCreateEvent, useEventDetail, useOpenMicDetail, useOrganizerProfile, useUpdateEvent, type EventFormInput } from '../features/organizer'
 import { CURRENCIES } from '../features/currencies'
 import { baseLocationFieldsSchema } from '../features/location'
 import type { ColorMode, ThemeId } from '../theme'
-import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
+import { HeaderMenu, ProfileSwitcher, ReadState, Required, RequiredFieldsNote, SignInButton } from './shared'
 
 const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
 
@@ -118,9 +117,7 @@ function applyServerFieldErrors(error: unknown, setError: UseFormSetError<EventF
 
 export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: string; eventId?: string; theme: ThemeId; mode: ColorMode }) {
   const isEdit = Boolean(eventId)
-  const context = useAccountContext()
-  const activeProfile = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
-  const isOrganizer = activeProfile?.profile_kind === 'organizer' && context.permissions.data?.permissions.includes('profiles:manage')
+  const { context, activeProfile, isOrganizer } = useOrganizerProfile()
   const openMic = useOpenMicDetail(seriesId)
   const existing = useEventDetail(seriesId, eventId)
   const createEvent = useCreateEvent(seriesId)
@@ -236,7 +233,8 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   if (context.account.isPending || context.profiles.isPending || openMic.isPending || (isEdit && existing.isPending)) {
     return <main className="app" data-theme={theme} data-mode={mode}><ReadState message="Loading…" /></main>
   }
-  if (!context.account.data || !isOrganizer) {
+  const isOwner = !openMic.data || openMic.data.owner_profile_id === activeProfile?.id
+  if (!context.account.data || !isOrganizer || (openMic.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
       <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
       <section className="dashboard-page"><ReadState message="Switch to an organizer profile to manage events." /></section>
@@ -253,12 +251,13 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
       <div className="eyebrow">Organizer workspace</div>
       <h1>{isEdit ? `Edit ${existing.data?.title ?? 'event'}` : `New event for ${openMic.data?.name ?? 'this series'}`}</h1>
       <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>
-        <label>Event title<input {...register('title')} /></label>
+        <RequiredFieldsNote />
+        <label><span>Event title<Required /></span><input required {...register('title')} /></label>
         {errors.title && <p className="form-error" role="alert">{errors.title.message}</p>}
-        <label>Starts at<input type="datetime-local" {...register('starts_at')} /></label>
+        <label><span>Starts at<Required /></span><input required type="datetime-local" {...register('starts_at')} /></label>
         {errors.starts_at && <p className="form-error" role="alert">{errors.starts_at.message}</p>}
         <label>Ends at <span className="field-hint">Optional</span><input type="datetime-local" {...register('ends_at')} /></label>
-        <label>Time zone <span className="field-hint">IANA name, e.g. Europe/Dublin</span><input {...register('time_zone')} /></label>
+        <label><span>Time zone<Required /></span> <span className="field-hint">IANA name, e.g. Europe/Dublin</span><input required {...register('time_zone')} /></label>
         {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
         <label>Capacity <span className="field-hint">Optional · leave blank for unlimited</span><input type="number" min="1" {...register('capacity')} /></label>
 
@@ -267,15 +266,15 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
 
         <label className="checkbox-label"><input type="checkbox" disabled={isEdit} {...register('override_location')} /><span>Use a different location for this event {!isEdit && '(otherwise it inherits the series venue)'}</span></label>
         {overrideLocation && <>
-          <label>Venue name<input {...register('venue_name')} /></label>
+          <label><span>Venue name<Required /></span><input required {...register('venue_name')} /></label>
           {errors.venue_name && <p className="form-error" role="alert">{errors.venue_name.message}</p>}
-          <label>Address<input {...register('address_line1')} /></label>
+          <label><span>Address<Required /></span><input required {...register('address_line1')} /></label>
           {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
           <label>Address line 2 <span className="field-hint">Optional</span><input {...register('address_line2')} /></label>
           <label>Postcode <span className="field-hint">Optional</span><input {...register('postcode')} /></label>
-          <label>City<input {...register('city')} /></label>
+          <label><span>City<Required /></span><input required {...register('city')} /></label>
           {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
-          <label>Country <span className="field-hint">Two-letter code, e.g. IE</span><input maxLength={2} {...register('country')} /></label>
+          <label><span>Country<Required /></span> <span className="field-hint">Two-letter code, e.g. IE</span><input required maxLength={2} {...register('country')} /></label>
           {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
 
           <LocationPicker
@@ -303,7 +302,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
         <label>Notes <span className="field-hint">Optional · shown to the public</span><textarea {...register('notes')} /></label>
 
         <label>Entry fee amount <span className="field-hint">Optional · 0 for free</span><input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
-        {Number(entryFeeAmount) > 0 && <label>Entry fee currency<select {...register('entry_fee_currency')}><option value="">Select currency</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
+        {Number(entryFeeAmount) > 0 && <label><span>Entry fee currency<Required /></span><select required {...register('entry_fee_currency')}><option value="">Select currency</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
         {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
         <label>Entry fee note <span className="field-hint">Optional</span><input {...register('entry_fee_note')} /></label>
 

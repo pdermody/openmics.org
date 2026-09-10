@@ -190,7 +190,7 @@ describe('events routes (real database)', () => {
     // Update it
     const updateResponse = await instance.inject({
       method: 'PATCH',
-      url: `/api/open-mics/${openMicId}/events/${eventId}`,
+      url: `/api/events/${eventId}`,
       headers: { authorization: 'Bearer events-owner' },
       payload: { notes: 'Updated notes' },
     });
@@ -220,7 +220,7 @@ describe('events routes (real database)', () => {
     // Try to update as non-owner
     const updateResponse = await instance.inject({
       method: 'PATCH',
-      url: `/api/open-mics/${openMicId}/events/${eventId}`,
+      url: `/api/events/${eventId}`,
       headers: { authorization: 'Bearer events-hijacker' },
       payload: { notes: 'Hijacked' },
     });
@@ -255,12 +255,134 @@ describe('events routes (real database)', () => {
 
     const updated = await instance.inject({
       method: 'PATCH',
-      url: `/api/open-mics/${openMicPublicCode}/events/${eventId}`,
+      url: `/api/events/${eventId}`,
       headers: { authorization: 'Bearer events-owner' },
       payload: { notes: 'Updated via open mic public code' },
     });
     expect(updated.statusCode).toBe(200);
     expect(updated.json().notes).toBe('Updated via open mic public code');
+
+    await instance.close();
+  });
+
+  it('soft-deletes an event, hides it from reads, rejects a non-owner delete, and allows the owner to recover it', async () => {
+    const instance = app();
+
+    const created = await instance.inject({
+      method: 'POST',
+      url: `/api/open-mics/${openMicId}/events`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: validPayload({ title: 'Soft Delete Me' }),
+    });
+    const eventId = created.json().id as string;
+
+    await pool.query(
+      "INSERT INTO accounts (cognito_id, email) VALUES ('events-delete-other', 'events-delete-other@example.test') RETURNING id",
+    );
+
+    const forbiddenDelete = await instance.inject({
+      method: 'DELETE',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer events-delete-other' },
+    });
+    expect(forbiddenDelete.statusCode).toBe(403);
+
+    const deleted = await instance.inject({
+      method: 'DELETE',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer events-owner' },
+    });
+    expect(deleted.statusCode).toBe(204);
+
+    const getAfterDelete = await instance.inject({ method: 'GET', url: `/api/events/${eventId}` });
+    expect(getAfterDelete.statusCode).toBe(404);
+
+    const listAfterDelete = await instance.inject({ method: 'GET', url: `/api/open-mics/${openMicId}/events` });
+    expect((listAfterDelete.json() as Array<{ id: string }>).some((event) => event.id === eventId)).toBe(false);
+
+    const secondDelete = await instance.inject({
+      method: 'DELETE',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer events-owner' },
+    });
+    expect(secondDelete.statusCode).toBe(404);
+
+    const forbiddenRecover = await instance.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/recover`,
+      headers: { authorization: 'Bearer events-delete-other' },
+    });
+    expect(forbiddenRecover.statusCode).toBe(403);
+
+    const recovered = await instance.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/recover`,
+      headers: { authorization: 'Bearer events-owner' },
+    });
+    expect(recovered.statusCode).toBe(200);
+    expect(recovered.json().id).toBe(eventId);
+
+    const getAfterRecover = await instance.inject({ method: 'GET', url: `/api/events/${eventId}` });
+    expect(getAfterRecover.statusCode).toBe(200);
+
+    const secondRecover = await instance.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/recover`,
+      headers: { authorization: 'Bearer events-owner' },
+    });
+    expect(secondRecover.statusCode).toBe(404);
+
+    await instance.close();
+  });
+
+  it('issues a roster stream token to the organizer and rejects non-owners', async () => {
+    const instance = app();
+    const created = await instance.inject({
+      method: 'POST',
+      url: `/api/open-mics/${openMicId}/events`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: validPayload({ title: 'Stream Token Event' }),
+    });
+    const eventId = created.json().id as string;
+
+    const forbidden = await instance.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/roster/stream-token`,
+      headers: { authorization: 'Bearer events-hijacker' },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const issued = await instance.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/roster/stream-token`,
+      headers: { authorization: 'Bearer events-owner' },
+    });
+    expect(issued.statusCode).toBe(200);
+    const body = issued.json() as { stream_token: string; expires_at: string };
+    expect(typeof body.stream_token).toBe('string');
+    expect(new Date(body.expires_at).getTime()).toBeGreaterThan(Date.now());
+
+    await instance.close();
+  });
+
+  it('rejects the roster stream without a valid stream token', async () => {
+    const instance = app();
+    const created = await instance.inject({
+      method: 'POST',
+      url: `/api/open-mics/${openMicId}/events`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: validPayload({ title: 'Stream Event' }),
+    });
+    const eventId = created.json().id as string;
+
+    const missingToken = await instance.inject({ method: 'GET', url: `/api/events/${eventId}/roster/stream` });
+    expect(missingToken.statusCode).toBe(403);
+
+    const invalidToken = await instance.inject({
+      method: 'GET',
+      url: `/api/events/${eventId}/roster/stream?stream_token=not-a-real-token`,
+    });
+    expect(invalidToken.statusCode).toBe(403);
 
     await instance.close();
   });

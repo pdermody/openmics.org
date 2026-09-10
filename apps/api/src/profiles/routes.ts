@@ -26,6 +26,7 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
         phone: input.phone,
         visibility: input.visibility,
         themeName: input.theme_name,
+        colorMode: input.color_mode,
       });
       await assignHandle(
         client,

@@ -14,9 +14,12 @@ describe('loadConfig', () => {
       emailQueueUrl: undefined,
       emailSenderAddress: 'noreply@openmics.org',
       awsRegion: 'eu-west-1',
+      cognitoUserPoolId: undefined,
+      cognitoClientId: undefined,
       appBaseUrl: 'http://localhost:5173',
       locationIqApiKey: '',
       locationIqBaseUrl: 'https://us1.locationiq.com',
+      streamTokenSecret: 'dev-insecure-stream-token-secret-change-me',
     })
   });
 });

@@ -158,6 +158,38 @@ export async function findNextEventByOpenMicId(client: Queryable, openMicId: str
   return result.rows[0] ?? null;
 }
 
+export async function findEventByIdOrPublicCodeIncludingDeleted(client: Queryable, identifier: string): Promise<EventRow | null> {
+  const result = await client.query<EventRow>(
+    'SELECT * FROM events WHERE (id::text = $1 OR public_code = upper($1))',
+    [identifier],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function softDeleteEvent(pool: Pool, id: string, deletedByProfileId: string): Promise<EventRow | null> {
+  const result = await pool.query<EventRow>(
+    `UPDATE events
+     SET deleted_at = now(), deleted_by_profile_id = $1, recovery_deadline = now() + interval '30 days', updated_at = now()
+     WHERE id = $2 AND deleted_at IS NULL
+     RETURNING *`,
+    [deletedByProfileId, id],
+  );
+  return result.rows[0] ?? null;
+}
+
+// Only restorable within the 30-day recovery window (recovery_deadline is set at delete time);
+// past that point the row is treated as permanently gone even though the DB row still exists.
+export async function restoreEvent(pool: Pool, id: string): Promise<EventRow | null> {
+  const result = await pool.query<EventRow>(
+    `UPDATE events
+     SET deleted_at = NULL, deleted_by_profile_id = NULL, recovery_deadline = NULL, updated_at = now()
+     WHERE id = $1 AND deleted_at IS NOT NULL AND recovery_deadline > now()
+     RETURNING *`,
+    [id],
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function updateEvent(pool: Pool, id: string, changes: Partial<InsertEventInput>): Promise<EventRow | null> {
   const updates: string[] = [];
   const values: unknown[] = [];

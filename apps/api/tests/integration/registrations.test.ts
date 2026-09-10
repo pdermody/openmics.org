@@ -251,4 +251,46 @@ describe('registration routes (real database)', () => {
     expect(second.statusCode).toBe(409);
     expect(second.json().error.code).toBe('CAPACITY_EXCEEDED');
   });
+
+  it('includes each registration\'s performances in the organizer roster listing, and rejects a non-owner', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/registrations`,
+      payload: {
+        performer_name: 'Roster Performer',
+        contact_email: 'roster-performer@example.test',
+        submission_channel: 'organic',
+        organizer_supervised: false,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const registrationId = created.json().id as string;
+
+    const performance = await app.inject({
+      method: 'POST',
+      url: '/api/performances',
+      headers: { authorization: 'Bearer registration-owner' },
+      payload: { registration_id: registrationId, name: 'Roster Performer', activity: 'singing', sequence: 3 },
+    });
+    expect(performance.statusCode).toBe(201);
+
+    const forbidden = await app.inject({
+      method: 'GET',
+      url: `/api/events/${eventId}/registrations`,
+      headers: { authorization: 'Bearer registration-claimant' },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const roster = await app.inject({
+      method: 'GET',
+      url: `/api/events/${eventId}/registrations`,
+      headers: { authorization: 'Bearer registration-owner' },
+    });
+    expect(roster.statusCode).toBe(200);
+    const rosterRow = (roster.json() as Array<{ id: string; performances: Array<{ id: string; sequence: number; notes: string | null }> }>).find(
+      (row) => row.id === registrationId,
+    );
+    expect(rosterRow?.performances).toHaveLength(1);
+    expect(rosterRow?.performances[0]).toMatchObject({ sequence: 3, activity: 'singing' });
+  });
 });

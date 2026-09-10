@@ -1,4 +1,4 @@
-import { getAccessToken } from '../auth/session'
+import { getAccessToken, refreshAccessToken } from '../auth/session'
 
 export type ApiErrorPayload = {
   error: {
@@ -49,22 +49,38 @@ export function friendlyApiErrorMessage(error: unknown, fallback = 'Something we
 export type ApiClientOptions = {
   baseUrl?: string
   getAccessToken?: () => Promise<string | undefined> | string | undefined
+  refreshAccessToken?: () => Promise<string | undefined>
   locale?: () => string
 }
 
 export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = options.baseUrl ?? import.meta.env.VITE_API_BASE_URL ?? '/api'
 
-  return async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async function send(path: string, init: RequestInit, token: string | undefined) {
     const headers = new Headers(init.headers)
     headers.set('Accept', 'application/json')
     headers.set('Accept-Language', options.locale?.() ?? navigator.language ?? 'en')
-
-    const token = await options.getAccessToken?.()
     if (token) headers.set('Authorization', `Bearer ${token}`)
 
     const response = await fetch(`${baseUrl}${path}`, { ...init, headers })
-    const body = (await response.json().catch(() => undefined)) as T | ApiErrorPayload | undefined
+    const body = await response.json().catch(() => undefined)
+    return { response, body }
+  }
+
+  return async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const token = await options.getAccessToken?.()
+    let { response, body } = await send(path, init, token)
+
+    // One-shot 401 retry: force a fresh token and replay the exact same request once. A failed
+    // or unavailable refresh (no new token) must not replay the request — especially for unsafe
+    // methods (POST/PATCH/DELETE) — so it just falls through to the original 401 error below.
+    if (response.status === 401 && options.refreshAccessToken) {
+      const refreshedToken = await options.refreshAccessToken().catch(() => undefined)
+      if (refreshedToken && refreshedToken !== token) {
+        ({ response, body } = await send(path, init, refreshedToken))
+      }
+    }
+
     if (!response.ok) {
       const payload = body as ApiErrorPayload | undefined
       if (payload?.error) throw new ApiError(response.status, payload)
@@ -74,4 +90,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
   }
 }
 
-export const api = createApiClient({ getAccessToken })
+export const api = createApiClient({ getAccessToken, refreshAccessToken })
+
+// EventSource (used for the roster SSE stream) needs a full URL string, not the wrapped
+// fetch-based `api()` client, so the same base-URL resolution is exposed separately here.
+export const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api'

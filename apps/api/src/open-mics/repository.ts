@@ -179,6 +179,18 @@ export async function findPublicOpenMics(
   return { rows: result.rows, total: Number(count.rows[0].count) };
 }
 
+export async function findOwnedOpenMics(pool: Pool, ownerProfileId: string): Promise<OpenMicRow[]> {
+  // Unlike findPublicOpenMics (the public directory search, which always excludes
+  // draft/ended per docs/architecture/api-design.md), an organizer must see every
+  // series they own regardless of status so a newly-created draft series is visible
+  // on their own dashboard immediately after creation.
+  const result = await pool.query<OpenMicRow>(
+    'SELECT * FROM open_mics WHERE owner_profile_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC',
+    [ownerProfileId],
+  );
+  return result.rows;
+}
+
 const UPDATABLE_COLUMNS = [
   'name',
   'description',

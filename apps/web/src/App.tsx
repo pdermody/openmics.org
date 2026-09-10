@@ -6,6 +6,8 @@ import { EventPage } from './views/EventPage'
 import { OpenMicPage } from './views/OpenMicPage'
 import { ProfilePage } from './views/ProfilePage'
 import { RegistrationPage } from './views/RegistrationPage'
+import { OnboardingPage } from './views/OnboardingPage'
+import { useAccountContext } from './features/account'
 import { DEFAULT_THEME, isColorMode, isThemeId, MODE_STORAGE_KEY, systemColorMode, THEME_STORAGE_KEY, type ColorMode, type ThemeId } from './theme'
 
 const ProfileEditor = lazy(() => import('./views/ProfileEditorPage').then((module) => ({ default: module.ProfileEditorPage })))
@@ -14,6 +16,8 @@ const OrganizerSeries = lazy(() => import('./views/OrganizerSeriesPage').then((m
 const OrganizerEvents = lazy(() => import('./views/OrganizerEventsPage').then((module) => ({ default: module.OrganizerEventsPage })))
 const OpenMicForm = lazy(() => import('./views/OpenMicFormPage').then((module) => ({ default: module.OpenMicFormPage })))
 const EventForm = lazy(() => import('./views/EventFormPage').then((module) => ({ default: module.EventFormPage })))
+const EventRoster = lazy(() => import('./views/EventRosterPage').then((module) => ({ default: module.EventRosterPage })))
+const Kiosk = lazy(() => import('./views/KioskPage').then((module) => ({ default: module.KioskPage })))
 
 function LazyView({ children }: { children: ReactNode }) {
   return <Suspense fallback={<main className="app"><div className="route-loading" role="status">Loading workspace…</div></main>}>{children}</Suspense>
@@ -22,6 +26,7 @@ function LazyView({ children }: { children: ReactNode }) {
 function App() {
   const [theme, setTheme] = useState<ThemeId>(() => { const stored = localStorage.getItem(THEME_STORAGE_KEY); return isThemeId(stored) ? stored : DEFAULT_THEME })
   const [mode, setMode] = useState<ColorMode>(() => { const stored = localStorage.getItem(MODE_STORAGE_KEY); return isColorMode(stored) ? stored : systemColorMode() })
+  const account = useAccountContext()
   const pathname = window.location.pathname
   const eventMatch = pathname.match(/^\/events\/([^/]+)$/)
   const registrationMatch = pathname.match(/^\/events\/([^/]+)\/register$/)
@@ -36,9 +41,17 @@ function App() {
   const seriesEventsMatch = pathname.match(/^\/dashboard\/series\/([^/]+)$/)
   const eventNewMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/events\/new$/)
   const eventEditMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/events\/([^/]+)\/edit$/)
+  const eventRosterMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/events\/([^/]+)\/roster$/)
+  const eventKioskMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/events\/([^/]+)\/kiosk$/)
 
   useEffect(() => localStorage.setItem(THEME_STORAGE_KEY, theme), [theme])
   useEffect(() => localStorage.setItem(MODE_STORAGE_KEY, mode), [mode])
+
+  // Every account must have at least one profile; gate all routes on a mandatory onboarding
+  // step until the first profile is created (never gate while the profiles query is pending,
+  // to avoid flashing onboarding for an account that already has profiles).
+  const needsOnboarding = Boolean(account.account.data) && !account.profiles.isPending && account.profiles.data?.items.length === 0
+  if (needsOnboarding) return <OnboardingPage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} />
 
   if (themeMatch) return <ThemePage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} />
   if (dashboardMatch) return <LazyView><OrganizerDashboard theme={theme} mode={mode} /></LazyView>
@@ -47,6 +60,8 @@ function App() {
   if (seriesEditMatch) return <LazyView><OpenMicForm seriesId={seriesEditMatch[1]} theme={theme} mode={mode} /></LazyView>
   if (eventNewMatch) return <LazyView><EventForm seriesId={eventNewMatch[1]} theme={theme} mode={mode} /></LazyView>
   if (eventEditMatch) return <LazyView><EventForm seriesId={eventEditMatch[1]} eventId={eventEditMatch[2]} theme={theme} mode={mode} /></LazyView>
+  if (eventRosterMatch) return <LazyView><EventRoster seriesId={eventRosterMatch[1]} eventId={eventRosterMatch[2]} theme={theme} mode={mode} /></LazyView>
+  if (eventKioskMatch) return <LazyView><Kiosk seriesId={eventKioskMatch[1]} eventId={eventKioskMatch[2]} theme={theme} mode={mode} /></LazyView>
   if (seriesEventsMatch) return <LazyView><OrganizerEvents seriesId={seriesEventsMatch[1]} theme={theme} mode={mode} /></LazyView>
   if (profileEditMatch) return <LazyView><ProfileEditor profileId={profileEditMatch[1]} theme={theme} mode={mode} /></LazyView>
   if (eventMatch) return <EventPage id={eventMatch[1]} theme={theme} mode={mode} />

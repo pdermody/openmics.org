@@ -32,40 +32,6 @@ paths:
             application/json:
               schema:
                 type: object
-  /auth/sign-up:
-    post:
-      tags:
-        - Auth
-      operationId: signUp
-      requestBody:
-        $ref: "#/components/requestBodies/SignUp"
-      responses:
-        "202":
-          $ref: "#/components/responses/AccountResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-  /auth/sign-in:
-    post:
-      tags:
-        - Auth
-      operationId: signIn
-      requestBody:
-        $ref: "#/components/requestBodies/SignIn"
-      responses:
-        "200":
-          $ref: "#/components/responses/AccountResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-  /auth/refresh-token:
-    post:
-      tags:
-        - Auth
-      operationId: refreshToken
-      requestBody:
-        $ref: "#/components/requestBodies/RefreshToken"
-      responses:
-        "200":
-          $ref: "#/components/responses/TokenResponse"
   /auth/profile:
     get:
       tags:
@@ -101,7 +67,7 @@ paths:
         "200":
           $ref: "#/components/responses/PermissionResponse"
   /accounts/{id}:
-    put:
+    patch:
       tags:
         - Accounts
       operationId: updateAccount
@@ -358,6 +324,24 @@ paths:
           $ref: "#/components/responses/OpenMicResponse"
         "409":
           $ref: "#/components/responses/HandleConflict"
+  /me/open-mics:
+    get:
+      tags:
+        - Open Mics
+      operationId: listMyOpenMics
+      description: Lists every non-deleted series owned by the given profile, regardless of status (including draft/paused/ended). Unlike GET /open-mics (the public directory, which always excludes draft/ended), this always requires the caller to own the profile — for the organizer's own dashboard, so a just-created draft series is visible immediately.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: owner_profile_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          $ref: "#/components/responses/OpenMicListResponse"
   /open-mics/{id}:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -447,7 +431,7 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/EventResponse"
-    put:
+    patch:
       tags:
         - Events
       operationId: updateEvent
@@ -467,6 +451,25 @@ paths:
       responses:
         "204":
           description: Event soft-deleted
+  /events/{id}/recover:
+    post:
+      tags:
+        - Events
+      operationId: recoverEvent
+      description: Restores a soft-deleted event owned by the caller's organizer
+        profile, within the standard 30-day recovery window. Returns 404 once
+        the window has elapsed or the event was never deleted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /events/{id}/registrations:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -492,6 +495,51 @@ paths:
           $ref: "#/components/responses/CapacityError"
         "429":
           $ref: "#/components/responses/RateLimited"
+  /events/{id}/roster/stream-token:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags:
+        - Events
+      operationId: createRosterStreamToken
+      summary: Issue a short-lived, single-purpose token for the roster SSE stream (Milestone 2)
+      description: >-
+        EventSource cannot send an Authorization header, so the client exchanges its bearer token for a
+        short-lived (5 minute) stream token here, then passes it as the `stream_token` query parameter on
+        `GET /events/{id}/roster/stream`. See decisions.md → Live updates for the full contract.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/RosterStreamTokenResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /events/{id}/roster/stream:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Events
+      operationId: streamRoster
+      summary: Server-sent event stream of roster changes for one event (Milestone 2)
+      description: >-
+        `text/event-stream` response. Event names: `registration.created`, `registration.updated`,
+        `performance.created`, `performance.updated`, `performance.deleted`, `performance.reordered`, plus a
+        heartbeat comment every 15s. Each event carries an `id:` field. No durable event log is kept, so a
+        resumed connection (any `Last-Event-ID` header present) always receives an immediate `resync_required`
+        event instructing the client to refetch `GET /events/{id}/registrations` in full before it resumes
+        live-tailing — there is no partial replay. See decisions.md → Live updates.
+      parameters:
+        - name: stream_token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: text/event-stream of roster change events
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /events/{id}/media:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -567,7 +615,7 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/RegistrationResponse"
-    put:
+    patch:
       tags:
         - Registrations
       operationId: updateRegistration
@@ -929,24 +977,6 @@ components:
         type: string
         format: date-time
   requestBodies:
-    SignUp:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/SignUpRequest"
-    SignIn:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/SignInRequest"
-    RefreshToken:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/RefreshTokenRequest"
     AccountUpdate:
       required: true
       content:
@@ -1192,12 +1222,6 @@ components:
             type: array
             items:
               $ref: "#/components/schemas/Handle"
-    TokenResponse:
-      description: Access tokens
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/TokenResponse"
     ValidationError:
       description: Validation error
       content:
@@ -1216,6 +1240,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
+    RosterStreamTokenResponse:
+      description: Short-lived token for the roster SSE stream
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RosterStreamToken"
     NotFound:
       description: Resource not found
       content:
@@ -1436,6 +1466,12 @@ components:
           nullable: true
         theme_name:
           type: string
+          nullable: true
+        color_mode:
+          type: string
+          enum:
+            - light
+            - dark
           nullable: true
         visibility:
           $ref: "#/components/schemas/ProfileVisibility"
@@ -1763,6 +1799,13 @@ components:
             attribution for this registration. Distinct from profile_id (set
             only for authenticated self-serve registrations) and never set
             without claimed_by_account_id.
+        performances:
+          type: array
+          items:
+            $ref: "#/components/schemas/Performance"
+          description: Populated only by the organizer roster listing
+            (GET /events/{id}/registrations); omitted from every other
+            Registration response.
     Performance:
       type: object
       properties:
@@ -1933,15 +1976,6 @@ components:
           type: integer
         total:
           type: integer
-    TokenResponse:
-      type: object
-      properties:
-        access_token:
-          type: string
-        refresh_token:
-          type: string
-        expires_in:
-          type: integer
     UploadUrlResponse:
       type: object
       properties:
@@ -1949,6 +1983,13 @@ components:
           type: string
           format: uri
         object_key:
+          type: string
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+    RosterStreamToken:
+      type: object
+      properties:
+        stream_token:
           type: string
         expires_at:
           $ref: "#/components/schemas/Timestamp"
@@ -2006,31 +2047,6 @@ components:
             $ref: "#/components/schemas/Media"
         pagination:
           $ref: "#/components/schemas/Pagination"
-    SignUpRequest:
-      type: object
-      required:
-        - email
-      properties:
-        email:
-          type: string
-          format: email
-        display_name:
-          type: string
-    SignInRequest:
-      type: object
-      required:
-        - email
-      properties:
-        email:
-          type: string
-          format: email
-    RefreshTokenRequest:
-      type: object
-      required:
-        - refresh_token
-      properties:
-        refresh_token:
-          type: string
     AccountUpdateRequest:
       type: object
       properties:
@@ -2071,6 +2087,11 @@ components:
           $ref: "#/components/schemas/ProfileVisibility"
         theme_name:
           type: string
+        color_mode:
+          type: string
+          enum:
+            - light
+            - dark
         links:
           type: array
           items:
@@ -2096,6 +2117,13 @@ components:
           $ref: "#/components/schemas/ProfileVisibility"
         theme_name:
           type: string
+          nullable: true
+        color_mode:
+          type: string
+          enum:
+            - light
+            - dark
+          nullable: true
         links:
           type: array
           items:

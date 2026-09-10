@@ -1,14 +1,11 @@
 import { MapPin, Sparkles } from 'lucide-react'
-import { useAccountContext } from '../features/account'
-import { useOrganizerOpenMics } from '../features/organizer'
+import { useOrganizerOpenMics, useOrganizerProfile } from '../features/organizer'
 import type { ColorMode, ThemeId } from '../theme'
 import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
 
 export function OrganizerSeriesPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }) {
-  const context = useAccountContext()
-  const selected = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
-  const isOrganizer = selected?.profile_kind === 'organizer' && context.permissions.data?.permissions.includes('profiles:manage')
-  const series = useOrganizerOpenMics(isOrganizer ? selected.id : undefined, isOrganizer)
+  const { context, activeProfile: selected, isOrganizer } = useOrganizerProfile()
+  const series = useOrganizerOpenMics(isOrganizer ? selected?.id : undefined, isOrganizer)
 
   return <main className="app" data-theme={theme} data-mode={mode}>
     <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>

@@ -6,20 +6,23 @@ import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { parseGeoFilter } from '../geo.js';
 import { findOpenMicByIdOrPublicCode } from '../open-mics/repository.js';
 import {
-  findEventById,
   findEventByIdOrPublicCode,
+  findEventByIdOrPublicCodeIncludingDeleted,
   findEventsByOpenMicId,
   findNextEventByOpenMicId,
   findUpcomingEvents,
   insertEvent,
+  restoreEvent,
   serializeEvent,
+  softDeleteEvent,
   updateEvent,
 } from './repository.js';
+import { rosterChannelName, signStreamToken, verifyStreamToken } from './roster-stream.js';
 import { createEventSchema, updateEventSchema } from './validation.js';
 
-export type EventsPluginOptions = { pool: Pool };
+export type EventsPluginOptions = { pool: Pool; streamTokenSecret: string };
 
-export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app, { pool }) => {
+export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app, { pool, streamTokenSecret }) => {
   app.post<{ Params: { id: string } }>(
     '/open-mics/:id/events',
     { preHandler: app.authenticate },
@@ -117,18 +120,18 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     reply.send(serializeEvent(event));
   });
 
-  app.patch<{ Params: { id: string; eventId: string } }>(
-    '/open-mics/:id/events/:eventId',
+  app.patch<{ Params: { id: string } }>(
+    '/events/:id',
     { preHandler: app.authenticate },
     async (request, reply) => {
       const parsed = updateEventSchema.safeParse(request.body);
       if (!parsed.success) throw new ValidationError('Invalid event payload', parsed.error.flatten());
 
-      const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
-      if (!openMic) throw new NotFoundError('Parent open mic not found');
+      const existing = await findEventByIdOrPublicCode(pool, request.params.id);
+      if (!existing) throw new NotFoundError('Event not found');
 
-      const existing = await findEventById(pool, request.params.eventId);
-      if (!existing || existing.open_mic_id !== openMic.id) throw new NotFoundError('Event not found');
+      const openMic = await findOpenMicByIdOrPublicCode(pool, existing.open_mic_id);
+      if (!openMic) throw new NotFoundError('Parent open mic not found');
 
       const account = request.account!;
       const ownerProfile = await findOpenMicOwnerAccountId(pool, openMic.owner_profile_id);
@@ -160,10 +163,132 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (parsed.data.entry_fee_currency !== undefined) changes.entryFeeCurrency = parsed.data.entry_fee_currency;
       if (parsed.data.entry_fee_note !== undefined) changes.entryFeeNote = parsed.data.entry_fee_note;
 
-      const updated = await updateEvent(pool, request.params.eventId, changes as any);
+      const updated = await updateEvent(pool, existing.id, changes as any);
       if (!updated) throw new NotFoundError('Event not found after update');
 
       reply.send(serializeEvent(updated));
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/events/:id',
+    { preHandler: app.authenticate },
+    async (request, reply) => {
+      const existing = await findEventByIdOrPublicCode(pool, request.params.id);
+      if (!existing) throw new NotFoundError('Event not found');
+
+      const openMic = await findOpenMicByIdOrPublicCode(pool, existing.open_mic_id);
+      if (!openMic) throw new NotFoundError('Parent open mic not found');
+
+      const account = request.account!;
+      const ownerProfile = await findOpenMicOwnerAccountId(pool, openMic.owner_profile_id);
+      if (ownerProfile !== account.accountId && !account.isPlatformAdmin) {
+        throw new ForbiddenError('You do not own the parent open mic');
+      }
+
+      const deleted = await softDeleteEvent(pool, existing.id, openMic.owner_profile_id);
+      if (!deleted) throw new NotFoundError('Event not found');
+      reply.status(204).send();
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/events/:id/recover',
+    { preHandler: app.authenticate },
+    async (request, reply) => {
+      const existing = await findEventByIdOrPublicCodeIncludingDeleted(pool, request.params.id);
+      if (!existing) throw new NotFoundError('Event not found');
+
+      const openMic = await findOpenMicByIdOrPublicCode(pool, existing.open_mic_id);
+      if (!openMic) throw new NotFoundError('Parent open mic not found');
+
+      const account = request.account!;
+      const ownerProfile = await findOpenMicOwnerAccountId(pool, openMic.owner_profile_id);
+      if (ownerProfile !== account.accountId && !account.isPlatformAdmin) {
+        throw new ForbiddenError('You do not own the parent open mic');
+      }
+
+      const restored = await restoreEvent(pool, existing.id);
+      if (!restored) throw new NotFoundError('Event not found, already active, or past its 30-day recovery window');
+      reply.send(serializeEvent(restored));
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/events/:id/roster/stream-token',
+    { preHandler: app.authenticate },
+    async (request, reply) => {
+      const event = await findEventByIdOrPublicCode(pool, request.params.id);
+      if (!event) throw new NotFoundError('Event not found');
+
+      const openMic = await findOpenMicByIdOrPublicCode(pool, event.open_mic_id);
+      if (!openMic) throw new NotFoundError('Parent open mic not found');
+
+      const account = request.account!;
+      const ownerProfile = await findOpenMicOwnerAccountId(pool, openMic.owner_profile_id);
+      if (ownerProfile !== account.accountId && !account.isPlatformAdmin) {
+        throw new ForbiddenError('Only the event organizer can open the roster stream');
+      }
+
+      const { token, expiresAt } = await signStreamToken(streamTokenSecret, event.id);
+      reply.send({ stream_token: token, expires_at: expiresAt.toISOString() });
+    },
+  );
+
+  app.get<{ Params: { id: string }; Querystring: { stream_token?: string } }>(
+    '/events/:id/roster/stream',
+    async (request, reply) => {
+      const event = await findEventByIdOrPublicCode(pool, request.params.id);
+      if (!event) throw new NotFoundError('Event not found');
+
+      if (!request.query.stream_token) throw new ForbiddenError('A stream_token is required');
+      let claims;
+      try {
+        claims = await verifyStreamToken(streamTokenSecret, request.query.stream_token);
+      } catch {
+        throw new ForbiddenError('Invalid or expired stream token');
+      }
+      if (claims.eventId !== event.id) throw new ForbiddenError('Stream token is not valid for this event');
+
+      reply.hijack();
+      const raw = reply.raw;
+      raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+
+      let sequence = 0;
+      function send(eventName: string, data: Record<string, unknown>) {
+        sequence += 1;
+        raw.write(`id: ${sequence}\nevent: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
+      }
+
+      // No durable event log is kept (see decisions.md → Live updates), so a resumed connection
+      // can never be satisfied incrementally: tell the client to refetch in full before it
+      // resumes receiving live updates, rather than silently pretending to replay.
+      if (request.headers['last-event-id']) send('resync_required', {});
+
+      const client = await pool.connect();
+      const channel = rosterChannelName(event.id);
+      function onNotification(message: { channel: string; payload?: string }) {
+        if (message.channel !== channel) return;
+        const payload = message.payload ? JSON.parse(message.payload) : {};
+        send(payload.event ?? 'roster.updated', payload);
+      }
+      client.on('notification', onNotification);
+      await client.query(`LISTEN ${channel}`);
+
+      const heartbeat = setInterval(() => raw.write(': heartbeat\n\n'), 15_000);
+
+      function cleanup() {
+        clearInterval(heartbeat);
+        client.removeListener('notification', onNotification);
+        client.query(`UNLISTEN ${channel}`).catch(() => {});
+        client.release();
+      }
+      request.raw.on('close', cleanup);
     },
   );
 };

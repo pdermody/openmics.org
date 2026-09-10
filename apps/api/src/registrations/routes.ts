@@ -6,7 +6,9 @@ import { withTransaction } from '../db.js';
 import type { EmailAdapter } from '../email/index.js';
 import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../errors.js';
 import { findEventById, findEventByIdOrPublicCode } from '../events/repository.js';
+import { notifyRoster } from '../events/roster-stream.js';
 import { findOpenMicById } from '../open-mics/repository.js';
+import { findPerformancesByRegistrationIds, serializePerformance } from '../performances/repository.js';
 import { findProfileById } from '../profiles/repository.js';
 import {
   findClaimableRegistrations,
@@ -186,6 +188,9 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
           });
         });
         reply.status(201).send(serializeRegistration(created));
+        void notifyRoster(pool, event.id, 'registration.created', { registration_id: created.id }).catch((error) =>
+          app.log.error({ error }, 'Failed to publish roster notification'),
+        );
         if (input.contact_email && editToken && verificationToken) {
           const confirmUrl = new URL(`/events/${event.public_code}/register`, appBaseUrl);
           confirmUrl.searchParams.set('token', editToken.token);
@@ -211,7 +216,22 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
     { preHandler: app.authenticate },
     async (request, reply) => {
       await assertEventOwner(pool, request.params.id, request.account!.accountId, request.account!.isPlatformAdmin);
-      reply.send((await findRegistrationsByEventId(pool, request.params.id)).map(serializeRegistration));
+      const registrations = await findRegistrationsByEventId(pool, request.params.id);
+      // Roster page needs each registration's performances (sequence/status/notes) in one
+      // round trip; batch-fetch by registration id rather than one query per row.
+      const performances = await findPerformancesByRegistrationIds(pool, registrations.map((registration) => registration.id));
+      const performancesByRegistration = new Map<string, typeof performances>();
+      for (const performance of performances) {
+        const list = performancesByRegistration.get(performance.registration_id) ?? [];
+        list.push(performance);
+        performancesByRegistration.set(performance.registration_id, list);
+      }
+      reply.send(
+        registrations.map((registration) => ({
+          ...serializeRegistration(registration),
+          performances: (performancesByRegistration.get(registration.id) ?? []).map((performance) => serializePerformance(performance, true)),
+        })),
+      );
     },
   );
 
@@ -250,7 +270,7 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
     async (request, reply) => reply.send(serializeRegistration(await assertRegistrationAccess(pool, request, request.params.id))),
   );
 
-  app.put<{ Params: { id: string } }>(
+  app.patch<{ Params: { id: string } }>(
     '/registrations/:id',
     { preHandler: app.authenticateOptional },
     async (request, reply) => {
@@ -274,6 +294,9 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       const changes = { ...parsed.data, media_consent_updated_at: undefined };
       const updated = await updateRegistration(pool, registration.id, changes);
       reply.send(serializeRegistration(updated!));
+      void notifyRoster(pool, updated!.event_id, 'registration.updated', { registration_id: updated!.id }).catch((error) =>
+        app.log.error({ error }, 'Failed to publish roster notification'),
+      );
     },
   );
 
@@ -329,6 +352,9 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       }
       const updated = await updateRegistration(pool, registration.id, changes);
       reply.send(serializeRegistration(updated!));
+      void notifyRoster(pool, updated!.event_id, 'registration.updated', { registration_id: updated!.id }).catch((error) =>
+        app.log.error({ error }, 'Failed to publish roster notification'),
+      );
     },
   );
 };

@@ -66,6 +66,42 @@ describe('account context routes (real database)', () => {
     expect(permissions.json().permissions).not.toContain('profiles:manage');
   });
 
+  it('updates the authenticated account display_name, city, and preferred_language', async () => {
+    const update = await app.inject({
+      method: 'PATCH',
+      url: `/api/accounts/${accountId}`,
+      headers: { authorization: 'Bearer account-context-owner' },
+      payload: { display_name: 'Updated Owner', city: 'Cork', preferred_language: 'ga' },
+    });
+    expect(update.statusCode).toBe(200);
+    expect(update.json().display_name).toBe('Updated Owner');
+    expect(update.json().city).toBe('Cork');
+    expect(update.json().preferred_language).toBe('ga');
+  });
+
+  it('rejects updating another account', async () => {
+    const otherAccount = await pool.query<{ id: string }>(
+      "INSERT INTO accounts (cognito_id, email, display_name) VALUES ('account-context-other', 'account-context-other@example.test', 'Other Owner') RETURNING id",
+    );
+    const forbidden = await app.inject({
+      method: 'PATCH',
+      url: `/api/accounts/${otherAccount.rows[0].id}`,
+      headers: { authorization: 'Bearer account-context-owner' },
+      payload: { display_name: 'Hijacked' },
+    });
+    expect(forbidden.statusCode).toBe(403);
+  });
+
+  it('rejects unknown fields on account update', async () => {
+    const invalid = await app.inject({
+      method: 'PATCH',
+      url: `/api/accounts/${accountId}`,
+      headers: { authorization: 'Bearer account-context-owner' },
+      payload: { email: 'new@example.test' },
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+
   it('exposes seeded local-dev simulated auth roles when enabled on the backend', async () => {
     await pool.query(`
       INSERT INTO accounts (cognito_id, email, display_name)

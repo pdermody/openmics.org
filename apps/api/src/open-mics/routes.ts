@@ -6,7 +6,8 @@ import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { parseGeoFilter } from '../geo.js';
 import { assignHandle } from '../handles/service.js';
 import { requireOwnedProfile } from '../profiles/current-profile.js';
-import { findOpenMicById, findOpenMicByIdOrPublicCode, findPublicOpenMics, insertOpenMic, serializeOpenMic, updateOpenMic } from './repository.js';
+import { findProfileById } from '../profiles/repository.js';
+import { findOpenMicById, findOpenMicByIdOrPublicCode, findOwnedOpenMics, findPublicOpenMics, insertOpenMic, serializeOpenMic, updateOpenMic } from './repository.js';
 import { createOpenMicSchema, updateOpenMicSchema } from './validation.js';
 
 export type OpenMicsPluginOptions = { pool: Pool };
@@ -78,6 +79,28 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     reply.send({
       items: result.rows.map(serializeOpenMic),
       pagination: { page, page_size: pageSize, total: result.total },
+    });
+  });
+
+  // The public directory listing above always excludes draft/ended series (see
+  // docs/architecture/api-design.md), so an organizer's own dashboard cannot use it to see a
+  // just-created (draft) series. This authenticated endpoint returns every non-deleted series
+  // owned by a profile the caller owns, regardless of status.
+  app.get<{ Querystring: { owner_profile_id?: string } }>('/me/open-mics', { preHandler: app.authenticate }, async (request, reply) => {
+    const ownerProfileId = request.query.owner_profile_id;
+    if (!ownerProfileId) throw new ValidationError('owner_profile_id is required', { field: 'owner_profile_id' });
+
+    const account = request.account!;
+    const profile = await findProfileById(pool, ownerProfileId);
+    if (!profile) throw new NotFoundError('Profile not found');
+    if (profile.created_by_account_id !== account.accountId && !account.isPlatformAdmin) {
+      throw new ForbiddenError('You do not own this profile');
+    }
+
+    const rows = await findOwnedOpenMics(pool, ownerProfileId);
+    reply.send({
+      items: rows.map(serializeOpenMic),
+      pagination: { page: 1, page_size: Math.max(rows.length, 1), total: rows.length },
     });
   });
 
