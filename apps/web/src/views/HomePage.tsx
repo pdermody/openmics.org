@@ -25,9 +25,6 @@ export function HomePage({ theme, mode }: ThemeProps) {
             <p className="kicker">{t('homeKicker')}</p>
             <h1>{t('homeTitle')}</h1>
             <p className="hero-copy">{t('homeCopy')}</p>
-            <div className="hero-actions">
-              <button className="primary-button" type="button">{t('exploreEvents')}</button>
-            </div>
           </div>
         </div>
       </section>

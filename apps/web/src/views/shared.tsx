@@ -91,7 +91,10 @@ export function HeaderMenu() {
   const { t } = useTranslation()
   const menuRef = useDismissableDetails()
 
-  return <details className="header-menu" ref={menuRef}><summary aria-label={t('menu')}><Menu size={18} /><span>{t('menu')}</span></summary><nav aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><a href="/settings/theme">{t('theme')}</a><a href="/#events">{t('events')}</a><a href="/">{t('discover')}</a></nav></details>
+  return <>
+    <nav className="header-actions" aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><a href="/settings/theme">{t('theme')}</a></nav>
+    <details className="header-menu" ref={menuRef}><summary aria-label={t('menu')}><Menu size={18} /><span>{t('menu')}</span></summary><nav aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><a href="/settings/theme">{t('theme')}</a></nav></details>
+  </>
 }
 
 
