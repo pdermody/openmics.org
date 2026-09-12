@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
@@ -102,6 +103,7 @@ function applyServerFieldErrors(error: unknown, setError: UseFormSetError<OpenMi
 }
 
 export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; theme: ThemeId; mode: ColorMode }) {
+  const { t } = useTranslation()
   const isEdit = Boolean(seriesId)
   const { context, activeProfile, isOrganizer } = useOrganizerProfile()
   const existing = useOpenMicDetail(seriesId)
@@ -240,11 +242,11 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   const isOwner = !isEdit || !existing.data || existing.data.owner_profile_id === activeProfile?.id
 
   if (context.account.isPending || context.profiles.isPending || (isEdit && existing.isPending)) {
-    return <main className="app" data-theme={theme} data-mode={mode}><ReadState message="Loading…" /></main>
+    return <main className="app" data-theme={theme} data-mode={mode}><ReadState message={t('loading')} /></main>
   }
   if (!context.account.data || !isOrganizer || (isEdit && existing.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
-      <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+      <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
       <section className="dashboard-page"><ReadState message="Switch to an organizer profile to manage open mic series." /></section>
     </main>
   }
@@ -253,32 +255,32 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   }
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
       <a className="back-link" href={isEdit ? `/dashboard/series/${seriesId}` : '/dashboard/series'}>← Back to {isEdit ? 'series' : 'series list'}</a>
-      <div className="eyebrow">Organizer workspace</div>
-      <h1>{isEdit ? `Edit ${existing.data?.name ?? 'series'}` : 'Create an open mic series'}</h1>
+      <div className="eyebrow">{t('organizerWorkspace')}</div>
+      <h1>{isEdit ? t('editSeriesTitle', { name: existing.data?.name ?? t('openMicSeries') }) : t('createSeriesTitle')}</h1>
       <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>
         <RequiredFieldsNote />
-        <label><span>Series name<Required /></span><input required {...register('name')} /></label>
+        <label><span>{t('seriesName')}<Required /></span><input required {...register('name')} /></label>
         {errors.name && <p className="form-error" role="alert">{errors.name.message}</p>}
-        <label>Description <span className="field-hint">Optional</span><textarea {...register('description')} /></label>
-        {!isEdit && <label>Handle <span className="field-hint">Optional · used in the public URL, suggested from the series name until you edit it</span><span className="handle-input"><span aria-hidden="true">@</span><input {...handleFieldProps} onChange={(event) => { handleTouchedRef.current = true; void handleFieldOnChange(event) }} /></span></label>}
+        <label>Description <span className="field-hint">{t('optional')}</span><textarea {...register('description')} /></label>
+        {!isEdit && <label>{t('handleLabel')} <span className="field-hint">{t('handleHint')}</span><span className="handle-input"><span aria-hidden="true">@</span><input {...handleFieldProps} onChange={(event) => { handleTouchedRef.current = true; void handleFieldOnChange(event) }} /></span></label>}
         {!isEdit && handle && <p className={`handle-feedback ${handleCheck.state === 'available' ? 'form-success' : handleCheck.state === 'checking' ? 'field-hint' : 'form-error'}`} role={handleCheck.state === 'unavailable' || handleCheck.state === 'invalid' ? 'alert' : 'status'}>
           {handleCheck.state === 'available' && <CircleCheck aria-hidden="true" size={16} />}
           {(handleCheck.state === 'unavailable' || handleCheck.state === 'invalid') && <CircleAlert aria-hidden="true" size={16} />}
           {handleCheck.state === 'checking' ? 'Checking availability…' : handleCheck.message}
         </p>}
 
-        <label><span>Venue name<Required /></span><input required {...register('venue_name')} /></label>
+        <label><span>{t('venueName')}<Required /></span><input required {...register('venue_name')} /></label>
         {errors.venue_name && <p className="form-error" role="alert">{errors.venue_name.message}</p>}
-        <label><span>Address<Required /></span><input required {...register('address_line1')} /></label>
+        <label><span>{t('address')}<Required /></span><input required {...register('address_line1')} /></label>
         {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
-        <label>Address line 2 <span className="field-hint">Optional</span><input {...register('address_line2')} /></label>
-        <label>Postcode <span className="field-hint">Optional</span><input {...register('postcode')} /></label>
-        <label><span>City<Required /></span><input required {...register('city')} /></label>
+        <label>Address line 2 <span className="field-hint">{t('optional')}</span><input {...register('address_line2')} /></label>
+        <label>{t('postcode')} <span className="field-hint">{t('optional')}</span><input {...register('postcode')} /></label>
+        <label><span>{t('city')}<Required /></span><input required {...register('city')} /></label>
         {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
-        <label><span>Country<Required /></span> <span className="field-hint">Two-letter code, e.g. IE</span><input required maxLength={2} {...register('country')} /></label>
+        <label><span>{t('country')}<Required /></span> <span className="field-hint">Two-letter code, e.g. IE</span><input required maxLength={2} {...register('country')} /></label>
         {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
 
         <LocationPicker
@@ -294,53 +296,53 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
         />
         {errors.lng && <p className="form-error" role="alert">{errors.lng.message}</p>}
 
-        <label><span>Time zone<Required /></span> <span className="field-hint">IANA name, e.g. Europe/Dublin</span><input required {...register('time_zone')} /></label>
+        <label><span>{t('timeZone')}<Required /></span> <span className="field-hint">{t('timeZoneHint')}</span><input required {...register('time_zone')} /></label>
         {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
 
-        <label>Website <span className="field-hint">Optional</span><input type="url" {...register('website')} /></label>
+        <label>{t('website')} <span className="field-hint">{t('optional')}</span><input type="url" {...register('website')} /></label>
         {errors.website && <p className="form-error" role="alert">{errors.website.message}</p>}
-        <label>Contact email <span className="field-hint">Optional · defaults to your account email, but can be a separate address for this series</span><input type="email" {...register('contact_email')} /></label>
+        <label>{t('contactEmail')} <span className="field-hint">{t('contactEmailHint')}</span><input type="email" {...register('contact_email')} /></label>
         {errors.contact_email && <p className="form-error" role="alert">{errors.contact_email.message}</p>}
-        <label>Schedule summary <span className="field-hint">Optional · e.g. "Every Tuesday at 19:30"</span><input {...register('schedule_summary')} /></label>
-        <label>Schedule details <span className="field-hint">Optional</span><textarea {...register('schedule_details')} /></label>
+        <label>{t('scheduleSummary')} <span className="field-hint">{t('scheduleSummaryHint')}</span><input {...register('schedule_summary')} /></label>
+        <label>{t('scheduleDetails')} <span className="field-hint">{t('optional')}</span><textarea {...register('schedule_details')} /></label>
 
         <fieldset>
-          <legend>Activities<Required /></legend>
+          <legend>{t('activities')}<Required /></legend>
           {ACTIVITIES.map((activity) => (
             <label className="checkbox-label" key={activity}><input type="checkbox" checked={activities.includes(activity)} onChange={() => toggleActivity(activity)} /><span>{activity}</span></label>
           ))}
         </fieldset>
         {errors.activities && <p className="form-error" role="alert">{errors.activities.message}</p>}
-        <label>Tags <span className="field-hint">Optional · separate with commas</span><input {...register('tags')} /></label>
+        <label>{t('tags')} <span className="field-hint">{t('optional')} · separate with commas</span><input {...register('tags')} /></label>
 
-        <label className="checkbox-label"><input type="checkbox" {...register('originals_only')} /><span>Originals only</span></label>
-        <label className="checkbox-label"><input type="checkbox" {...register('amplification_available')} /><span>Amplification available</span></label>
-        <label>Age policy<select {...register('age_policy')}>
-          <option value="both">All ages</option>
-          <option value="adults_only">Adults only</option>
-          <option value="children_only">Children only</option>
+        <label className="checkbox-label"><input type="checkbox" {...register('originals_only')} /><span>{t('originalsOnly')}</span></label>
+        <label className="checkbox-label"><input type="checkbox" {...register('amplification_available')} /><span>{t('amplification')}</span></label>
+        <label>{t('agePolicy')}<select {...register('age_policy')}>
+          <option value="both">{t('allAges')}</option>
+          <option value="adults_only">{t('adultsOnly')}</option>
+          <option value="children_only">{t('childrenOnly')}</option>
         </select></label>
 
-        <label>Registration mode<select {...register('registration_mode')}>
-          <option value="both">Online and on the night</option>
-          <option value="pre_only">Online only</option>
-          <option value="on_night_only">On the night only</option>
-          <option value="external">External link</option>
+        <label>{t('registrationMode')}<select {...register('registration_mode')}>
+          <option value="both">{t('onlineNight')}</option>
+          <option value="pre_only">{t('onlineOnly')}</option>
+          <option value="on_night_only">{t('nightOnly')}</option>
+          <option value="external">{t('externalLink')}</option>
         </select></label>
-        {registrationMode === 'external' && <label><span>External registration URL<Required /></span><input required type="url" {...register('external_registration_url')} /></label>}
+        {registrationMode === 'external' && <label><span>{t('externalRegistrationUrl')}<Required /></span><input required type="url" {...register('external_registration_url')} /></label>}
         {errors.external_registration_url && <p className="form-error" role="alert">{errors.external_registration_url.message}</p>}
 
-        <label>Entry fee amount <span className="field-hint">Optional · 0 for free</span><input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
-        {Number(entryFeeAmount) > 0 && <label><span>Entry fee currency<Required /></span><select required {...register('entry_fee_currency')}><option value="">Select currency</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
+        <label>{t('entryFee')} <span className="field-hint">{t('entryFeeHint')}</span><input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
+        {Number(entryFeeAmount) > 0 && <label><span>{t('entryFeeCurrency')}<Required /></span><select required {...register('entry_fee_currency')}><option value="">{t('selectCurrency')}</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
         {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
-        <label>Entry fee note <span className="field-hint">Optional</span><input {...register('entry_fee_note')} /></label>
+        <label>{t('entryFeeNote')} <span className="field-hint">{t('optional')}</span><input {...register('entry_fee_note')} /></label>
 
         {mutation.isError && <p className="form-error" role="alert">{openMicErrorMessage(mutation.error)}</p>}
-        {mutation.isSuccess && isEdit && <p className="form-success" role="status">Saved.</p>}
+        {mutation.isSuccess && isEdit && <p className="form-success" role="status">{t('saved')}</p>}
         <button className="primary-button" type="submit" disabled={mutation.isPending || activities.length === 0 || (!isEdit && Boolean(handle) && (handleCheck.state === 'unavailable' || handleCheck.state === 'invalid'))}>
-          {mutation.isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create series'}
+          {mutation.isPending ? t('saving') : isEdit ? t('saveChanges') : t('createSeries')}
         </button>
-        {activities.length === 0 && <p className="field-hint">Select at least one activity.</p>}
+        {activities.length === 0 && <p className="field-hint">{t('selectActivity')}</p>}
       </form>
       {isEdit && seriesId && <KioskBackupPinSection seriesId={seriesId} />}
     </section>

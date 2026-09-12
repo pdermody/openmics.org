@@ -1,4 +1,5 @@
 import { getAccessToken, refreshAccessToken } from '../auth/session'
+import { i18n } from '../i18n'
 
 export type ApiErrorPayload = {
   error: {
@@ -59,7 +60,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
   async function send(path: string, init: RequestInit, token: string | undefined) {
     const headers = new Headers(init.headers)
     headers.set('Accept', 'application/json')
-    headers.set('Accept-Language', options.locale?.() ?? navigator.language ?? 'en')
+    headers.set('Accept-Language', options.locale?.() ?? i18n.language ?? navigator.language ?? 'en')
     if (token) headers.set('Authorization', `Bearer ${token}`)
 
     const response = await fetch(`${baseUrl}${path}`, { ...init, headers })

@@ -1,5 +1,6 @@
 import { Clock3, MapPin } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
+import { useTranslation } from 'react-i18next'
 import { useAccountContext } from '../features/account'
 import { useMyRegisteredEventIds } from '../features/myRegistrations'
 import { isRegistrationClosed, useNextEvent, usePublicEvent, usePublicOpenMic, usePublicProfile } from '../features/publicReads'
@@ -14,6 +15,7 @@ function focusProfileSwitcher() {
 }
 
 export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mic' | 'profile'; id: string } & ThemeProps) {
+  const { t } = useTranslation()
   const event = usePublicEvent(kind === 'event' ? id : undefined)
   const openMic = usePublicOpenMic(kind === 'open-mic' ? id : undefined)
   const nextEvent = useNextEvent(kind === 'open-mic' ? id : undefined)
@@ -46,11 +48,11 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
     <main className="app" data-theme={theme} data-mode={mode}>
       <SiteHeader />
       <section className="detail-page">
-        <a className="back-link" href="/">← Back to discovery</a>
-        {loading && <ReadState message="Loading this room…" />}
+        <a className="back-link" href="/">{t('backToDiscovery')}</a>
+          {loading && <ReadState message={t('loading')} />}
         {error && <ReadState message={friendlyApiErrorMessage(errorObject, 'This page could not be loaded. Please try again.')} retry={retry} />}
         {!loading && !error && title && <>
-          <div className="eyebrow">{kind === 'event' ? 'Event detail' : kind === 'open-mic' ? 'Open mic series' : 'Public profile'}</div>
+          <div className="eyebrow">{kind === 'event' ? t('eventDetail') : kind === 'open-mic' ? t('seriesDetail') : t('publicProfile')}</div>
           <h1>{title}</h1>
           <p className="detail-lede">{event.data?.notes ?? openMic.data?.description ?? profile.data?.bio ?? 'A welcoming room for new voices.'}</p>
           <div className="detail-facts">
@@ -61,7 +63,7 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
           <div className="detail-actions">
             {kind === 'event' && (
               isRegisteredForEvent ? (
-                <span className="profile-context" role="status">You're registered for this event</span>
+                <span className="profile-context" role="status">{t('registeredEvent')}</span>
               ) : registrationDisabled ? (
                 <button className="primary-button" type="button" disabled aria-disabled="true">
                   {registrationDisabledLabel}
@@ -71,27 +73,27 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
                   Switch to a performer profile to register
                 </button>
               ) : (
-                <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>Register for this event</a>
+                <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>{t('register')}</a>
               )
             )}
             {kind === 'open-mic' && (
               isRegisteredForNextEvent ? (
-                <span className="profile-context" role="status">You're registered for the next event</span>
+                <span className="profile-context" role="status">{t('registeredNext')}</span>
               ) : nextEvent.data ? (
-                <a className="primary-button" href={`/events/${nextEvent.data.public_code}`}>See next event</a>
+                <a className="primary-button" href={`/events/${nextEvent.data.public_code}`}>{t('seeNextEvent')}</a>
               ) : needsPerformerProfile ? (
                 <button className="primary-button" type="button" onClick={focusProfileSwitcher}>
                   Switch to a performer profile to register
                 </button>
               ) : (
-                <a className="primary-button" href={`/open-mics/${openMic.data?.public_code ?? id}/register`}>View registration link</a>
+                <a className="primary-button" href={`/open-mics/${openMic.data?.public_code ?? id}/register`}>{t('viewRegistration')}</a>
               )
             )}
-            {kind === 'profile' && <button className="primary-button" type="button">Follow profile</button>}
+            {kind === 'profile' && <button className="primary-button" type="button">{t('followProfile')}</button>}
             <SocialButton label="React" icon="heart" /><SocialButton label="Comment" icon="message" />
           </div>
           {kind === 'event' && !registrationDisabled && needsPerformerProfile && (
-            <p className="field-hint">Organizer profiles can’t register as the performer, even for their own events. Use the profile switcher above to pick a performer profile.</p>
+            <p className="field-hint">{t('organizerCannotPerform')}</p>
           )}
         </>}
       </section>

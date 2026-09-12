@@ -1,22 +1,24 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '../api/client'
 import { useAccountContext, type AccountProfile } from '../features/account'
 import { useClaimableRegistrations, useClaimRegistration, type ClaimableRegistration } from '../features/claimableRegistrations'
 import { ReadState } from './shared'
 
 function ClaimRow({ registration, performerProfiles }: { registration: ClaimableRegistration; performerProfiles: AccountProfile[] }) {
+  const { t } = useTranslation()
   const claim = useClaimRegistration()
   const [adoptedProfileId, setAdoptedProfileId] = useState('')
 
   return <li className="dashboard-series-card">
     <div>
-      <span className="panel-label">Unclaimed registration</span>
+      <span className="panel-label">{t('unclaimedRegistration')}</span>
       <h2>{registration.performer_name}</h2>
       {registration.song_names.length > 0 && <p>{registration.song_names.join(', ')}</p>}
     </div>
     <div className="profile-context-controls">
-      {performerProfiles.length > 0 && <label><span className="sr-only">Adopt performer profile</span><select value={adoptedProfileId} onChange={(event) => setAdoptedProfileId(event.target.value)}>
-        <option value="">Keep guest name</option>
+      {performerProfiles.length > 0 && <label><span className="sr-only">{t('adoptProfile')}</span><select value={adoptedProfileId} onChange={(event) => setAdoptedProfileId(event.target.value)}>
+        <option value="">{t('keepGuest')}</option>
         {performerProfiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name}</option>)}
       </select></label>}
       <button

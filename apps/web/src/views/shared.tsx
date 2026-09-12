@@ -1,9 +1,12 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Heart, Menu, MessageCircle, Sparkles, X } from 'lucide-react'
 import { beginSignIn, consumeSignInError, endSession, getAuthenticatedUser } from '../auth/session'
 import { useDismissableDetails, useDismissOnOutsideOrEscape } from '../hooks/dismissable'
+import { changeLanguage, supportedLanguages } from '../i18n'
+import { useAccountContext } from '../features/account'
 
 export type ThemeProps = { theme: import('../theme').ThemeId; mode: import('../theme').ColorMode }
 
@@ -14,7 +17,8 @@ export function Required() {
 }
 
 export function RequiredFieldsNote() {
-  return <p className="field-hint required-fields-note"><span className="required-mark" aria-hidden="true">*</span> Required fields</p>
+  const { t } = useTranslation()
+  return <p className="field-hint required-fields-note"><span className="required-mark" aria-hidden="true">*</span> {t('requiredFields')}</p>
 }
 
 export function SocialButton({ label, icon }: { label: string; icon: 'heart' | 'message' }) {
@@ -27,6 +31,7 @@ export function SocialButton({ label, icon }: { label: string; icon: 'heart' | '
 // ancestor (e.g. the roster board's horizontally-scrolling kanban columns), and closes on
 // Escape or a backdrop click via the same dismiss hook used by other popovers on the page.
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const { t } = useTranslation()
   const panelRef = useDismissOnOutsideOrEscape<HTMLDivElement>(true, onClose)
   // Portal into the themed `.app` root (not document.body): it's still an ancestor of any
   // scrolling container we need to escape for clipping purposes, but staying inside `.app`
@@ -38,7 +43,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
       <div className="modal-panel" ref={panelRef} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-header">
           <h2>{title}</h2>
-          <button type="button" className="modal-close" aria-label="Close" onClick={onClose}><X size={18} /></button>
+          <button type="button" className="modal-close" aria-label={t('close')} onClick={onClose}><X size={18} /></button>
         </div>
         {children}
       </div>
@@ -48,10 +53,12 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
 }
 
 export function ReadState({ message, retry }: { message: string; retry?: () => void }) {
-  return <div className="read-state" role="status"><span>{message}</span>{retry && <button className="link-button" type="button" onClick={retry}>Try again</button>}</div>
+  const { t } = useTranslation()
+  return <div className="read-state" role="status"><span>{message}</span>{retry && <button className="link-button" type="button" onClick={retry}>{t('tryAgain')}</button>}</div>
 }
 
 export function SignInButton() {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [message, setMessage] = useState('')
   const [signedIn, setSignedIn] = useState(false)
@@ -68,10 +75,10 @@ export function SignInButton() {
         setSignedIn(false)
         queryClient.clear()
       })
-    }}>Sign out</button></div>
+    }}>{t('signOut')}</button></div>
   }
 
-  return <div className="auth-slot"><button className="text-button" type="button" onClick={() => void beginSignIn().catch((error: Error) => setMessage(error.message))}>Sign in</button>{message && <span className="auth-note" role="status">{message}</span>}</div>
+  return <div className="auth-slot"><button className="text-button" type="button" onClick={() => void beginSignIn().catch((error: Error) => setMessage(error.message))}>{t('signIn')}</button>{message && <span className="auth-note" role="status">{message}</span>}</div>
 }
 
 // Shared by any <details>-based popover/menu (the page HeaderMenu, and the roster page's
@@ -81,9 +88,10 @@ export function SignInButton() {
 // one) doesn't also export non-component hooks (keeps fast-refresh lint clean).
 
 export function HeaderMenu() {
+  const { t } = useTranslation()
   const menuRef = useDismissableDetails()
 
-  return <details className="header-menu" ref={menuRef}><summary aria-label="Open menu"><Menu size={18} /><span>Menu</span></summary><nav aria-label="Page menu"><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><a href="/settings/theme">Theme</a><a href="/#events">Events</a><a href="/">Discover</a></nav></details>
+  return <details className="header-menu" ref={menuRef}><summary aria-label={t('menu')}><Menu size={18} /><span>{t('menu')}</span></summary><nav aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><a href="/settings/theme">{t('theme')}</a><a href="/#events">{t('events')}</a><a href="/">{t('discover')}</a></nav></details>
 }
 
 
@@ -92,5 +100,33 @@ const LazyDashboardMenuLink = lazy(() => import('./profile-context').then((modul
 export function ProfileSwitcher() { return <div className="profile-context-slot"><Suspense fallback={null}><LazyProfileSwitcher /></Suspense></div> }
 
 export function SiteHeader() {
-  return <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+  const { t } = useTranslation()
+  return <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('appName')}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+}
+
+export function LanguageSelector() {
+  const { i18n, t } = useTranslation()
+  const context = useAccountContext()
+  const selectedLanguage = i18n.language.startsWith('es') ? 'es' : 'en'
+
+  useEffect(() => {
+    const accountLanguage = context.account.data?.preferred_language
+    if (accountLanguage === 'en' || accountLanguage === 'es') void changeLanguage(accountLanguage)
+  }, [context.account.data?.preferred_language])
+
+  async function selectLanguage(language: 'en' | 'es') {
+    await changeLanguage(language)
+    if (context.account.data?.id) {
+      await context.updateAccount.mutateAsync({ preferred_language: language })
+    }
+  }
+
+  return <label className="language-selector"><span className="sr-only">{t('language')}</span><select aria-label={t('language')} value={selectedLanguage} onChange={(event) => void selectLanguage(event.target.value as 'en' | 'es')}>
+    {supportedLanguages.map((language) => <option value={language.code} key={language.code}>{language.name}</option>)}
+  </select></label>
+}
+
+export function SiteFooter({ theme, mode }: ThemeProps) {
+  const { t } = useTranslation()
+  return <footer className="footer app" data-theme={theme} data-mode={mode}><div className="footer-content"><span>{t('footerCopy')}</span><LanguageSelector /><a className="footer-link" href="/settings/theme">{t('appearance')}</a></div></footer>
 }

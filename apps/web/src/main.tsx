@@ -5,17 +5,17 @@ import './index.css'
 import App from './App.tsx'
 import { queryClient } from './api/queryClient'
 import { initAuth } from './auth/session'
-import './i18n'
+import { i18nReady } from './i18n'
 
-void initAuth({
+void i18nReady.then(() => initAuth({
   onSignedIn: () => queryClient.invalidateQueries(),
   onSignedOut: () => queryClient.clear(),
-})
+}))
 
-createRoot(document.getElementById('root')!).render(
+void i18nReady.then(() => createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>
   </StrictMode>,
-)
+))

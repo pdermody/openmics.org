@@ -8,6 +8,8 @@ import { ProfilePage } from './views/ProfilePage'
 import { RegistrationPage } from './views/RegistrationPage'
 import { OnboardingPage } from './views/OnboardingPage'
 import { useAccountContext } from './features/account'
+import { SiteFooter } from './views/shared'
+import { i18n } from './i18n'
 import { DEFAULT_THEME, isColorMode, isThemeId, MODE_STORAGE_KEY, systemColorMode, THEME_STORAGE_KEY, type ColorMode, type ThemeId } from './theme'
 
 const ProfileEditor = lazy(() => import('./views/ProfileEditorPage').then((module) => ({ default: module.ProfileEditorPage })))
@@ -20,7 +22,11 @@ const EventRoster = lazy(() => import('./views/EventRosterPage').then((module) =
 const Kiosk = lazy(() => import('./views/KioskPage').then((module) => ({ default: module.KioskPage })))
 
 function LazyView({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<main className="app"><div className="route-loading" role="status">Loading workspace…</div></main>}>{children}</Suspense>
+  return <Suspense fallback={<main className="app"><div className="route-loading" role="status">{i18n.t('loading')}</div></main>}>{children}</Suspense>
+}
+
+function RoutedView({ children, theme, mode }: { children: ReactNode; theme: ThemeId; mode: ColorMode }) {
+  return <>{children}<SiteFooter theme={theme} mode={mode} /></>
 }
 
 function App() {
@@ -51,24 +57,24 @@ function App() {
   // step until the first profile is created (never gate while the profiles query is pending,
   // to avoid flashing onboarding for an account that already has profiles).
   const needsOnboarding = Boolean(account.account.data) && !account.profiles.isPending && account.profiles.data?.items.length === 0
-  if (needsOnboarding) return <OnboardingPage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} />
+  if (needsOnboarding) return <RoutedView theme={theme} mode={mode}><OnboardingPage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} /></RoutedView>
 
-  if (themeMatch) return <ThemePage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} />
-  if (dashboardMatch) return <LazyView><OrganizerDashboard theme={theme} mode={mode} /></LazyView>
-  if (seriesMatch) return <LazyView><OrganizerSeries theme={theme} mode={mode} /></LazyView>
-  if (seriesNewMatch) return <LazyView><OpenMicForm theme={theme} mode={mode} /></LazyView>
-  if (seriesEditMatch) return <LazyView><OpenMicForm seriesId={seriesEditMatch[1]} theme={theme} mode={mode} /></LazyView>
-  if (eventNewMatch) return <LazyView><EventForm seriesId={eventNewMatch[1]} theme={theme} mode={mode} /></LazyView>
-  if (eventEditMatch) return <LazyView><EventForm seriesId={eventEditMatch[1]} eventId={eventEditMatch[2]} theme={theme} mode={mode} /></LazyView>
-  if (eventRosterMatch) return <LazyView><EventRoster seriesId={eventRosterMatch[1]} eventId={eventRosterMatch[2]} theme={theme} mode={mode} /></LazyView>
-  if (eventKioskMatch) return <LazyView><Kiosk seriesId={eventKioskMatch[1]} eventId={eventKioskMatch[2]} theme={theme} mode={mode} /></LazyView>
-  if (seriesEventsMatch) return <LazyView><OrganizerEvents seriesId={seriesEventsMatch[1]} theme={theme} mode={mode} /></LazyView>
-  if (profileEditMatch) return <LazyView><ProfileEditor profileId={profileEditMatch[1]} theme={theme} mode={mode} /></LazyView>
-  if (eventMatch) return <EventPage id={eventMatch[1]} theme={theme} mode={mode} />
-  if (registrationMatch) return <RegistrationPage eventCode={registrationMatch[1]} theme={theme} mode={mode} />
-  if (openMicMatch) return <OpenMicPage id={openMicMatch[1]} theme={theme} mode={mode} />
-  if (profileMatch) return <ProfilePage id={profileMatch[1]} theme={theme} mode={mode} />
-  return <HomePage theme={theme} mode={mode} />
+  if (themeMatch) return <RoutedView theme={theme} mode={mode}><ThemePage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} /></RoutedView>
+  if (dashboardMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OrganizerDashboard theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (seriesMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OrganizerSeries theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (seriesNewMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OpenMicForm theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (seriesEditMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OpenMicForm seriesId={seriesEditMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (eventNewMatch) return <RoutedView theme={theme} mode={mode}><LazyView><EventForm seriesId={eventNewMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (eventEditMatch) return <RoutedView theme={theme} mode={mode}><LazyView><EventForm seriesId={eventEditMatch[1]} eventId={eventEditMatch[2]} theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (eventRosterMatch) return <RoutedView theme={theme} mode={mode}><LazyView><EventRoster seriesId={eventRosterMatch[1]} eventId={eventRosterMatch[2]} theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (eventKioskMatch) return <RoutedView theme={theme} mode={mode}><LazyView><Kiosk seriesId={eventKioskMatch[1]} eventId={eventKioskMatch[2]} theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (seriesEventsMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OrganizerEvents seriesId={seriesEventsMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (profileEditMatch) return <RoutedView theme={theme} mode={mode}><LazyView><ProfileEditor profileId={profileEditMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
+  if (eventMatch) return <RoutedView theme={theme} mode={mode}><EventPage id={eventMatch[1]} theme={theme} mode={mode} /></RoutedView>
+  if (registrationMatch) return <RoutedView theme={theme} mode={mode}><RegistrationPage eventCode={registrationMatch[1]} theme={theme} mode={mode} /></RoutedView>
+  if (openMicMatch) return <RoutedView theme={theme} mode={mode}><OpenMicPage id={openMicMatch[1]} theme={theme} mode={mode} /></RoutedView>
+  if (profileMatch) return <RoutedView theme={theme} mode={mode}><ProfilePage id={profileMatch[1]} theme={theme} mode={mode} /></RoutedView>
+  return <RoutedView theme={theme} mode={mode}><HomePage theme={theme} mode={mode} /></RoutedView>
 }
 
 export default App

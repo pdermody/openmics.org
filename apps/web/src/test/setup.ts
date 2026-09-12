@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { i18nReady } from '../i18n'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { server } from './server'
 
@@ -16,5 +17,6 @@ if (!window.matchMedia) {
 }
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(async () => i18nReady)
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())

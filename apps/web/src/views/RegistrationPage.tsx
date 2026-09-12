@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ApiError, api } from '../api/client'
 import { useAccountContext } from '../features/account'
 import { markEventRegisteredLocally } from '../features/guestRegistrations'
@@ -42,6 +43,7 @@ function editSessionStorageKey(eventCode: string) {
 }
 
 export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string } & ThemeProps) {
+  const { t } = useTranslation()
   const event = usePublicEvent(eventCode)
   const parentOpenMic = usePublicOpenMic(event.data?.open_mic_id)
   const accountContext = useAccountContext()
@@ -188,16 +190,16 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
       <SiteHeader />
       <section className="registration-page">
         <a className="back-link" href={`/events/${eventCode}`}>← Back to event</a>
-        {event.isPending && <ReadState message="Loading registration details…" />}
-        {event.isError && <ReadState message="This event could not be loaded." retry={() => void event.refetch()} />}
+        {event.isPending && <ReadState message={t('loading')} />}
+        {event.isError && <ReadState message={t('eventLoadError')} retry={() => void event.refetch()} />}
         {event.data && <>
-          <div className="eyebrow">Registration</div>
-          <h1>{editRegistration ? `Edit your registration for ${event.data.title}` : `Join ${event.data.title}`}</h1>
-          <p className="detail-lede">{event.data.venue_name}, {event.data.city}. We’ll email you a confirmation link before your name appears on the public roster.</p>
-          {editState === 'loading' && <ReadState message="Loading your registration…" />}
-          {editState === 'error' && <div className="profile-context profile-context-warning" role="alert">This edit link is invalid or has expired. Please use the link from your most recent confirmation email.</div>}
-          {verifyState === 'verified' && <div className="profile-context" role="status">Your email is confirmed — your registration is now visible on the roster.</div>}
-          {verifyState === 'error' && <div className="profile-context profile-context-warning" role="alert">We could not confirm your email with that link. It may have already been used or expired.</div>}
+          <div className="eyebrow">{t('registration')}</div>
+          <h1>{editRegistration ? t('editRegistrationTitle', { title: event.data.title }) : t('joinTitle', { title: event.data.title })}</h1>
+          <p className="detail-lede">{event.data.venue_name}, {event.data.city}. {t('registrationLead')}</p>
+          {editState === 'loading' && <ReadState message={t('loadingRegistration')} />}
+          {editState === 'error' && <div className="profile-context profile-context-warning" role="alert">{t('invalidEditLink')}</div>}
+          {verifyState === 'verified' && <div className="profile-context" role="status">{t('emailConfirmed')}</div>}
+          {verifyState === 'error' && <div className="profile-context profile-context-warning" role="alert">{t('emailConfirmFailed')}</div>}
           {standardRegistrationDisabled && !editRegistration && (
             <div className="profile-context profile-context-warning" role="alert">
               {eventRegistrationClosed
@@ -207,25 +209,25 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
                   : 'This open mic only accepts registrations on the night, so self-serve signups are disabled here.'}
             </div>
           )}
-          {needsPerformerProfile && !editRegistration && <div className="profile-context profile-context-warning" role="alert">Switch to one of your performer profiles above to register. Organizer profiles cannot register as the performer, including for their own events.</div>}
-          {performerProfile && !editRegistration && <div className="profile-context" role="status">Registering as <strong>{performerProfile.profile_name}</strong> · performer profile</div>}
-          {performerProfile && editRegistration && <div className="profile-context" role="status">Performer name and city stay as originally submitted (<strong>{editRegistration.performer_name}</strong>). Switch away from your performer profile above to edit them here.</div>}
-          {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong>{!editRegistration && !performerProfile && <p>Your place is pending email confirmation.</p>}</div> : (needsPerformerProfile && !editRegistration) || (standardRegistrationDisabled && !editRegistration) || editState === 'loading' ? null : <form className="registration-form" noValidate onSubmit={submit}>
+          {needsPerformerProfile && !editRegistration && <div className="profile-context profile-context-warning" role="alert">{t('switchPerformerWarning')}</div>}
+          {performerProfile && !editRegistration && <div className="profile-context" role="status">{t('registeringAs')} <strong>{performerProfile.profile_name}</strong> · {t('performerProfile')}</div>}
+          {performerProfile && editRegistration && <div className="profile-context" role="status">{t('performerFieldsStay', { name: editRegistration.performer_name })}</div>}
+          {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong>{!editRegistration && !performerProfile && <p>{t('pendingEmailConfirmation')}</p>}</div> : (needsPerformerProfile && !editRegistration) || (standardRegistrationDisabled && !editRegistration) || editState === 'loading' ? null : <form className="registration-form" noValidate onSubmit={submit}>
             {(!performerProfile || editRegistration) && <RequiredFieldsNote />}
             {!performerProfile && !editRegistration && <>
-              <label><span>Performer name<Required /></span><input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
-              <label><span>Contact email<Required /></span><input required type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
-              <label>City <span className="field-hint">Optional</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
-              <label>Phone <span className="field-hint">Optional, for organizer contact</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
+              <label><span>{t('performerName')}<Required /></span><input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
+              <label><span>{t('contactEmail')}<Required /></span><input required type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
+              <label>{t('city')} <span className="field-hint">{t('optional')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
+              <label>{t('phone')} <span className="field-hint">{t('phoneOptional')}</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
             </>}
             {editRegistration && !performerProfile && <>
-              <label><span>Performer name<Required /></span><input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
-              <label>City <span className="field-hint">Optional</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
+              <label><span>{t('performerName')}<Required /></span><input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
+              <label>{t('city')} <span className="field-hint">{t('optional')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
             </>}
-            <label>What will you perform? <span className="field-hint">Optional · separate songs with commas</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
-            <label className="checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>I’m happy for photos or video of my performance to be shared by the organizer. You can change this later.</span></label>
+            <label>{t('performanceSongs')} <span className="field-hint">{t('performanceHint')}</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
+            <label className="checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>{t('mediaConsentFull')}</span></label>
             {state === 'error' && <p className="form-error" role="alert">{message}</p>}
-            <button className="primary-button" type="submit" disabled={state === 'submitting'}>{state === 'submitting' ? 'Sending…' : editRegistration ? 'Save changes' : 'Register for this event'}</button>
+            <button className="primary-button" type="submit" disabled={state === 'submitting'}>{state === 'submitting' ? t('sending') : editRegistration ? t('saveChanges') : t('register')}</button>
           </form>}
         </>}
       </section>

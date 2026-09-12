@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
@@ -116,6 +117,7 @@ function applyServerFieldErrors(error: unknown, setError: UseFormSetError<EventF
 }
 
 export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: string; eventId?: string; theme: ThemeId; mode: ColorMode }) {
+  const { t } = useTranslation()
   const isEdit = Boolean(eventId)
   const { context, activeProfile, isOrganizer } = useOrganizerProfile()
   const openMic = useOpenMicDetail(seriesId)
@@ -233,50 +235,50 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   }
 
   if (context.account.isPending || context.profiles.isPending || openMic.isPending || (isEdit && existing.isPending)) {
-    return <main className="app" data-theme={theme} data-mode={mode}><ReadState message="Loading…" /></main>
+    return <main className="app" data-theme={theme} data-mode={mode}><ReadState message={t('loading')} /></main>
   }
   const isOwner = !openMic.data || openMic.data.owner_profile_id === activeProfile?.id
   if (!context.account.data || !isOrganizer || (openMic.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
-      <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
-      <section className="dashboard-page"><ReadState message="Switch to an organizer profile to manage events." /></section>
+      <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+      <section className="dashboard-page"><ReadState message={t('selectOrganizer')} /></section>
     </main>
   }
   if (openMic.isError || (isEdit && existing.isError)) {
-    return <main className="app" data-theme={theme} data-mode={mode}><ReadState message="We could not load this event." retry={() => { void openMic.refetch(); void existing.refetch() }} /></main>
+    return <main className="app" data-theme={theme} data-mode={mode}><ReadState message={t('eventLoadError')} retry={() => { void openMic.refetch(); void existing.refetch() }} /></main>
   }
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
       <a className="back-link" href={`/dashboard/series/${seriesId}`}>← Back to {openMic.data?.name ?? 'series'}</a>
-      <div className="eyebrow">Organizer workspace</div>
+      <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{isEdit ? `Edit ${existing.data?.title ?? 'event'}` : `New event for ${openMic.data?.name ?? 'this series'}`}</h1>
       <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>
         <RequiredFieldsNote />
-        <label><span>Event title<Required /></span><input required {...register('title')} /></label>
+        <label><span>{t('eventTitle')}<Required /></span><input required {...register('title')} /></label>
         {errors.title && <p className="form-error" role="alert">{errors.title.message}</p>}
-        <label><span>Starts at<Required /></span><input required type="datetime-local" {...register('starts_at')} /></label>
+        <label><span>{t('startsAt')}<Required /></span><input required type="datetime-local" {...register('starts_at')} /></label>
         {errors.starts_at && <p className="form-error" role="alert">{errors.starts_at.message}</p>}
-        <label>Ends at <span className="field-hint">Optional</span><input type="datetime-local" {...register('ends_at')} /></label>
-        <label><span>Time zone<Required /></span> <span className="field-hint">IANA name, e.g. Europe/Dublin</span><input required {...register('time_zone')} /></label>
+        <label>Ends at <span className="field-hint">{t('optional')}</span><input type="datetime-local" {...register('ends_at')} /></label>
+        <label><span>{t('timeZone')}<Required /></span> <span className="field-hint">{t('timeZoneHint')}</span><input required {...register('time_zone')} /></label>
         {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
-        <label>Capacity <span className="field-hint">Optional · leave blank for unlimited</span><input type="number" min="1" {...register('capacity')} /></label>
+        <label>Capacity <span className="field-hint">{t('optional')} · leave blank for unlimited</span><input type="number" min="1" {...register('capacity')} /></label>
 
-        <label>Registrations close at <span className="field-hint">Optional · leave blank to keep registrations open</span><input type="datetime-local" {...register('registrations_closed_at')} /></label>
-        <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{watch('registrations_closed_at') ? 'Reopen registrations' : 'Close registrations now'}</button>
+        <label>{t('closeAt')} <span className="field-hint">{t('closeAtHint')}</span><input type="datetime-local" {...register('registrations_closed_at')} /></label>
+        <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{watch('registrations_closed_at') ? t('reopenRegistrations') : t('stopRegistrations')}</button>
 
         <label className="checkbox-label"><input type="checkbox" disabled={isEdit} {...register('override_location')} /><span>Use a different location for this event {!isEdit && '(otherwise it inherits the series venue)'}</span></label>
         {overrideLocation && <>
-          <label><span>Venue name<Required /></span><input required {...register('venue_name')} /></label>
+          <label><span>{t('venueName')}<Required /></span><input required {...register('venue_name')} /></label>
           {errors.venue_name && <p className="form-error" role="alert">{errors.venue_name.message}</p>}
-          <label><span>Address<Required /></span><input required {...register('address_line1')} /></label>
+          <label><span>{t('address')}<Required /></span><input required {...register('address_line1')} /></label>
           {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
-          <label>Address line 2 <span className="field-hint">Optional</span><input {...register('address_line2')} /></label>
-          <label>Postcode <span className="field-hint">Optional</span><input {...register('postcode')} /></label>
-          <label><span>City<Required /></span><input required {...register('city')} /></label>
+          <label>Address line 2 <span className="field-hint">{t('optional')}</span><input {...register('address_line2')} /></label>
+          <label>{t('postcode')} <span className="field-hint">{t('optional')}</span><input {...register('postcode')} /></label>
+          <label><span>{t('city')}<Required /></span><input required {...register('city')} /></label>
           {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
-          <label><span>Country<Required /></span> <span className="field-hint">Two-letter code, e.g. IE</span><input required maxLength={2} {...register('country')} /></label>
+          <label><span>{t('country')}<Required /></span> <span className="field-hint">Two-letter code, e.g. IE</span><input required maxLength={2} {...register('country')} /></label>
           {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
 
           <LocationPicker
@@ -295,21 +297,21 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
         </>}
 
         <fieldset>
-          <legend>Activities</legend>
+          <legend>{t('activities')}</legend>
           {ACTIVITIES.map((activity) => (
             <label className="checkbox-label" key={activity}><input type="checkbox" checked={activities.includes(activity)} onChange={() => toggleActivity(activity)} /><span>{activity}</span></label>
           ))}
         </fieldset>
-        <label>Tags <span className="field-hint">Optional · separate with commas</span><input {...register('tags')} /></label>
-        <label>Notes <span className="field-hint">Optional · shown to the public</span><textarea {...register('notes')} /></label>
+        <label>{t('tags')} <span className="field-hint">{t('optional')} · separate with commas</span><input {...register('tags')} /></label>
+        <label>{t('notes')} <span className="field-hint">{t('optional')} · shown to the public</span><textarea {...register('notes')} /></label>
 
-        <label>Entry fee amount <span className="field-hint">Optional · 0 for free</span><input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
-        {Number(entryFeeAmount) > 0 && <label><span>Entry fee currency<Required /></span><select required {...register('entry_fee_currency')}><option value="">Select currency</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
+        <label>{t('entryFee')} <span className="field-hint">{t('entryFeeHint')}</span><input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
+        {Number(entryFeeAmount) > 0 && <label><span>{t('entryFeeCurrency')}<Required /></span><select required {...register('entry_fee_currency')}><option value="">{t('selectCurrency')}</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
         {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
-        <label>Entry fee note <span className="field-hint">Optional</span><input {...register('entry_fee_note')} /></label>
+        <label>{t('entryFeeNote')} <span className="field-hint">{t('optional')}</span><input {...register('entry_fee_note')} /></label>
 
         {mutation.isError && <p className="form-error" role="alert">{eventErrorMessage(mutation.error)}</p>}
-        {mutation.isSuccess && isEdit && <p className="form-success" role="status">Saved.</p>}
+        {mutation.isSuccess && isEdit && <p className="form-success" role="status">{t('saved')}</p>}
         <button className="primary-button" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}</button>
       </form>
     </section>

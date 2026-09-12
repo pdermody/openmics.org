@@ -1,9 +1,11 @@
 import { Clock3, MapPin } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useMyRegisteredEventIds } from '../features/myRegistrations'
 import { isRegistrationClosed, usePublicOpenMic, type Event, type OpenMic } from '../features/publicReads'
 import { SocialButton } from './shared'
 
 export function EventCard({ event }: { event: Event }) {
+  const { t } = useTranslation()
   const parentOpenMic = usePublicOpenMic(event.open_mic_id)
   const registeredEventIds = useMyRegisteredEventIds()
   const isRegistered = registeredEventIds.has(event.id)
@@ -55,7 +57,7 @@ export function EventCard({ event }: { event: Event }) {
       </div>
       <div className="event-action">
         {isRegistered ? (
-          <span className="profile-context" role="status">You're registered</span>
+          <span className="profile-context" role="status">{t('registered')}</span>
         ) : registrationDisabled ? (
           <button className="primary-button" type="button" disabled aria-disabled="true">
             {registrationDisabledLabel}
@@ -75,6 +77,7 @@ export function EventCard({ event }: { event: Event }) {
 }
 
 export function SeriesCard({ openMic }: { openMic: OpenMic }) {
+  const { t } = useTranslation()
   const initials = openMic.name
     .split(/\s+/)
     .map((part) => part[0])
@@ -88,7 +91,7 @@ export function SeriesCard({ openMic }: { openMic: OpenMic }) {
         <span>{initials}</span>
       </div>
       <div className="series-copy">
-        <div className="event-type">Open mic series</div>
+        <div className="event-type">{t('openMicSeries')}</div>
         <h3>
           <a className="card-link" href={`/open-mics/${openMic.public_code}`}>
             {openMic.name}
@@ -101,7 +104,7 @@ export function SeriesCard({ openMic }: { openMic: OpenMic }) {
       </div>
       <div className="series-side">
         <button className="follow-button" type="button" disabled>
-          Follow <small>soon</small>
+          {t('follow')} <small>{t('soon')}</small>
         </button>
         <div className="social-row">
           <SocialButton label="React" icon="heart" />

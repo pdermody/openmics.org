@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, MapPin, MoreVertical, Sparkles } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
@@ -71,18 +72,19 @@ function useIsWideScreen(): boolean {
 // Registration details, shown in every column (including Performed) via a real modal so it's
 // never clipped by the roster board's scroll container.
 function RegistrationDetailsModal({ registration, onClose }: { registration: RosterRegistration; onClose: () => void }) {
+  const { t } = useTranslation()
   const info = provenanceOf(registration)
   return <Modal title={`Registration details for ${registration.performer_name}`} onClose={onClose}>
     <span className={`roster-badge roster-badge-${info.key}`}>{info.label}</span>
     <dl>
-      {registration.performer_city && <><dt>City</dt><dd>{registration.performer_city}</dd></>}
-      {registration.contact_email && <><dt>Email</dt><dd>{registration.contact_email}</dd></>}
-      {registration.contact_phone && <><dt>Phone</dt><dd>{registration.contact_phone}</dd></>}
-      {registration.song_names.length > 0 && <><dt>Songs</dt><dd>{registration.song_names.join(', ')}</dd></>}
+      {registration.performer_city && <><dt>{t('city')}</dt><dd>{registration.performer_city}</dd></>}
+      {registration.contact_email && <><dt>{t('email')}</dt><dd>{registration.contact_email}</dd></>}
+      {registration.contact_phone && <><dt>{t('phone')}</dt><dd>{registration.contact_phone}</dd></>}
+      {registration.song_names.length > 0 && <><dt>{t('songs')}</dt><dd>{registration.song_names.join(', ')}</dd></>}
       {/* The "Kiosk"/"Verified" badge above already covers verified/kiosk sign-ups; only call out
           the still-unverified case, since that's the one an organizer needs to notice. */}
-      {!registration.organizer_supervised && !registration.email_verified_at && <><dt>Email verification</dt><dd><span className="roster-badge roster-badge-pending">Pending verification</span></dd></>}
-      <dt>Media consent</dt><dd>{registration.media_consent ? 'Yes' : 'No'}</dd>
+      {!registration.organizer_supervised && !registration.email_verified_at && <><dt>{t('emailVerification')}</dt><dd><span className="roster-badge roster-badge-pending">{t('pendingVerification')}</span></dd></>}
+      <dt>{t('mediaConsent')}</dt><dd>{registration.media_consent ? t('yes') : t('no')}</dd>
     </dl>
   </Modal>
 }
@@ -90,6 +92,7 @@ function RegistrationDetailsModal({ registration, onClose }: { registration: Ros
 // Lets an organizer correct what a performer supplied at registration (e.g. a mistyped name or
 // contact info). Mirrors the server's updateRegistrationSchema field set exactly.
 function RegistrationEditModal({ eventId, registration, onClose }: { eventId: string; registration: RosterRegistration; onClose: () => void }) {
+  const { t } = useTranslation()
   const updateRegistration = useUpdateRegistration(eventId)
   const [form, setForm] = useState({
     performer_name: registration.performer_name,
@@ -115,17 +118,17 @@ function RegistrationEditModal({ eventId, registration, onClose }: { eventId: st
 
   return <Modal title={`Edit registration for ${registration.performer_name}`} onClose={onClose}>
     <form className="registration-form" onSubmit={submit}>
-      <label>Performer name<Required /><input required value={form.performer_name} onChange={(event) => setForm({ ...form, performer_name: event.target.value })} /></label>
-      <label>City<input value={form.performer_city} onChange={(event) => setForm({ ...form, performer_city: event.target.value })} /></label>
-      <label>Email<input type="email" value={form.contact_email} onChange={(event) => setForm({ ...form, contact_email: event.target.value })} /></label>
-      <label>Phone<input type="tel" value={form.contact_phone} onChange={(event) => setForm({ ...form, contact_phone: event.target.value })} /></label>
-      <label>Songs (comma-separated)<input value={form.song_names} onChange={(event) => setForm({ ...form, song_names: event.target.value })} /></label>
-      <label className="checkbox-label"><input type="checkbox" checked={form.media_consent} onChange={(event) => setForm({ ...form, media_consent: event.target.checked })} /> Media consent</label>
+      <label>{t('performerName')}<Required /><input required value={form.performer_name} onChange={(event) => setForm({ ...form, performer_name: event.target.value })} /></label>
+      <label>{t('city')}<input value={form.performer_city} onChange={(event) => setForm({ ...form, performer_city: event.target.value })} /></label>
+      <label>{t('email')}<input type="email" value={form.contact_email} onChange={(event) => setForm({ ...form, contact_email: event.target.value })} /></label>
+      <label>{t('phone')}<input type="tel" value={form.contact_phone} onChange={(event) => setForm({ ...form, contact_phone: event.target.value })} /></label>
+      <label>{t('songsComma')}<input value={form.song_names} onChange={(event) => setForm({ ...form, song_names: event.target.value })} /></label>
+      <label className="checkbox-label"><input type="checkbox" checked={form.media_consent} onChange={(event) => setForm({ ...form, media_consent: event.target.checked })} /> {t('mediaConsent')}</label>
       <RequiredFieldsNote />
       {updateRegistration.isError && <p className="form-error">{friendlyApiErrorMessage(updateRegistration.error, 'Could not save those changes.')}</p>}
       <div className="dashboard-series-card-actions">
-        <button type="submit" className="quiet-button" disabled={updateRegistration.isPending}>Save</button>
-        <button type="button" className="link-button" onClick={onClose}>Cancel</button>
+        <button type="submit" className="quiet-button" disabled={updateRegistration.isPending}>{t('save')}</button>
+        <button type="button" className="link-button" onClick={onClose}>{t('cancel')}</button>
       </div>
     </form>
   </Modal>
@@ -193,14 +196,15 @@ function CardMenu({ label, items }: { label: string; items: { label: string; onC
 // that aren't board-eligible yet — just enough to see who's waiting and check what they
 // submitted or fix a typo before their confirmation email is verified.
 function PendingRegistrationRow({ eventId, registration }: { eventId: string; registration: RosterRegistration }) {
+  const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
 
   return <li className="roster-pending-row">
     <span className="performer-card-name">{registration.performer_name}</span>
     <span className="roster-pending-actions">
-      <button type="button" className="link-button" onClick={() => setDetailsOpen(true)}>Details</button>
-      <button type="button" className="link-button" onClick={() => setEditOpen(true)}>Edit</button>
+      <button type="button" className="link-button" onClick={() => setDetailsOpen(true)}>{t('details')}</button>
+      <button type="button" className="link-button" onClick={() => setEditOpen(true)}>{t('edit')}</button>
     </span>
     {detailsOpen && <RegistrationDetailsModal registration={registration} onClose={() => setDetailsOpen(false)} />}
     {editOpen && <RegistrationEditModal eventId={eventId} registration={registration} onClose={() => setEditOpen(false)} />}
@@ -226,6 +230,7 @@ function PerformerCard({
   // Scheduled can start performing" and "only the last card in Performed can be moved out".
   columnPosition?: { isFirst: boolean; isLast: boolean }
 }) {
+  const { t } = useTranslation()
   const { registration, performance } = data
   const status = performance.status
   const updatePerformance = useUpdatePerformance(eventId)
@@ -330,7 +335,7 @@ function PerformerCard({
         >
           Delete
         </button>
-        <button type="button" className="link-button" onClick={() => setDeleteConfirmOpen(false)}>Cancel</button>
+        <button type="button" className="link-button" onClick={() => setDeleteConfirmOpen(false)}>{t('cancel')}</button>
       </div>
     </Modal>}
 
@@ -340,6 +345,7 @@ function PerformerCard({
 }
 
 export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: string; eventId: string; theme: ThemeId; mode: ColorMode }) {
+  const { t } = useTranslation()
   const { context, isOrganizer } = useOrganizerProfile()
   const event = useEventDetail(seriesId, eventId)
   const roster = useEventRoster(eventId, isOrganizer)
@@ -427,10 +433,10 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   const showPendingList = provenanceFilter === 'all' || provenanceFilter === 'pending'
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label="Open Mic home"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
       <a className="back-link" href={`/dashboard/series/${seriesId}`}>← Back to events</a>
-      <div className="eyebrow">Event operations</div>
+      <div className="eyebrow">{t('eventOperations')}</div>
       <h1>{event.data?.title ?? 'Event roster'}</h1>
       {/* Roster is reached from several places (dashboard, kiosk, direct links) — always show
           which event this is, since the title alone can be ambiguous across a series. */}
@@ -439,13 +445,13 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
         <span className="event-meta"><MapPin size={15} /> {event.data.venue_name}, {event.data.city}</span>
       </p>}
       {event.data && isOrganizer && <div className="dashboard-series-card-actions">
-        <a className="quiet-button" href={`/dashboard/series/${seriesId}/events/${eventId}/kiosk`}>Open kiosk</a>
-        <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? 'Reopen registrations' : 'Stop registrations'}</button>
-        {isRunning && !confirmStop && <button type="button" className="quiet-button" onClick={() => setConfirmStop(true)}>Stop event</button>}
+        <a className="quiet-button" href={`/dashboard/series/${seriesId}/events/${eventId}/kiosk`}>{t('openKiosk')}</a>
+        <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
+        {isRunning && !confirmStop && <button type="button" className="quiet-button" onClick={() => setConfirmStop(true)}>{t('stopEvent')}</button>}
         {isRunning && confirmStop && <span className="roster-confirm-bar">
-          <span>Stop the event? Anyone not checked in will be marked no-show.</span>
-          <button type="button" className="quiet-button" onClick={() => { setRunning.mutate(false); setConfirmStop(false) }} disabled={setRunning.isPending}>Confirm stop</button>
-          <button type="button" className="link-button" onClick={() => setConfirmStop(false)}>Cancel</button>
+          <span>{t('stopEventPrompt')}</span>
+          <button type="button" className="quiet-button" onClick={() => { setRunning.mutate(false); setConfirmStop(false) }} disabled={setRunning.isPending}>{t('confirmStop')}</button>
+          <button type="button" className="link-button" onClick={() => setConfirmStop(false)}>{t('cancel')}</button>
         </span>}
         {!isRunning && <button type="button" className="quiet-button" onClick={() => setRunning.mutate(true)} disabled={setRunning.isPending}>{wasStopped ? 'Restart event' : 'Start event'}</button>}
       </div>}
@@ -458,12 +464,12 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
         <span className={wasStopped ? 'roster-badge roster-badge-warning' : 'roster-badge'}>{isRunning ? 'Event running' : wasStopped ? 'Event stopped' : 'Not started'}</span>
       </div>}
 
-      {!context.account.data && <ReadState message="Sign in to manage this event's roster." />}
+      {!context.account.data && <ReadState message={t('signInRoster')} />}
       {context.account.data && !isOrganizer && <ReadState message="Select an organizer profile to manage this event's roster." />}
       {isOrganizer && roster.isPending && <ReadState message="Loading roster…" />}
       {isOrganizer && roster.isError && <ReadState message={friendlyApiErrorMessage(roster.error, 'We could not load the roster.')} retry={() => void roster.refetch()} />}
 
-      {isOrganizer && roster.isSuccess && <div className="roster-filters" role="group" aria-label="Filter roster by provenance">
+      {isOrganizer && roster.isSuccess && <div className="roster-filters" role="group" aria-label={t('filterRoster')}>
         {PROVENANCE_FILTERS.map((option) => <button
           key={option}
           type="button"
@@ -476,8 +482,8 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
       </div>}
 
       {isOrganizer && roster.isSuccess && showPendingList && pendingRegistrations.length > 0 && <div className="roster-pending">
-        <h2>Pending confirmation <span className="roster-badge">{pendingRegistrations.length}</span></h2>
-        <p className="field-hint">Awaiting email confirmation — not yet shown on the board below.</p>
+        <h2>{t('pendingConfirmation')} <span className="roster-badge">{pendingRegistrations.length}</span></h2>
+        <p className="field-hint">{t('pendingConfirmationHint')}</p>
         <ul className="roster-pending-list">
           {pendingRegistrations.map((registration) => <PendingRegistrationRow key={registration.id} eventId={eventId} registration={registration} />)}
         </ul>

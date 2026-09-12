@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
@@ -59,6 +60,7 @@ function MapClickAndDrag({ onSelect }: { onSelect: (lat: number, lng: number) =>
  * collects a venue location — OpenMic and Event forms today, future forms later.
  */
 export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, latInputId, lngInputId }: LocationPickerProps) {
+  const { t } = useTranslation()
   const geocoding = useGeocoding()
   const [query, setQuery] = useState(addressQuery)
   const [showCandidates, setShowCandidates] = useState(false)
@@ -112,12 +114,12 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
 
   return <div className="location-picker">
     {!geocoding.assistDisabled && <div className="location-picker-search" ref={searchContainerRef}>
-      <label className="sr-only" htmlFor="location-picker-query">Search for the venue address</label>
+      <label className="sr-only" htmlFor="location-picker-query">{t('searchVenue')}</label>
       <input
         id="location-picker-query"
         type="text"
         value={query}
-        placeholder="Search for an address to find it on the map"
+        placeholder={t('searchAddressPlaceholder')}
         disabled={disabled}
         role="combobox"
         aria-expanded={showCandidates && geocoding.candidates.length > 0}
@@ -132,12 +134,12 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
         }}
       />
       <button type="button" className="quiet-button" disabled={disabled || geocoding.searching} onClick={handleSearch}>
-        {geocoding.searching ? 'Searching…' : 'Find on map'}
+        {geocoding.searching ? t('searching') : t('findOnMap')}
       </button>
       {showCandidates && geocoding.candidates.length > 0 && <div className="location-picker-candidates" id="location-picker-candidates">
         <div className="location-picker-candidates-header">
-          <span className="field-hint">Suggestions</span>
-          <button type="button" className="location-picker-dismiss" aria-label="Close suggestions" onClick={dismissCandidates}>
+          <span className="field-hint">{t('suggestions')}</span>
+          <button type="button" className="location-picker-dismiss" aria-label={t('closeSuggestions')} onClick={dismissCandidates}>
             <X aria-hidden="true" size={14} />
           </button>
         </div>
@@ -150,13 +152,13 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
         </ul>
       </div>}
       {showCandidates && !geocoding.searching && geocoding.candidates.length === 0 && (
-        <p className="field-hint">No matches found. Try a more specific address, or set the pin manually below.</p>
+        <p className="field-hint">{t('noMatches')}</p>
       )}
     </div>}
 
     {geocoding.assistDisabled && <p className="location-picker-notice" role="status">
       <CircleAlert aria-hidden="true" size={16} />
-      Automatic address lookup is temporarily unavailable. Drag the pin or enter coordinates manually below.
+      {t('addressLookupUnavailable')}
     </p>}
 
     <div className="location-picker-map" aria-hidden={disabled ? true : undefined}>
@@ -167,7 +169,7 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
         ref={mapRef}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          attribution={`&copy; <a href="https://www.openstreetmap.org/copyright">${t('mapAttribution')}</a> contributors`}
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {!disabled && <MapClickAndDrag onSelect={(nextLat, nextLng) => onChange({ lat: nextLat, lng: nextLng })} />}
@@ -187,7 +189,7 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
     </div>
 
     <div className="location-picker-coords">
-      <label htmlFor={latInputId}><span>Latitude<Required /></span> <span className="field-hint">Click the map, or drag the pin</span>
+          <label htmlFor={latInputId}><span>{t('latitude')}<Required /></span> <span className="field-hint">{t('mapHint')}</span>
         <input
           id={latInputId}
           type="number"
@@ -200,7 +202,7 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
           onChange={(event) => onChange({ lat: event.target.value === '' ? undefined : Number(event.target.value), lng })}
         />
       </label>
-      <label htmlFor={lngInputId}><span>Longitude<Required /></span>
+          <label htmlFor={lngInputId}><span>{t('longitude')}<Required /></span>
         <input
           id={lngInputId}
           type="number"

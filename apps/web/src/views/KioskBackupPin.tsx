@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { hashKioskPin, useKioskBackupPinStatus, useSetKioskBackupPin } from '../features/organizer'
 import { Required, RequiredFieldsNote } from './shared'
 
@@ -7,6 +8,7 @@ import { Required, RequiredFieldsNote } from './shared'
 // for the one-time PIN an organizer chooses each time they start a kiosk session, and
 // docs/decisions.md for why the backup PIN lives server-side per series rather than per device).
 export function KioskBackupPinSection({ seriesId }: { seriesId: string }) {
+  const { t } = useTranslation()
   const status = useKioskBackupPinStatus(seriesId)
   const setBackupPin = useSetKioskBackupPin(seriesId)
   const [editing, setEditing] = useState(false)
@@ -34,24 +36,24 @@ export function KioskBackupPinSection({ seriesId }: { seriesId: string }) {
   }
 
   return <div className="kiosk-backup-pin-panel">
-    <h2>Kiosk backup PIN</h2>
-    <p className="field-hint">Used to exit kiosk mode if the organizer running it forgets the one-time PIN they choose each time they start it. Kept on the server for this series, so it works from any device.</p>
-    {status.isPending && <p className="field-hint">Checking status…</p>}
-    {status.isError && <p className="form-error" role="alert">We could not check this series' backup PIN status.</p>}
+    <h2>{t('backupPin')}</h2>
+    <p className="field-hint">{t('backupPinHelp')}</p>
+    {status.isPending && <p className="field-hint">{t('checkingStatus')}</p>}
+    {status.isError && <p className="form-error" role="alert">{t('backupPinStatusError')}</p>}
     {status.isSuccess && !editing && <p>
       <span className={status.data.configured ? 'roster-badge roster-badge-verified' : 'roster-badge roster-badge-warning'}>{status.data.configured ? 'Backup PIN set' : 'No backup PIN set'}</span>
       {' '}
       <button type="button" className="link-button" onClick={() => { setEditing(true); setSaved(false) }}>{status.data.configured ? 'Change backup PIN' : 'Set backup PIN'}</button>
     </p>}
-    {saved && !editing && <p className="kiosk-success" role="status">Backup PIN saved ✓</p>}
+    {saved && !editing && <p className="kiosk-success" role="status">{t('backupSaved')}</p>}
     {editing && <form className="kiosk-form" noValidate onSubmit={(formEvent) => void save(formEvent)}>
       <RequiredFieldsNote />
-      <label><span>Backup PIN<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={draft} onChange={(input) => setDraft(input.target.value)} /></label>
-      <label><span>Confirm backup PIN<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={confirm} onChange={(input) => setConfirm(input.target.value)} /></label>
+      <label><span>{t('backupPin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={draft} onChange={(input) => setDraft(input.target.value)} /></label>
+      <label><span>{t('confirmBackupPin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={confirm} onChange={(input) => setConfirm(input.target.value)} /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="dashboard-series-card-actions">
-        <button className="primary-button" type="submit" disabled={setBackupPin.isPending}>Save backup PIN</button>
-        <button type="button" className="link-button" onClick={() => { setEditing(false); setDraft(''); setConfirm(''); setError('') }}>Cancel</button>
+        <button className="primary-button" type="submit" disabled={setBackupPin.isPending}>{t('saveBackupPin')}</button>
+        <button type="button" className="link-button" onClick={() => { setEditing(false); setDraft(''); setConfirm(''); setError('') }}>{t('cancel')}</button>
       </div>
     </form>}
   </div>

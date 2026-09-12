@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchSimulatedAuthConfig, getStoredSimulatedAuthToken, LOCAL_SIMULATED_ROLE_KEY, type SimulatedAuthRole } from '../auth/session'
 import { accountKeys, useAccountContext } from '../features/account'
 
 export function ProfileSwitcher() {
+  const { t } = useTranslation()
   const context = useAccountContext()
   const queryClient = useQueryClient()
   const [simulatedRoles, setSimulatedRoles] = useState<SimulatedAuthRole[]>([])
@@ -48,7 +50,7 @@ export function ProfileSwitcher() {
     setLocalValue(effectiveValue)
   }, [effectiveValue, selectableProfiles, simulatedRoles])
 
-  return <div className="profile-context-controls"><label className="profile-switcher"><span className="sr-only">Current profile</span><select id="profile-switcher-select" value={effectiveValue} onChange={(event) => {
+  return <div className="profile-context-controls"><label className="profile-switcher"><span className="sr-only">{t('currentProfile')}</span><select id="profile-switcher-select" value={effectiveValue} onChange={(event) => {
     const selected = event.target.value
     setLocalValue(selected)
     if (selected === 'public') {
@@ -67,12 +69,13 @@ export function ProfileSwitcher() {
 
     // Same account (real or simulated): switch which profile is current via the API.
     context.currentProfile.mutate(selected)
-  }} aria-label="Current profile"><option value="public">Public / unauth</option>{accountGroups.size > 0
+  }} aria-label={t('currentProfile')}><option value="public">{t('publicUnauth')}</option>{accountGroups.size > 0
     ? [...accountGroups.values()].map((group) => <optgroup label={group.accountDisplayName} key={group.roles[0].accountId}>{group.roles.map((role) => <option value={role.profileId} key={role.profileId}>{role.profileName} · {role.kind}</option>)}</optgroup>)
     : selectableProfiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name} · {profile.profile_kind}</option>)}</select></label></div>
 }
 
 export function DashboardMenuLink() {
+  const { t } = useTranslation()
   const context = useAccountContext()
-  return context.account.data ? <a href="/dashboard">Dashboard</a> : null
+  return context.account.data ? <a href="/dashboard">{t('dashboard')}</a> : null
 }

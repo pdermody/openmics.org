@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test:i18n": "node scripts/check-untranslated-ui.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

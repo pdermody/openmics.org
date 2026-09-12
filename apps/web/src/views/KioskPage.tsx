@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Sparkles } from 'lucide-react'
 import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { hashKioskPin, useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
@@ -39,6 +40,7 @@ function KioskLock({
   rootRef: React.RefObject<HTMLDivElement | null>
   children: (requestExit: () => void) => React.ReactNode
 }) {
+  const { t } = useTranslation()
   const backupPinStatus = useKioskBackupPinStatus(seriesId)
   const setBackupPin = useSetKioskBackupPin(seriesId)
   const verifyBackupPin = useVerifyKioskBackupPin(seriesId)
@@ -129,38 +131,38 @@ function KioskLock({
   if (effectivePhase === 'loading') return <div className="kiosk-lock-screen"><ReadState message="Loading kiosk settings…" /></div>
 
   if (effectivePhase === 'setup-backup') return <div className="kiosk-lock-screen">
-    <h1>Set up this kiosk</h1>
-    <p>Before running the kiosk, set a backup exit PIN for this series (kept on the server, so it works from any device). You'll also choose a fresh one-time PIN each time you start the kiosk — the backup PIN is there in case you forget it.</p>
+    <h1>{t('setUpKiosk')}</h1>
+    <p>{t('kioskBackupIntro')}</p>
     <form className="kiosk-form" noValidate onSubmit={(formEvent) => void saveBackupPin(formEvent)}>
       <RequiredFieldsNote />
-      <label><span>Backup PIN<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={backupPinDraft} onChange={(input) => setBackupPinDraft(input.target.value)} /></label>
-      <label><span>Confirm backup PIN<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={backupPinConfirm} onChange={(input) => setBackupPinConfirm(input.target.value)} /></label>
+      <label><span>{t('backupPin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={backupPinDraft} onChange={(input) => setBackupPinDraft(input.target.value)} /></label>
+      <label><span>{t('confirmBackupPin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={backupPinConfirm} onChange={(input) => setBackupPinConfirm(input.target.value)} /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary-button kiosk-submit" type="submit" disabled={setBackupPin.isPending}>Save backup PIN</button>
+      <button className="primary-button kiosk-submit" type="submit" disabled={setBackupPin.isPending}>{t('saveBackupPin')}</button>
     </form>
     <a className="back-link" href={`/dashboard/series/${seriesId}/events/${eventId}/roster`}>← Back to roster</a>
   </div>
 
   if (effectivePhase === 'choose-pin') return <div className="kiosk-lock-screen">
-    <h1>Choose this session's exit PIN</h1>
-    <p>Starting the kiosk fills the screen. Choose a one-time PIN you'll remember for this session — you'll need it (or the series' backup PIN) to exit back to the roster.</p>
+    <h1>{t('chooseExitPin')}</h1>
+    <p>{t('kioskSessionIntro')}</p>
     <form className="kiosk-form" noValidate onSubmit={(formEvent) => void startKiosk(formEvent)}>
       <RequiredFieldsNote />
-      <label><span>One-time PIN<Required /></span><input type="password" inputMode="numeric" minLength={4} required autoFocus value={oneTimePinDraft} onChange={(input) => setOneTimePinDraft(input.target.value)} /></label>
-      <label><span>Confirm one-time PIN<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={oneTimePinConfirm} onChange={(input) => setOneTimePinConfirm(input.target.value)} /></label>
+      <label><span>{t('oneTimePin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required autoFocus value={oneTimePinDraft} onChange={(input) => setOneTimePinDraft(input.target.value)} /></label>
+      <label><span>{t('confirmOneTimePin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={oneTimePinConfirm} onChange={(input) => setOneTimePinConfirm(input.target.value)} /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary-button kiosk-submit" type="submit">Start kiosk mode</button>
+      <button className="primary-button kiosk-submit" type="submit">{t('startKiosk')}</button>
     </form>
-    <button className="link-button" type="button" onClick={() => setPhase('setup-backup')}>Change backup PIN</button>
+    <button className="link-button" type="button" onClick={() => setPhase('setup-backup')}>{t('changeBackupPin')}</button>
     <a className="back-link" href={`/dashboard/series/${seriesId}/events/${eventId}/roster`}>← Back to roster</a>
   </div>
 
   if (effectivePhase === 'exit-gate') return <div className="kiosk-lock-screen kiosk-exit-gate">
-    <h1>Enter PIN to exit kiosk</h1>
+    <h1>{t('enterExitPin')}</h1>
     <form className="kiosk-form" noValidate onSubmit={(formEvent) => void submitExitPin(formEvent)}>
-      <label><span>One-time or backup PIN<Required /></span><input type="password" inputMode="numeric" autoFocus required value={exitPinEntry} onChange={(input) => setExitPinEntry(input.target.value)} /></label>
+      <label><span>{t('oneTimeOrBackupPin')}<Required /></span><input type="password" inputMode="numeric" autoFocus required value={exitPinEntry} onChange={(input) => setExitPinEntry(input.target.value)} /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary-button kiosk-submit" type="submit" disabled={verifyBackupPin.isPending}>Unlock</button>
+      <button className="primary-button kiosk-submit" type="submit" disabled={verifyBackupPin.isPending}>{t('unlock')}</button>
     </form>
   </div>
 
@@ -172,6 +174,7 @@ function KioskLock({
 // runs themselves) at the door: no account/email required from the performer, and the form
 // resets itself right after each successful entry so the next performer can sign up quickly.
 export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string; eventId: string; theme: ThemeId; mode: ColorMode }) {
+  const { t } = useTranslation()
   const { context, isOrganizer } = useOrganizerProfile()
   const event = useEventDetail(seriesId, eventId)
   const kioskRegistration = useKioskRegistration(eventId)
@@ -221,10 +224,10 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   }
 
   if (!isOrganizer) return <main className="app kiosk-page" data-theme={theme} data-mode={mode}>
-    <header className="topbar kiosk-topbar"><span className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></span></header>
+    <header className="topbar kiosk-topbar"><span className="brand" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></span></header>
     <section className="kiosk-body">
       <a className="back-link" href={`/dashboard/series/${seriesId}/events/${eventId}/roster`}>← Back to roster</a>
-      {!context.account.data && <ReadState message="Sign in as this event's organizer to run the kiosk." />}
+      {!context.account.data && <ReadState message={t('signInKiosk')} />}
       {context.account.data && <ReadState message="Select an organizer profile to run the kiosk." />}
     </section>
   </main>
@@ -232,7 +235,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   return <div ref={rootRef} className="app kiosk-page" data-theme={theme} data-mode={mode}>
     <KioskLock seriesId={seriesId} eventId={eventId} rootRef={rootRef}>
       {(requestExit) => <>
-        <header className="topbar kiosk-topbar"><span className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></span></header>
+        <header className="topbar kiosk-topbar"><span className="brand" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></span></header>
         <section className="kiosk-body">
           <h1>{event.data?.title ?? 'Event kiosk'}</h1>
 
@@ -245,16 +248,16 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
 
           {event.data && !eventClosed && <form className="kiosk-form" noValidate onSubmit={submit}>
             <RequiredFieldsNote />
-            <label><span>Performer name<Required /></span><input ref={nameInputRef} autoFocus required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
-            <label>City <span className="field-hint">Optional</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
-            <label>Phone <span className="field-hint">Optional</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
-            <label>What will you perform? <span className="field-hint">Optional · separate songs with commas</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
-            <label className="checkbox-label kiosk-checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>Happy for photos or video to be shared by the organizer</span></label>
+            <label><span>{t('performerName')}<Required /></span><input ref={nameInputRef} autoFocus required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
+            <label>{t('cityLabel')} <span className="field-hint">{t('optional')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
+            <label>{t('phoneLabel')} <span className="field-hint">{t('optional')}</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
+            <label>{t('performancePrompt')} <span className="field-hint">{t('performanceHint')}</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
+            <label className="checkbox-label kiosk-checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>{t('mediaConsentPrompt')}</span></label>
             {kioskRegistration.isError && <p className="form-error" role="alert">{kioskErrorMessage(kioskRegistration.error)}</p>}
             {confirmation && <p className="kiosk-success" role="status">{confirmation} ✓</p>}
-            <button className="primary-button kiosk-submit" type="submit" disabled={kioskRegistration.isPending}>{kioskRegistration.isPending ? 'Adding…' : 'Add to roster'}</button>
+            <button className="primary-button kiosk-submit" type="submit" disabled={kioskRegistration.isPending}>{kioskRegistration.isPending ? t('loading') : t('addRoster')}</button>
           </form>}
-          {event.data && <button type="button" className="link-button kiosk-exit-button" onClick={requestExit}>Exit kiosk</button>}
+          {event.data && <button type="button" className="link-button kiosk-exit-button" onClick={requestExit}>{t('exitKiosk')}</button>}
         </section>
       </>}
     </KioskLock>
