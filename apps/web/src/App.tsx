@@ -6,6 +6,7 @@ import { EventPage } from './views/EventPage'
 import { OpenMicPage } from './views/OpenMicPage'
 import { ProfilePage } from './views/ProfilePage'
 import { RegistrationPage } from './views/RegistrationPage'
+import { AuthPage } from './views/AuthPage'
 import { OnboardingPage } from './views/OnboardingPage'
 import { useAccountContext } from './features/account'
 import { SiteFooter } from './views/shared'
@@ -49,6 +50,8 @@ function App() {
   const eventEditMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/events\/([^/]+)\/edit$/)
   const eventRosterMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/events\/([^/]+)\/roster$/)
   const eventKioskMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/events\/([^/]+)\/kiosk$/)
+  const authMatch = pathname.match(/^\/auth\/(sign-in|sign-up|confirm-sign-up|forgot-password|reset-password)$/)
+  const accountSecurityMatch = pathname === '/settings/security'
 
   useEffect(() => localStorage.setItem(THEME_STORAGE_KEY, theme), [theme])
   useEffect(() => localStorage.setItem(MODE_STORAGE_KEY, mode), [mode])
@@ -60,6 +63,8 @@ function App() {
   if (needsOnboarding) return <RoutedView theme={theme} mode={mode}><OnboardingPage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} /></RoutedView>
 
   if (themeMatch) return <RoutedView theme={theme} mode={mode}><ThemePage theme={theme} mode={mode} setTheme={setTheme} setMode={setMode} /></RoutedView>
+  if (authMatch) return <AuthPage mode={authMatch[1] as 'sign-in' | 'sign-up' | 'confirm-sign-up' | 'forgot-password' | 'reset-password'} theme={theme} colorMode={mode} />
+  if (accountSecurityMatch) return <AuthPage mode="change-password" theme={theme} colorMode={mode} />
   if (dashboardMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OrganizerDashboard theme={theme} mode={mode} /></LazyView></RoutedView>
   if (seriesMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OrganizerSeries theme={theme} mode={mode} /></LazyView></RoutedView>
   if (seriesNewMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OpenMicForm theme={theme} mode={mode} /></LazyView></RoutedView>

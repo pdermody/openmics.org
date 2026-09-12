@@ -156,6 +156,38 @@ export async function beginSignIn(): Promise<void> {
   await signInWithRedirect()
 }
 
+export async function signInWithPassword(username: string, password: string) {
+  if (!isAuthConfigured) throw new Error('Sign-in is not configured in this local environment yet.')
+  const { signIn } = await authModules()
+  return signIn({ username, password })
+}
+
+export async function signUpWithPassword(username: string, password: string) {
+  if (!isAuthConfigured) throw new Error('Sign-up is not configured in this local environment yet.')
+  const { signUp } = await authModules()
+  return signUp({ username, password, options: { userAttributes: { email: username } } })
+}
+
+export async function confirmSignUpCode(username: string, confirmationCode: string) {
+  const { confirmSignUp } = await authModules()
+  return confirmSignUp({ username, confirmationCode })
+}
+
+export async function requestPasswordReset(username: string) {
+  const { resetPassword } = await authModules()
+  return resetPassword({ username })
+}
+
+export async function confirmPasswordReset(username: string, confirmationCode: string, newPassword: string) {
+  const { confirmResetPassword } = await authModules()
+  return confirmResetPassword({ username, confirmationCode, newPassword })
+}
+
+export async function changePassword(oldPassword: string, newPassword: string) {
+  const { updatePassword } = await authModules()
+  return updatePassword({ oldPassword, newPassword })
+}
+
 export async function endSession(): Promise<void> {
   if (typeof window !== 'undefined') window.localStorage.removeItem(LOCAL_SIMULATED_ROLE_KEY)
   if (isAuthConfigured) {

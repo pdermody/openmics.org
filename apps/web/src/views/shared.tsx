@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Heart, Menu, MessageCircle, Sparkles, X } from 'lucide-react'
-import { beginSignIn, consumeSignInError, endSession, getAuthenticatedUser } from '../auth/session'
+import { consumeSignInError, endSession, getAuthenticatedUser } from '../auth/session'
 import { useDismissableDetails, useDismissOnOutsideOrEscape } from '../hooks/dismissable'
 import { changeLanguage, supportedLanguages } from '../i18n'
 import { useAccountContext } from '../features/account'
@@ -74,11 +74,12 @@ export function SignInButton() {
       void endSession().then(() => {
         setSignedIn(false)
         queryClient.clear()
+        window.location.href = '/'
       })
     }}>{t('signOut')}</button></div>
   }
 
-  return <div className="auth-slot"><button className="text-button" type="button" onClick={() => void beginSignIn().catch((error: Error) => setMessage(error.message))}>{t('signIn')}</button>{message && <span className="auth-note" role="status">{message}</span>}</div>
+  return <div className="auth-slot"><button className="text-button" type="button" onClick={() => { window.location.href = '/auth/sign-in' }}>{t('signIn')}</button>{message && <span className="auth-note" role="status">{message}</span>}</div>
 }
 
 // Shared by any <details>-based popover/menu (the page HeaderMenu, and the roster page's
