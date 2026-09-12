@@ -37,10 +37,12 @@ export function rosterChannelName(eventId: string): string {
 export type RosterEventName =
   | 'registration.created'
   | 'registration.updated'
+  | 'registration.deleted'
   | 'performance.created'
   | 'performance.updated'
   | 'performance.deleted'
-  | 'performance.reordered';
+  | 'performance.reordered'
+  | 'event.updated';
 
 export async function notifyRoster(pool: Pool, eventId: string, eventName: RosterEventName, data: Record<string, unknown> = {}): Promise<void> {
   const payload = JSON.stringify({ event: eventName, ...data });

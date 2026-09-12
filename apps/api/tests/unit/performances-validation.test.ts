@@ -21,6 +21,12 @@ describe('performance validation', () => {
     }).success).toBe(false);
   });
 
+  it('accepts each new lifecycle status', () => {
+    for (const status of ['registered', 'present', 'scheduled', 'performing', 'performed', 'no_show', 'cancelled']) {
+      expect(updatePerformanceSchema.safeParse({ status }).success).toBe(true);
+    }
+  });
+
   it('supports partial updates', () => {
     expect(updatePerformanceSchema.safeParse({ status: 'performed' }).success).toBe(true);
   });

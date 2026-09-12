@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+﻿import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 
 import { buildApp } from '../../src/app.js';
@@ -383,6 +383,79 @@ describe('events routes (real database)', () => {
       url: `/api/events/${eventId}/roster/stream?stream_token=not-a-real-token`,
     });
     expect(invalidToken.statusCode).toBe(403);
+
+    await instance.close();
+  });
+
+  it('stopping an event marks only registered performances as no_show, and restarting does not undo it', async () => {
+    const instance = app();
+
+    const created = await instance.inject({
+      method: 'POST',
+      url: `/api/open-mics/${openMicId}/events`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: validPayload({ title: 'Stoppable Event' }),
+    });
+    expect(created.statusCode).toBe(201);
+    const eventId = created.json().id as string;
+
+    const registration = await pool.query<{ id: string }>(
+      `INSERT INTO registrations (event_id, performer_name, submission_channel, organizer_supervised, verification_method, email_verified_at)
+       VALUES ($1, 'Performer', 'kiosk', true, 'organizer_kiosk', now()) RETURNING id`,
+      [eventId],
+    );
+    const registrationId = registration.rows[0].id;
+
+    const registeredPerformance = await pool.query<{ id: string }>(
+      `INSERT INTO performances (registration_id, name, status) VALUES ($1, 'Song A', 'registered') RETURNING id`,
+      [registrationId],
+    );
+    const performedPerformance = await pool.query<{ id: string }>(
+      `INSERT INTO performances (registration_id, name, status) VALUES ($1, 'Song B', 'performed') RETURNING id`,
+      [registrationId],
+    );
+
+    const started = await instance.inject({
+      method: 'PATCH',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: { running: true },
+    });
+    expect(started.statusCode).toBe(200);
+    expect(started.json().running).toBe(true);
+
+    const stopped = await instance.inject({
+      method: 'PATCH',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: { running: false },
+    });
+    expect(stopped.statusCode).toBe(200);
+    expect(stopped.json().running).toBe(false);
+    expect(stopped.json().registrations_closed_at).toBeTruthy();
+
+    const afterStop = await pool.query<{ id: string; status: string }>(
+      'SELECT id, status FROM performances WHERE id = ANY($1)',
+      [[registeredPerformance.rows[0].id, performedPerformance.rows[0].id]],
+    );
+    const statusById = Object.fromEntries(afterStop.rows.map((row) => [row.id, row.status]));
+    expect(statusById[registeredPerformance.rows[0].id]).toBe('no_show');
+    expect(statusById[performedPerformance.rows[0].id]).toBe('performed');
+
+    const restarted = await instance.inject({
+      method: 'PATCH',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: { running: true },
+    });
+    expect(restarted.statusCode).toBe(200);
+    expect(restarted.json().running).toBe(true);
+    expect(restarted.json().registrations_closed_at).toBe(stopped.json().registrations_closed_at);
+
+    const afterRestart = await pool.query<{ status: string }>('SELECT status FROM performances WHERE id = $1', [
+      registeredPerformance.rows[0].id,
+    ]);
+    expect(afterRestart.rows[0].status).toBe('no_show');
 
     await instance.close();
   });

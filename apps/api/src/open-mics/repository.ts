@@ -35,6 +35,11 @@ export type OpenMicRow = {
   updated_at: Date;
   deleted_at: Date | null;
   recovery_deadline: Date | null;
+  // Never included in serializeOpenMic's output (that shape is shared by the public directory
+  // GET routes too) — only read/written via the dedicated kiosk-backup-pin routes below, which
+  // are owner-authenticated. It's a client-hashed (SHA-256) PIN, not a plaintext secret; per
+  // docs/decisions.md this is a device-convenience lock, not an account security boundary.
+  kiosk_backup_pin_hash: string | null;
 };
 
 type Queryable = Pool | PoolClient;
@@ -244,6 +249,21 @@ export async function updateOpenMic(
     values,
   );
   return result.rows[0] ?? null;
+}
+
+// Per-series (not per-device) so the fallback works from any device/browser that runs this
+// series' kiosk, and survives clearing browser storage. The caller is responsible for hashing
+// the PIN before it ever reaches here — this table only ever stores/compares hashes.
+export async function getKioskBackupPinHash(pool: Pool, id: string): Promise<string | null> {
+  const result = await pool.query<{ kiosk_backup_pin_hash: string | null }>(
+    'SELECT kiosk_backup_pin_hash FROM open_mics WHERE id = $1 AND deleted_at IS NULL',
+    [id],
+  );
+  return result.rows[0]?.kiosk_backup_pin_hash ?? null;
+}
+
+export async function setKioskBackupPinHash(pool: Pool, id: string, pinHash: string): Promise<void> {
+  await pool.query('UPDATE open_mics SET kiosk_backup_pin_hash = $1, updated_at = now() WHERE id = $2 AND deleted_at IS NULL', [pinHash, id]);
 }
 
 export function serializeOpenMic(row: OpenMicRow) {

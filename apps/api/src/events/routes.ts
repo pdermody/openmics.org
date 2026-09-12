@@ -6,6 +6,7 @@ import type { AuthenticatedAccount } from '../auth/types.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { parseGeoFilter } from '../geo.js';
 import { findOpenMicByIdOrPublicCode } from '../open-mics/repository.js';
+import { markUnregisteredAsNoShowForEvent, deleteNeverStartedPerformancesForEvent } from '../performances/repository.js';
 import {
   findEventByIdOrPublicCode,
   findEventByIdOrPublicCodeIncludingDeleted,
@@ -18,7 +19,7 @@ import {
   softDeleteEvent,
   updateEvent,
 } from './repository.js';
-import { rosterChannelName, signStreamToken, verifyStreamToken } from './roster-stream.js';
+import { notifyRoster, rosterChannelName, signStreamToken, verifyStreamToken } from './roster-stream.js';
 import { createEventSchema, updateEventSchema } from './validation.js';
 
 export type EventsPluginOptions = { pool: Pool; streamTokenSecret: string };
@@ -172,10 +173,27 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (parsed.data.entry_fee_currency !== undefined) changes.entryFeeCurrency = parsed.data.entry_fee_currency;
       if (parsed.data.entry_fee_note !== undefined) changes.entryFeeNote = parsed.data.entry_fee_note;
 
-      const updated = await updateEvent(pool, existing.id, changes as any);
+      // Stopping an event (running: true/null -> false) treats every performer who never checked
+      // in as a no-show, then clears out any performance that never actually reached the stage
+      // (no start time — never "valid" for reporting), in the same transaction as the running
+      // flag flip — see decisions.md. Restarting (false -> true) or any other change does not
+      // touch performances.
+      const isStopping = parsed.data.running === false && existing.running !== false;
+      if (isStopping) changes.registrationsClosedAt = new Date().toISOString();
+      const updated = isStopping
+        ? await withTransaction(pool, async (client) => {
+            const result = await updateEvent(client, existing.id, changes as any);
+            await markUnregisteredAsNoShowForEvent(client, existing.id);
+            await deleteNeverStartedPerformancesForEvent(client, existing.id, openMic.owner_profile_id);
+            return result;
+          })
+        : await updateEvent(pool, existing.id, changes as any);
       if (!updated) throw new NotFoundError('Event not found after update');
 
       reply.send(serializeEvent(updated));
+      void notifyRoster(pool, existing.id, 'event.updated', { event_id: existing.id }).catch((error) =>
+        app.log.error({ error }, 'Failed to publish roster notification'),
+      );
     },
   );
 

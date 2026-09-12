@@ -1,4 +1,4 @@
-openapi: 3.0.3
+﻿openapi: 3.0.3
 info:
   title: Open Mic API
   version: 1.0.0
@@ -329,7 +329,7 @@ paths:
       tags:
         - Open Mics
       operationId: listMyOpenMics
-      description: Lists every non-deleted series owned by the given profile, regardless of status (including draft/paused/ended). Unlike GET /open-mics (the public directory, which always excludes draft/ended), this always requires the caller to own the profile — for the organizer's own dashboard, so a just-created draft series is visible immediately.
+      description: Lists every non-deleted series owned by the given profile, regardless of status (including draft/paused/ended). Unlike GET /open-mics (the public directory, which always excludes draft/ended), this always requires the caller to own the profile for the organizer's own dashboard, so a just-created draft series is visible immediately.
       security:
         - bearerAuth: []
       parameters:
@@ -407,6 +407,46 @@ paths:
           $ref: "#/components/responses/EventResponse"
         "404":
           $ref: "#/components/responses/NotFound"
+  /open-mics/{id}/kiosk-backup-pin:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Open Mics
+      operationId: getKioskBackupPinStatus
+      summary: Whether this series has a kiosk backup PIN configured
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/KioskBackupPinStatusResponse"
+    put:
+      tags:
+        - Open Mics
+      operationId: setKioskBackupPin
+      summary: Set (or replace) this series' kiosk backup PIN
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/KioskBackupPinSet"
+      responses:
+        "200":
+          $ref: "#/components/responses/KioskBackupPinStatusResponse"
+  /open-mics/{id}/kiosk-backup-pin/verify:
+    post:
+      tags:
+        - Open Mics
+      operationId: verifyKioskBackupPin
+      summary: Check an entered PIN against this series' configured kiosk backup PIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        $ref: "#/components/requestBodies/KioskBackupPinSet"
+      responses:
+        "200":
+          $ref: "#/components/responses/KioskBackupPinVerifyResponse"
   /events/upcoming:
     get:
       tags:
@@ -506,7 +546,7 @@ paths:
       description: >-
         EventSource cannot send an Authorization header, so the client exchanges its bearer token for a
         short-lived (5 minute) stream token here, then passes it as the `stream_token` query parameter on
-        `GET /events/{id}/roster/stream`. See decisions.md → Live updates for the full contract.
+        `GET /events/{id}/roster/stream`. See decisions.md Live updates for the full contract.
       security:
         - bearerAuth: []
       responses:
@@ -528,7 +568,7 @@ paths:
         heartbeat comment every 15s. Each event carries an `id:` field. No durable event log is kept, so a
         resumed connection (any `Last-Event-ID` header present) always receives an immediate `resync_required`
         event instructing the client to refetch `GET /events/{id}/registrations` in full before it resumes
-        live-tailing — there is no partial replay. See decisions.md → Live updates.
+        live-tailing there is no partial replay. See decisions.md Live updates.
       parameters:
         - name: stream_token
           in: query
@@ -627,6 +667,17 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/RegistrationResponse"
+    delete:
+      tags:
+        - Registrations
+      operationId: deleteRegistration
+      description: Organizer-only. Soft-deletes the registration with a 30-day
+        recovery window, mirroring events/performances.
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Registration deleted
   /registrations/{id}/rotate-edit-token:
     post:
       tags:
@@ -1085,6 +1136,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/HandleReservationRequest"
+    KioskBackupPinSet:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/KioskBackupPinRequest"
   responses:
     AccountResponse:
       description: Account
@@ -1104,6 +1161,18 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/OpenMic"
+    KioskBackupPinStatusResponse:
+      description: Whether a kiosk backup PIN is configured for this series
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/KioskBackupPinStatus"
+    KioskBackupPinVerifyResponse:
+      description: Whether the submitted PIN matches this series' configured kiosk backup PIN
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/KioskBackupPinVerifyResult"
     EventResponse:
       description: Event
       content:
@@ -1660,6 +1729,11 @@ components:
         running:
           type: boolean
           nullable: true
+          description: Null/unset before the organizer has ever started the event, true while
+            it is running, false once the organizer has stopped it. Transitioning this from
+            true (or unset) to false via PATCH automatically marks every performance still in
+            "registered" status as "no_show"; restarting the event (setting it back to true)
+            does not reverse that no-show transition or reopen registrations.
         registrations_closed_at:
           allOf:
             - $ref: "#/components/schemas/Timestamp"
@@ -1822,11 +1896,39 @@ components:
           minimum: 1
         status:
           type: string
+          description: >-
+            Lifecycle: registered -> present (checked in at the door) -> scheduled (agreed to go
+            next) -> performing (on stage) -> performed. no_show/cancelled are manual overrides
+            available from any state. A performer doing a second set gets a brand-new performance
+            row rather than looping this one back to an earlier state.
           enum:
             - registered
+            - present
+            - scheduled
+            - performing
             - performed
             - no_show
             - cancelled
+        checked_in_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set automatically (server clock) the moment status first becomes `present`.
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set automatically (server clock) the moment status first becomes `scheduled`.
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set automatically (server clock) the moment status first becomes `performing`.
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set automatically (server clock) the moment status first becomes `performed`.
         notes:
           type: string
           nullable: true
@@ -2297,6 +2399,7 @@ components:
           nullable: true
         registrations_closed_at:
           $ref: "#/components/schemas/Timestamp"
+          nullable: true
         capacity:
           type: integer
           minimum: 1
@@ -2355,8 +2458,13 @@ components:
         running:
           type: boolean
           nullable: true
+          description: Setting this to false (having previously been true or unset)
+            automatically marks every "registered" performance for the event as "no_show".
+            It also closes registrations. Setting it back to true (restarting) does not undo
+            either side effect.
         registrations_closed_at:
           $ref: "#/components/schemas/Timestamp"
+          nullable: true
         capacity:
           type: integer
           minimum: 1
@@ -2441,6 +2549,11 @@ components:
           type: string
         performer_city:
           type: string
+        contact_email:
+          type: string
+          format: email
+        contact_phone:
+          type: string
         song_names:
           type: array
           items:
@@ -2478,6 +2591,30 @@ components:
       properties:
         token:
           type: string
+    KioskBackupPinRequest:
+      type: object
+      description: The organizer's kiosk backup PIN, already hashed client-side (SHA-256, hex)
+        before it is sent — the server never sees or stores a plaintext PIN.
+      required:
+        - pin_hash
+      properties:
+        pin_hash:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+    KioskBackupPinStatus:
+      type: object
+      required:
+        - configured
+      properties:
+        configured:
+          type: boolean
+    KioskBackupPinVerifyResult:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
     PerformanceCreateRequest:
       type: object
       required:
@@ -2496,6 +2633,9 @@ components:
           type: string
           enum:
             - registered
+            - present
+            - scheduled
+            - performing
             - performed
             - no_show
             - cancelled
@@ -2518,6 +2658,9 @@ components:
           type: string
           enum:
             - registered
+            - present
+            - scheduled
+            - performing
             - performed
             - no_show
             - cancelled

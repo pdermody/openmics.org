@@ -11,6 +11,7 @@ import { baseLocationFieldsSchema } from '../features/location'
 import { useCreateOpenMic, useOpenMicDetail, useOrganizerProfile, useUpdateOpenMic, type OpenMicFormInput } from '../features/organizer'
 import { suggestHandle } from '../features/slugify'
 import type { ColorMode, ThemeId } from '../theme'
+import { KioskBackupPinSection } from './KioskBackupPin'
 import { HeaderMenu, ProfileSwitcher, ReadState, Required, RequiredFieldsNote, SignInButton } from './shared'
 
 const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
@@ -341,6 +342,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
         </button>
         {activities.length === 0 && <p className="field-hint">Select at least one activity.</p>}
       </form>
+      {isEdit && seriesId && <KioskBackupPinSection seriesId={seriesId} />}
     </section>
   </main>
 }

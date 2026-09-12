@@ -198,7 +198,9 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
       starts_at: fromDatetimeLocalValue(values.starts_at)!,
       ends_at: fromDatetimeLocalValue(values.ends_at ?? ''),
       time_zone: values.time_zone,
-      registrations_closed_at: fromDatetimeLocalValue(values.registrations_closed_at ?? ''),
+      registrations_closed_at: values.registrations_closed_at
+        ? fromDatetimeLocalValue(values.registrations_closed_at)
+        : isEdit ? null : undefined,
       capacity: values.capacity ? Number(values.capacity) : undefined,
       activities: values.activities && values.activities.length > 0 ? values.activities : undefined,
       tags: (values.tags ?? '').split(',').map((tag) => tag.trim()).filter(Boolean),
@@ -226,8 +228,8 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
     }
   }
 
-  function closeRegistrationsNow() {
-    setValue('registrations_closed_at', toDatetimeLocalValue(new Date().toISOString()), { shouldDirty: true })
+  function toggleRegistrationAvailability() {
+    setValue('registrations_closed_at', watch('registrations_closed_at') ? '' : toDatetimeLocalValue(new Date().toISOString()), { shouldDirty: true })
   }
 
   if (context.account.isPending || context.profiles.isPending || openMic.isPending || (isEdit && existing.isPending)) {
@@ -262,7 +264,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
         <label>Capacity <span className="field-hint">Optional · leave blank for unlimited</span><input type="number" min="1" {...register('capacity')} /></label>
 
         <label>Registrations close at <span className="field-hint">Optional · leave blank to keep registrations open</span><input type="datetime-local" {...register('registrations_closed_at')} /></label>
-        <button className="quiet-button" type="button" onClick={closeRegistrationsNow}>Close registrations now</button>
+        <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{watch('registrations_closed_at') ? 'Reopen registrations' : 'Close registrations now'}</button>
 
         <label className="checkbox-label"><input type="checkbox" disabled={isEdit} {...register('override_location')} /><span>Use a different location for this event {!isEdit && '(otherwise it inherits the series venue)'}</span></label>
         {overrideLocation && <>

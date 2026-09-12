@@ -190,7 +190,7 @@ export async function restoreEvent(pool: Pool, id: string): Promise<EventRow | n
   return result.rows[0] ?? null;
 }
 
-export async function updateEvent(pool: Pool, id: string, changes: Partial<InsertEventInput>): Promise<EventRow | null> {
+export async function updateEvent(pool: Queryable, id: string, changes: Partial<InsertEventInput>): Promise<EventRow | null> {
   const updates: string[] = [];
   const values: unknown[] = [];
   let paramIndex = 1;

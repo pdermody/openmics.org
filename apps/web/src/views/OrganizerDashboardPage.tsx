@@ -22,7 +22,7 @@ export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: 
         {hasNoOpenMics && <div className="dashboard-card"><span className="panel-label">Get started</span><h2>Set up your first open mic</h2><p>You don’t have any open mic series yet. Create one to start scheduling events and taking registrations.</p><a className="quiet-button" href="/dashboard/series/new">Set up your first open mic</a></div>}
         <div className="dashboard-grid">
           <article className="dashboard-card"><span className="panel-label">Series</span><h2>Open mic series</h2><p>Create and maintain the rooms your audience returns to.</p><a className="quiet-button" href="/dashboard/series">Manage series</a></article>
-          <article className="dashboard-card"><span className="panel-label">Tonight</span><h2>Event operations</h2><p>Keep the roster, running order, and registration status close at hand.</p><button className="quiet-button" type="button">View operations</button></article>
+          <article className="dashboard-card"><span className="panel-label">Tonight</span><h2>Event operations</h2><p>Keep the roster, running order, and registration status close at hand.</p><a className="quiet-button" href="/dashboard/series">View operations</a></article>
         </div>
       </>}
     </section>

@@ -32,8 +32,12 @@ describe('registration validation', () => {
     }).success).toBe(true);
   });
 
+  it('accepts updating contact info', () => {
+    expect(updateRegistrationSchema.safeParse({ contact_email: 'new@example.test', contact_phone: '555-0100' }).success).toBe(true);
+  });
+
   it('rejects unknown update fields', () => {
-    expect(updateRegistrationSchema.safeParse({ contact_email: 'nope@example.test' }).success).toBe(false);
+    expect(updateRegistrationSchema.safeParse({ favorite_color: 'blue' }).success).toBe(false);
   });
 
   it('accepts an explicit claim attribution change', () => {

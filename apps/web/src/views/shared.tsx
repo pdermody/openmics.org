@@ -1,7 +1,9 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Heart, Menu, MessageCircle, Sparkles } from 'lucide-react'
+import { Heart, Menu, MessageCircle, Sparkles, X } from 'lucide-react'
 import { beginSignIn, consumeSignInError, endSession, getAuthenticatedUser } from '../auth/session'
+import { useDismissableDetails, useDismissOnOutsideOrEscape } from '../hooks/dismissable'
 
 export type ThemeProps = { theme: import('../theme').ThemeId; mode: import('../theme').ColorMode }
 
@@ -18,6 +20,31 @@ export function RequiredFieldsNote() {
 export function SocialButton({ label, icon }: { label: string; icon: 'heart' | 'message' }) {
   const Icon = icon === 'heart' ? Heart : MessageCircle
   return <button className="social-button" type="button" disabled aria-label={`${label} coming soon`}><Icon size={16} strokeWidth={1.8} /><span>{label}</span></button>
+}
+
+// Portal-rendered dialog used anywhere a page needs a real modal (as opposed to an inline
+// <details> popover): it's mounted on document.body so it's never clipped by a scrolling
+// ancestor (e.g. the roster board's horizontally-scrolling kanban columns), and closes on
+// Escape or a backdrop click via the same dismiss hook used by other popovers on the page.
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const panelRef = useDismissOnOutsideOrEscape<HTMLDivElement>(true, onClose)
+  // Portal into the themed `.app` root (not document.body): it's still an ancestor of any
+  // scrolling container we need to escape for clipping purposes, but staying inside `.app`
+  // keeps the theme's CSS custom properties (--surface, --ink, etc., scoped to `.app[data-theme]`
+  // selectors) in scope, so the modal isn't rendered with a transparent background/black text.
+  const portalTarget = document.querySelector('.app') ?? document.body
+  return createPortal(
+    <div className="modal-backdrop">
+      <div className="modal-panel" ref={panelRef} role="dialog" aria-modal="true" aria-label={title}>
+        <div className="modal-header">
+          <h2>{title}</h2>
+          <button type="button" className="modal-close" aria-label="Close" onClick={onClose}><X size={18} /></button>
+        </div>
+        {children}
+      </div>
+    </div>,
+    portalTarget,
+  )
 }
 
 export function ReadState({ message, retry }: { message: string; retry?: () => void }) {
@@ -47,35 +74,18 @@ export function SignInButton() {
   return <div className="auth-slot"><button className="text-button" type="button" onClick={() => void beginSignIn().catch((error: Error) => setMessage(error.message))}>Sign in</button>{message && <span className="auth-note" role="status">{message}</span>}</div>
 }
 
+// Shared by any <details>-based popover/menu (the page HeaderMenu, and the roster page's
+// per-card hamburger menus): closes the element when the user clicks outside it or presses
+// Escape, matching native menu/dropdown dismiss behavior since we use plain <details> rather
+// than a dedicated popover library. Lives in ../hooks/dismissable so a component file (this
+// one) doesn't also export non-component hooks (keeps fast-refresh lint clean).
+
 export function HeaderMenu() {
-  const menuRef = useRef<HTMLDetailsElement>(null)
-
-  useEffect(() => {
-    function closeWhenOutside(event: PointerEvent) {
-      const menu = menuRef.current
-      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) {
-        menu.open = false
-      }
-    }
-
-    function closeOnEscape(event: KeyboardEvent) {
-      const menu = menuRef.current
-      if (event.key === 'Escape' && menu?.open) {
-        menu.open = false
-        menu.querySelector('summary')?.focus()
-      }
-    }
-
-    document.addEventListener('pointerdown', closeWhenOutside)
-    document.addEventListener('keydown', closeOnEscape)
-    return () => {
-      document.removeEventListener('pointerdown', closeWhenOutside)
-      document.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [])
+  const menuRef = useDismissableDetails()
 
   return <details className="header-menu" ref={menuRef}><summary aria-label="Open menu"><Menu size={18} /><span>Menu</span></summary><nav aria-label="Page menu"><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><a href="/settings/theme">Theme</a><a href="/#events">Events</a><a href="/">Discover</a></nav></details>
 }
+
 
 const LazyProfileSwitcher = lazy(() => import('./profile-context').then((module) => ({ default: module.ProfileSwitcher })))
 const LazyDashboardMenuLink = lazy(() => import('./profile-context').then((module) => ({ default: module.DashboardMenuLink })))

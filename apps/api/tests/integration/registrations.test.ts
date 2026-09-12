@@ -98,6 +98,76 @@ describe('registration routes (real database)', () => {
     expect(kiosk.statusCode).toBe(201);
     expect(kiosk.json().visibility_state).toBe('valid');
     expect(kiosk.json().verification_method).toBe('organizer_kiosk');
+
+    // Every registration auto-creates a first performance slot; kiosk sign-ups start "present"
+    // (the organizer's physical presence already substitutes for check-in), everyone else starts
+    // "registered" and is checked in at the door later.
+    const roster = await app.inject({
+      method: 'GET',
+      url: `/api/events/${eventId}/registrations`,
+      headers: { authorization: 'Bearer registration-owner' },
+    });
+    expect(roster.statusCode).toBe(200);
+    const rosterRows = roster.json() as Array<{ id: string; performer_name: string; performances: Array<{ status: string }> }>;
+    const guestRow = rosterRows.find((row) => row.performer_name === 'Guest Performer');
+    expect(guestRow?.performances).toHaveLength(1);
+    expect(guestRow?.performances[0].status).toBe('registered');
+    const kioskRow = rosterRows.find((row) => row.performer_name === 'Walk-in Performer');
+    expect(kioskRow?.performances).toHaveLength(1);
+    expect(kioskRow?.performances[0].status).toBe('present');
+  });
+
+  it('lets the organizer reopen registrations after closing them', async () => {
+    const closed = await app.inject({
+      method: 'PATCH',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer registration-owner' },
+      payload: { registrations_closed_at: new Date().toISOString() },
+    });
+    expect(closed.statusCode).toBe(200);
+    expect(closed.json().registrations_closed_at).toBeTruthy();
+
+    const blocked = await app.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/registrations`,
+      payload: {
+        performer_name: 'Blocked Performer',
+        contact_email: 'blocked-performer@example.test',
+        submission_channel: 'organic',
+        organizer_supervised: false,
+      },
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().error.code).toBe('REGISTRATIONS_CLOSED');
+
+    const forbidden = await app.inject({
+      method: 'PATCH',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer registration-claimant' },
+      payload: { registrations_closed_at: null },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const reopened = await app.inject({
+      method: 'PATCH',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer registration-owner' },
+      payload: { registrations_closed_at: null },
+    });
+    expect(reopened.statusCode).toBe(200);
+    expect(reopened.json().registrations_closed_at).toBeNull();
+
+    const allowed = await app.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/registrations`,
+      payload: {
+        performer_name: 'Reopened Performer',
+        contact_email: 'reopened-performer@example.test',
+        submission_channel: 'organic',
+        organizer_supervised: false,
+      },
+    });
+    expect(allowed.statusCode).toBe(201);
   });
 
   it('resolves the magic edit link with the originally submitted song names', async () => {
@@ -266,6 +336,19 @@ describe('registration routes (real database)', () => {
     expect(created.statusCode).toBe(201);
     const registrationId = created.json().id as string;
 
+    // A registration can only have one active performance at a time, so the auto-created first
+    // slot has to be moved to a terminal state (no_show, here — same override available from any
+    // status) before a second one can be added below.
+    const initialPerformances = await app.inject({ method: 'GET', url: `/api/registrations/${registrationId}/performances`, headers: { authorization: 'Bearer registration-owner' } });
+    const initialPerformanceId = initialPerformances.json()[0].id as string;
+    const noShow = await app.inject({
+      method: 'PUT',
+      url: `/api/performances/${initialPerformanceId}`,
+      headers: { authorization: 'Bearer registration-owner' },
+      payload: { status: 'no_show' },
+    });
+    expect(noShow.statusCode).toBe(200);
+
     const performance = await app.inject({
       method: 'POST',
       url: '/api/performances',
@@ -287,10 +370,57 @@ describe('registration routes (real database)', () => {
       headers: { authorization: 'Bearer registration-owner' },
     });
     expect(roster.statusCode).toBe(200);
-    const rosterRow = (roster.json() as Array<{ id: string; performances: Array<{ id: string; sequence: number; notes: string | null }> }>).find(
+    const rosterRow = (roster.json() as Array<{ id: string; performances: Array<{ id: string; sequence: number; activity: string | null; status: string; notes: string | null }> }>).find(
       (row) => row.id === registrationId,
     );
-    expect(rosterRow?.performances).toHaveLength(1);
-    expect(rosterRow?.performances[0]).toMatchObject({ sequence: 3, activity: 'singing' });
+    // Registration creation auto-adds a first "registered" performance slot, so this row should
+    // now have that default slot (moved to no_show above) plus the one just added explicitly.
+    expect(rosterRow?.performances).toHaveLength(2);
+    expect(rosterRow?.performances.find((performance) => performance.sequence === 1)).toMatchObject({ status: 'no_show' });
+    expect(rosterRow?.performances.find((performance) => performance.sequence === 3)).toMatchObject({ activity: 'singing' });
+  });
+
+  it('lets the organizer delete a registration, and hides it from the roster afterwards', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/events/${eventId}/registrations`,
+      payload: {
+        performer_name: 'Deletable Performer',
+        contact_email: 'deletable-performer@example.test',
+        submission_channel: 'organic',
+        organizer_supervised: false,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const registrationId = created.json().id as string;
+
+    const forbidden = await app.inject({
+      method: 'DELETE',
+      url: `/api/registrations/${registrationId}`,
+      headers: { authorization: 'Bearer registration-claimant' },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: `/api/registrations/${registrationId}`,
+      headers: { authorization: 'Bearer registration-owner' },
+    });
+    expect(deleted.statusCode).toBe(204);
+
+    const roster = await app.inject({
+      method: 'GET',
+      url: `/api/events/${eventId}/registrations`,
+      headers: { authorization: 'Bearer registration-owner' },
+    });
+    expect(roster.statusCode).toBe(200);
+    expect((roster.json() as Array<{ id: string }>).some((row) => row.id === registrationId)).toBe(false);
+
+    const secondDelete = await app.inject({
+      method: 'DELETE',
+      url: `/api/registrations/${registrationId}`,
+      headers: { authorization: 'Bearer registration-owner' },
+    });
+    expect(secondDelete.statusCode).toBe(404);
   });
 });

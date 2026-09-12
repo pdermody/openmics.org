@@ -9,7 +9,7 @@ const baseFields = {
   ends_at: z.string().datetime().optional(),
   time_zone: z.string().min(1).optional(),
   running: z.boolean().optional(),
-  registrations_closed_at: z.string().datetime().optional(),
+  registrations_closed_at: z.string().datetime().nullable().optional(),
   capacity: z.number().min(1).optional(),
   // Location snapshot fields — must all be provided together or all omitted
   venue_name: z.string().min(1).optional(),

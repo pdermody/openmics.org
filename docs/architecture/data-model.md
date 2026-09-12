@@ -308,14 +308,51 @@ Performances
 ├── registration_id (FK)
 ├── name
 ├── activity ("singing" | "poetry" | "jam" | "trad" | "comedy" | "storytelling" | "other")
-├── sequence (integer — order in which performers perform at the event)
-├── status ("registered" | "performed" | "no_show" | "cancelled") — default "registered"
+├── sequence (integer — running order within the "present" or "scheduled" column only; see below)
+├── status ("registered" | "present" | "scheduled" | "performing" | "performed" | "no_show" | "cancelled") — default "registered"
+├── checked_in_at (timestamptz, nullable — set automatically when status first becomes "present")
+├── scheduled_at (timestamptz, nullable — set automatically when status first becomes "scheduled")
+├── started_at (timestamptz, nullable — set automatically when status first becomes "performing")
+├── finished_at (timestamptz, nullable — set automatically when status first becomes "performed")
 ├── notes (text, nullable — organizer-only)
 ├── created_at, updated_at
 ├── deleted_at, deleted_by_profile_id (FK, nullable), recovery_deadline
 # API enforces: Performances.activity must be in the effective activities set of the parent event
 # (Events.activities if not NULL, else OpenMics.activities).
-# CHECK (status IN ('registered','performed','no_show','cancelled'));
+# CHECK (status IN ('registered','present','scheduled','performing','performed','no_show','cancelled'));
+# Lifecycle: registered -> present (checked in at the door) -> scheduled (agreed to go next) ->
+# performing (on stage) -> performed. no_show/cancelled are manual overrides from any state.
+# Every one of these four forward transitions stamps its own timestamp column with the server's
+# clock (never a client-supplied value); re-entering the same status refreshes that timestamp,
+# with two exceptions: performed -> performing preserves started_at (it's the same set resuming,
+# not a new one) and clears finished_at; performing -> scheduled (moved back a stage) clears both
+# started_at and finished_at.
+# sequence is scoped per status, not event-wide: "present" and "scheduled" are each their own
+# independent bottom-filled queue (API assigns MAX(sequence)+1 within that column, or 1 if the
+# column is empty, whenever a performance enters "present" or "scheduled" without an explicit
+# sequence — e.g. a kiosk sign-up landing at the bottom of "present"). The organizer may reorder
+# within "present" or "scheduled" by swapping two cards' sequence values; no other column supports
+# manual reordering. "performing" holds at most one card, and "performed" order is implied entirely
+# by finished_at (no sequence needed). "registered" cards are shown in registration order.
+# API enforces two ordering restrictions beyond simple status transitions: only the "scheduled" card
+# with the lowest sequence (top of the queue) may move to "performing"; only the "performed" card
+# with the latest finished_at may move out of "performed" to any other status (covers moving a
+# performer back in case they were advanced to "performed" by mistake).
+# POST /events/:id/registrations creates the registration's first Performances row in the same
+# transaction (status "present" for kiosk/organizer_supervised sign-ups, "registered" otherwise)
+# so every registration always has at least one performance without a separate manual step. A
+# performer doing a second set gets a brand-new Performances row (typically starting "present",
+# since they are already known to be at the venue) rather than looping the first row backwards —
+# and can only be started from an existing "performed" card (see "Perform again" action).
+# Deleting a Performances row soft-deletes just that row, unless it's the registration's only
+# remaining (non-deleted) performance — in that case the API also soft-deletes the parent
+# Registrations row in the same request, since there would be nothing left to show and the
+# performer would need to register again for a future set. This applies uniformly regardless of
+# which status column the card is in, not just "registered". The organizer always confirms first,
+# and the confirmation copy distinguishes "delete this performance" from "delete the registration".
+# When an event is stopped (Events.running -> false), any Performances row that never reached
+# "performing" (started_at IS NULL) is soft-deleted alongside the existing "mark unregistered as
+# no_show" cleanup, since a valid, reportable performance requires both a start and a finish time.
 
 Media
 ├── id (UUID)

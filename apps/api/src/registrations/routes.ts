@@ -8,7 +8,7 @@ import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, Valida
 import { findEventById, findEventByIdOrPublicCode } from '../events/repository.js';
 import { notifyRoster } from '../events/roster-stream.js';
 import { findOpenMicById } from '../open-mics/repository.js';
-import { findPerformancesByRegistrationIds, serializePerformance } from '../performances/repository.js';
+import { findPerformancesByRegistrationIds, insertPerformance, serializePerformance } from '../performances/repository.js';
 import { findProfileById } from '../profiles/repository.js';
 import {
   findClaimableRegistrations,
@@ -18,6 +18,7 @@ import {
   findRegistrationsByProfileId,
   insertRegistration,
   serializeRegistration,
+  softDeleteRegistration,
   updateRegistration,
 } from './repository.js';
 import { claimRegistrationSchema, createRegistrationSchema, updateRegistrationSchema, verifyEmailSchema } from './validation.js';
@@ -167,7 +168,7 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
               throw new ConflictError('DUPLICATE_REGISTRATION', 'A verified registration already exists for this event and email');
             }
           }
-          return insertRegistration(client, {
+          const registration = await insertRegistration(client, {
             eventId: event.id,
             profileId,
             performerName: input.performer_name,
@@ -186,6 +187,17 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
             verificationMethod,
             emailVerifiedAt: verifiedAt,
           });
+          // Every registration is a performer, so it always gets a first performance slot up
+          // front rather than requiring the organizer to add one manually. Kiosk sign-ups skip
+          // straight to "present" since the organizer's physical presence already confirms it;
+          // everyone else starts at "registered" and is checked in at the door later.
+          await insertPerformance(client, {
+            registrationId: registration.id,
+            eventId: event.id,
+            name: input.performer_name,
+            status: input.organizer_supervised ? 'present' : 'registered',
+          });
+          return registration;
         });
         reply.status(201).send(serializeRegistration(created));
         void notifyRoster(pool, event.id, 'registration.created', { registration_id: created.id }).catch((error) =>
@@ -295,6 +307,33 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       const updated = await updateRegistration(pool, registration.id, changes);
       reply.send(serializeRegistration(updated!));
       void notifyRoster(pool, updated!.event_id, 'registration.updated', { registration_id: updated!.id }).catch((error) =>
+        app.log.error({ error }, 'Failed to publish roster notification'),
+      );
+    },
+  );
+
+  // Organizer-only: removes a registration entirely (roster "Delete" action). Only offered for
+  // still-registered performers, before anything else has happened, so this intentionally uses
+  // the stricter event-owner check rather than assertRegistrationAccess (which also allows the
+  // registration's own claimed-by account — deleting someone else's registration isn't theirs
+  // to do). Soft-deleted with the same 30-day recovery window as events/performances.
+  app.delete<{ Params: { id: string } }>(
+    '/registrations/:id',
+    { preHandler: app.authenticate },
+    async (request, reply) => {
+      const existing = await findRegistrationById(pool, request.params.id);
+      if (!existing) throw new NotFoundError('Registration not found');
+      const event = await findEventById(pool, existing.event_id);
+      if (!event) throw new NotFoundError('Event not found');
+      const openMic = await findOpenMicById(pool, event.open_mic_id);
+      if (!openMic) throw new NotFoundError('Parent open mic not found');
+      if (!request.account!.isPlatformAdmin && (await ownerAccountId(pool, openMic.owner_profile_id)) !== request.account!.accountId) {
+        throw new ForbiddenError('You do not own this event');
+      }
+      const deleted = await softDeleteRegistration(pool, existing.id, openMic.owner_profile_id);
+      if (!deleted) throw new NotFoundError('Registration not found');
+      reply.status(204).send();
+      void notifyRoster(pool, existing.event_id, 'registration.deleted', { registration_id: existing.id }).catch((error) =>
         app.log.error({ error }, 'Failed to publish roster notification'),
       );
     },

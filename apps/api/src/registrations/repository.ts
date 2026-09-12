@@ -28,6 +28,7 @@ export type RegistrationRow = {
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
+  deleted_by_profile_id: string | null;
   recovery_deadline: Date | null;
 };
 
@@ -138,7 +139,7 @@ export async function updateRegistration(
   changes: Partial<Record<string, unknown>>,
 ): Promise<RegistrationRow | null> {
   const allowed = new Set([
-    'performer_name', 'performer_city', 'song_names', 'media_consent', 'adopted_profile_id',
+    'performer_name', 'performer_city', 'contact_email', 'contact_phone', 'song_names', 'media_consent', 'adopted_profile_id',
     'claimed_by_account_id', 'claimed_at', 'verification_method', 'email_verified_at',
     'email_verification_token_hash', 'email_verification_token_expires_at',
   ]);
@@ -161,6 +162,35 @@ export async function updateRegistration(
     values,
   );
   return result.rows[0] ?? null;
+}
+
+// Mirrors softDeleteEvent/softDeletePerformance: a 30-day recovery window, consistent with the
+// rest of the platform's soft-delete model (docs/architecture/data-model.md). Also cascades to
+// soft-delete every one of this registration's still-active performances in the same call — a
+// deleted registration must never leave a live, visible performance behind (e.g. still sitting in
+// the Scheduled queue, blocking topOfScheduled/nextSequenceForColumn from ever seeing past it).
+// Callers passing a `PoolClient` already inside their own transaction get both updates atomically
+// for free; callers passing the bare `Pool` get two independent statements (acceptable here since
+// the registration row is what actually matters for visibility, and this is the only writer of
+// registrations.deleted_at).
+export async function softDeleteRegistration(pool: Queryable, id: string, deletedByProfileId: string): Promise<RegistrationRow | null> {
+  const result = await pool.query<RegistrationRow>(
+    `UPDATE registrations
+     SET deleted_at = now(), deleted_by_profile_id = $1, recovery_deadline = now() + interval '30 days', updated_at = now()
+     WHERE id = $2 AND deleted_at IS NULL
+     RETURNING *`,
+    [deletedByProfileId, id],
+  );
+  const registration = result.rows[0] ?? null;
+  if (registration) {
+    await pool.query(
+      `UPDATE performances
+       SET deleted_at = now(), deleted_by_profile_id = $1, recovery_deadline = now() + interval '30 days', updated_at = now()
+       WHERE registration_id = $2 AND deleted_at IS NULL`,
+      [deletedByProfileId, id],
+    );
+  }
+  return registration;
 }
 
 export function serializeRegistration(row: RegistrationRow) {

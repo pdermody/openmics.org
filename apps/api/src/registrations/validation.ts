@@ -40,6 +40,8 @@ export type CreateRegistrationInput = z.infer<typeof createRegistrationSchema>;
 export const updateRegistrationSchema = z.object({
   performer_name: z.string().min(1).optional(),
   performer_city: z.string().optional(),
+  contact_email: z.string().email().optional(),
+  contact_phone: z.string().optional(),
   song_names: z.array(z.string()).optional(),
   media_consent: z.boolean().optional(),
   adopted_profile_id: z.string().uuid().nullable().optional(),

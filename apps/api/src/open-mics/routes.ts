@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
@@ -7,8 +7,8 @@ import { parseGeoFilter } from '../geo.js';
 import { assignHandle } from '../handles/service.js';
 import { requireOwnedProfile } from '../profiles/current-profile.js';
 import { findProfileById } from '../profiles/repository.js';
-import { findOpenMicById, findOpenMicByIdOrPublicCode, findOwnedOpenMics, findPublicOpenMics, insertOpenMic, serializeOpenMic, updateOpenMic } from './repository.js';
-import { createOpenMicSchema, updateOpenMicSchema } from './validation.js';
+import { findOpenMicById, findOpenMicByIdOrPublicCode, findOwnedOpenMics, findPublicOpenMics, getKioskBackupPinHash, insertOpenMic, serializeOpenMic, setKioskBackupPinHash, updateOpenMic } from './repository.js';
+import { createOpenMicSchema, kioskBackupPinSchema, updateOpenMicSchema } from './validation.js';
 
 export type OpenMicsPluginOptions = { pool: Pool };
 
@@ -114,18 +114,48 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     const parsed = updateOpenMicSchema.safeParse(request.body);
     if (!parsed.success) throw new ValidationError('Invalid open mic payload', parsed.error.flatten());
 
-    const existing = await findOpenMicByIdOrPublicCode(pool, request.params.id);
-    if (!existing) throw new NotFoundError('Open mic not found');
-
-    const account = request.account!;
-    const ownerProfile = await findOpenMicOwnerAccountId(pool, existing.owner_profile_id);
-    if (ownerProfile !== account.accountId && !account.isPlatformAdmin) {
-      throw new ForbiddenError('You do not own this open mic');
-    }
+    const existing = await requireOwnedOpenMic(request);
 
     const updated = await updateOpenMic(pool, existing.id, parsed.data);
     reply.send(serializeOpenMic(updated!));
   });
+
+  // Kiosk backup PIN: configured server-side per series (not per-device), so it's the organizer's
+  // fallback if they forget the fresh one-time PIN they choose each time they open the kiosk (see
+  // KioskPage.tsx). The client hashes the PIN before sending it; this table only stores/compares
+  // hashes and the hash is never returned to the client (kept out of serializeOpenMic entirely).
+  app.get<{ Params: { id: string } }>('/open-mics/:id/kiosk-backup-pin', { preHandler: app.authenticate }, async (request, reply) => {
+    const openMic = await requireOwnedOpenMic(request);
+    reply.send({ configured: Boolean(await getKioskBackupPinHash(pool, openMic.id)) });
+  });
+
+  app.put<{ Params: { id: string } }>('/open-mics/:id/kiosk-backup-pin', { preHandler: app.authenticate }, async (request, reply) => {
+    const openMic = await requireOwnedOpenMic(request);
+    const parsed = kioskBackupPinSchema.safeParse(request.body);
+    if (!parsed.success) throw new ValidationError('Invalid PIN payload', parsed.error.flatten());
+    await setKioskBackupPinHash(pool, openMic.id, parsed.data.pin_hash);
+    reply.send({ configured: true });
+  });
+
+  app.post<{ Params: { id: string } }>('/open-mics/:id/kiosk-backup-pin/verify', { preHandler: app.authenticate }, async (request, reply) => {
+    const openMic = await requireOwnedOpenMic(request);
+    const parsed = kioskBackupPinSchema.safeParse(request.body);
+    if (!parsed.success) throw new ValidationError('Invalid PIN payload', parsed.error.flatten());
+    const stored = await getKioskBackupPinHash(pool, openMic.id);
+    reply.send({ valid: stored !== null && stored === parsed.data.pin_hash });
+  });
+
+  async function requireOwnedOpenMic(request: FastifyRequest<{ Params: { id: string } }>) {
+    const existing = await findOpenMicByIdOrPublicCode(pool, request.params.id);
+    if (!existing) throw new NotFoundError('Open mic not found');
+
+    const account = request.account!;
+    const ownerAccountId = await findOpenMicOwnerAccountId(pool, existing.owner_profile_id);
+    if (ownerAccountId !== account.accountId && !account.isPlatformAdmin) {
+      throw new ForbiddenError('You do not own this open mic');
+    }
+    return existing;
+  }
 };
 
 async function findOpenMicOwnerAccountId(pool: Pool, ownerProfileId: string): Promise<string | null> {
