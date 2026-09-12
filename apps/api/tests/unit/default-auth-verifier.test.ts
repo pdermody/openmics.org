@@ -46,6 +46,13 @@ describe('createDefaultAuthVerifier', () => {
     expect(fakeCognitoVerifier).toHaveBeenCalledWith('not-a-jwt-shaped-token');
   });
 
+  it('fails closed when production Cognito configuration is missing', () => {
+    const pool = fakePool();
+    expect(() => createDefaultAuthVerifier(pool, { ...baseConfig, environment: 'production' })).toThrow(
+      'Cognito user-pool and app-client configuration is required in production',
+    );
+  });
+
   it('routes JWT-shaped tokens to Cognito and plain tokens to the lookup verifier when simulated auth is also enabled', async () => {
     const pool = fakePool();
     const fakeCognitoVerifier = vi.fn(async () => ({ accountId: 'cognito-account', isPlatformAdmin: false }));

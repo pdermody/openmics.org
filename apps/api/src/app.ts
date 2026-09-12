@@ -52,7 +52,12 @@ export function createDefaultAuthVerifier(
   // (its seeded tokens, e.g. "dev-owner", are exactly a `cognito_id`).
   const lookupVerifier = createAccountLookupVerifier(pool);
 
-  if (!cognitoVerifier) return lookupVerifier;
+  if (!cognitoVerifier) {
+    if (config.environment === 'production') {
+      throw new Error('Cognito user-pool and app-client configuration is required in production');
+    }
+    return lookupVerifier;
+  }
   if (config.environment !== 'development' || !config.simulatedAuthMode) return cognitoVerifier;
 
   // Both a real user pool and local simulated auth are configured at once (developer testing

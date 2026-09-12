@@ -2,7 +2,7 @@
 
 **Status:** Active  
 **Last reviewed:** 2026-09-08  
-**Supersedes:** [PLAN.md](PLAN.md) and [plan-frontend.prompt.md](plan-frontend.prompt.md)
+**Canonical implementation plan:** this document is the repository's sequencing authority.
 
 ## 1) Purpose
 
@@ -26,7 +26,7 @@ When authoritative sources disagree, stop and resolve the conflict in [docs/deci
 
 ### Resolved stale assumptions
 
-- Infrastructure is AWS CDK in `infra/`, not Terraform.
+- Infrastructure is AWS CDK in `infra/`.
 - The API runs on ECS Fargate, not a directly managed EC2 host.
 - CloudFront and S3 host the SPA; Amplify Hosting is not used.
 - Amplify is used only as the browser Cognito client SDK.
