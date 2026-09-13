@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom/vitest'
-import { i18nReady } from '../i18n'
-import { afterAll, afterEach, beforeAll } from 'vitest'
+import { i18n, i18nReady } from '../i18n'
+import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
 import { server } from './server'
+
 
 if (!window.matchMedia) {
 	window.matchMedia = (query: string) => ({
@@ -18,5 +19,11 @@ if (!window.matchMedia) {
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 beforeAll(async () => i18nReady)
+beforeEach(async () => {
+	server.resetHandlers()
+	window.localStorage.clear()
+	window.sessionStorage.clear()
+	await i18n.changeLanguage('en')
+})
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())

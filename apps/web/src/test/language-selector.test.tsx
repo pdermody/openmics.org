@@ -1,15 +1,15 @@
 import { http, HttpResponse } from 'msw'
 import { userEvent } from '@testing-library/user-event'
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { LANGUAGE_STORAGE_KEY, i18n, resolveInitialLanguage } from '../i18n'
 import { LanguageSelector } from '../views/shared'
 import { renderWithProviders } from './render'
 import { server } from './server'
 
-afterEach(() => {
+afterEach(async () => {
   window.localStorage.clear()
-  void i18n.changeLanguage('en')
+  await act(async () => { await i18n.changeLanguage('en') })
   document.documentElement.lang = 'en'
 })
 
@@ -22,11 +22,12 @@ describe('LanguageSelector', () => {
 
   it('changes the UI language and persists it locally for anonymous visitors', async () => {
     const user = userEvent.setup()
+    server.use(http.get('/api/me', () => HttpResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Not signed in' } }, { status: 401 })))
     renderWithProviders(<LanguageSelector />)
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Language' }), 'es')
 
-    await waitFor(() => expect(i18n.language).toBe('es'))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Idioma' })).toHaveValue('es'))
     expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('es')
     expect(document.documentElement.lang).toBe('es')
   })

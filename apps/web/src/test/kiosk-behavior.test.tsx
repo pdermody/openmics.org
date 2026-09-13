@@ -25,7 +25,10 @@ function registerOrganizerHandlers() {
       id: 'profile-1', profile_name: 'Stage Organizer', profile_kind: 'organizer', current_handle: null,
       bio: null, phone: null, visibility: 'public', theme_name: null, color_mode: null,
     }] })),
-    http.get('/api/me/permissions?profile=profile-1', () => HttpResponse.json({ permissions: ['profiles:manage'] })),
+    http.get('/api/me/permissions', ({ request }) => {
+      expect(new URL(request.url).searchParams.get('profile')).toBe('profile-1')
+      return HttpResponse.json({ permissions: ['profiles:manage'] })
+    }),
     http.get('/api/open-mics/series-1/events/event-1', () => HttpResponse.json({
       id: 'event-1', title: 'Friday Stage', starts_at: '2026-10-01T19:00:00.000Z',
       running: false, registrations_closed_at: '2026-09-01T19:00:00.000Z', venue_name: 'The Lantern', city: 'Dublin',
