@@ -257,7 +257,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   return <main className="app" data-theme={theme} data-mode={mode}>
     <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
-      <a className="back-link" href={isEdit ? `/dashboard/series/${seriesId}` : '/dashboard/series'}>← Back to {isEdit ? 'series' : 'series list'}</a>
+      <a className="back-link" href={isEdit ? `/dashboard/series/${seriesId}` : '/dashboard'}>← Back to {isEdit ? 'series' : 'dashboard'}</a>
       <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{isEdit ? t('editSeriesTitle', { name: existing.data?.name ?? t('openMicSeries') }) : t('createSeriesTitle')}</h1>
       <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>

@@ -114,11 +114,14 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     },
   );
 
-  app.get<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/events/:id', { preHandler: app.authenticateOptional }, async (request, reply) => {
     const event = await findEventByIdOrPublicCode(pool, request.params.id);
     if (!event) throw new NotFoundError('Event not found');
     const openMic = await findOpenMicByIdOrPublicCode(pool, event.open_mic_id);
-    if (!openMic || openMic.status === 'draft' || openMic.status === 'ended') throw new NotFoundError('Event not found');
+    const isDraftOrEnded = openMic?.status === 'draft' || openMic?.status === 'ended';
+    if (!openMic || (isDraftOrEnded && !(await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account)))) {
+      throw new NotFoundError('Event not found');
+    }
     reply.send(serializeEvent(event));
   });
 

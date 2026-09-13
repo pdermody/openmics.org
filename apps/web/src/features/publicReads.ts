@@ -9,18 +9,23 @@ export type Event = {
   starts_at: string
   time_zone: string
   venue_name: string
+  address_line1?: string
+  address_line2?: string | null
+  postcode?: string | null
   city: string
   country: string
   activities: string[] | null
   tags: string[]
   capacity: number | null
   registrations_closed_at: string | null
+  running?: boolean | null
   notes: string | null
 }
 
 export type OpenMic = {
   id: string
   public_code: string
+  owner_profile_id: string
   current_handle: string | null
   name: string
   description: string | null

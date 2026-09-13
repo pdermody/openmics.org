@@ -35,6 +35,7 @@ const eventFormSchema = z
     ends_at: z.string().optional(),
     time_zone: z.string().trim().min(1, 'Time zone is required'),
     registrations_closed_at: z.string().optional(),
+    open_registrations: z.boolean(),
     capacity: z.string().optional(),
     override_location: z.boolean(),
     venue_name: z.string().trim().optional(),
@@ -81,6 +82,7 @@ const DEFAULT_VALUES: EventFormValues = {
   ends_at: '',
   time_zone: '',
   registrations_closed_at: '',
+  open_registrations: true,
   capacity: '',
   override_location: false,
   venue_name: '',
@@ -156,6 +158,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
       ends_at: toDatetimeLocalValue(existing.data.ends_at),
       time_zone: existing.data.time_zone,
       registrations_closed_at: toDatetimeLocalValue(existing.data.registrations_closed_at),
+      open_registrations: !existing.data.registrations_closed_at,
       capacity: existing.data.capacity ? String(existing.data.capacity) : '',
       override_location: true,
       venue_name: existing.data.venue_name,
@@ -200,9 +203,11 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
       starts_at: fromDatetimeLocalValue(values.starts_at)!,
       ends_at: fromDatetimeLocalValue(values.ends_at ?? ''),
       time_zone: values.time_zone,
-      registrations_closed_at: values.registrations_closed_at
-        ? fromDatetimeLocalValue(values.registrations_closed_at)
-        : isEdit ? null : undefined,
+      registrations_closed_at: values.open_registrations
+        ? (isEdit ? null : undefined)
+        : values.registrations_closed_at
+          ? fromDatetimeLocalValue(values.registrations_closed_at)
+          : new Date().toISOString(),
       capacity: values.capacity ? Number(values.capacity) : undefined,
       activities: values.activities && values.activities.length > 0 ? values.activities : undefined,
       tags: (values.tags ?? '').split(',').map((tag) => tag.trim()).filter(Boolean),
@@ -266,6 +271,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
         <label>Capacity <span className="field-hint">{t('optional')} · leave blank for unlimited</span><input type="number" min="1" {...register('capacity')} /></label>
 
         <label>{t('closeAt')} <span className="field-hint">{t('closeAtHint')}</span><input type="datetime-local" {...register('registrations_closed_at')} /></label>
+        {!isEdit && <label className="checkbox-label"><input type="checkbox" {...register('open_registrations')} /><span>{t('openRegistrationsOnCreate')}</span></label>}
         <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{watch('registrations_closed_at') ? t('reopenRegistrations') : t('stopRegistrations')}</button>
 
         <label className="checkbox-label"><input type="checkbox" disabled={isEdit} {...register('override_location')} /><span>Use a different location for this event {!isEdit && '(otherwise it inherits the series venue)'}</span></label>

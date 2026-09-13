@@ -86,16 +86,15 @@ This status is a planning baseline, not a substitute for tests.
 
 - The API auth verifier now validates Cognito ID-token signatures through cached JWKS, issuer, audience/client, required claims, token use, and expiry; production Cognito configuration and staging validation remain incomplete.
 - Account provisioning is idempotent on first verified sign-in, browser refresh/retry and logout cleanup are implemented, and account/profile preferences persist through the API; deployed Cognito configuration and broader frontend preference coverage remain incomplete.
-- `openapi.yaml`, API routes, and frontend calls are not fully aligned.
+- `openapi.yaml`, API routes, and frontend calls are not fully aligned; the remaining gaps are tracked in [docs/contract-gap-matrix.md](docs/contract-gap-matrix.md) and the OpenAPI coverage report.
 - Public vanity resolution and canonical redirects are not wired end to end.
-- Organizer roster and kiosk screens are implemented, including performance lifecycle controls, provenance states, organizer-supervised registration, live refresh, registration-link sharing controls, and server-stored four-digit PIN exit.
 - Claim-all behavior, a dedicated claim route, partial-failure handling, and post-claim attribution management are incomplete.
 - Guest registration rate limiting and referral capture are not complete.
 - Media routes, persistence service, S3 upload adapter, validation, recovery UI, and CDK storage resources are absent.
 - Live roster delivery is implemented through the scoped event-roster SSE contract in [docs/decisions.md](docs/decisions.md#live-updates), using PostgreSQL `LISTEN`/`NOTIFY` fan-out and full resync on reconnect.
 - The SPA still uses manual pathname matching rather than the planned TanStack Router route tree and loaders.
 - Generated OpenAPI frontend types, route error boundaries, quota state, and lazy translation namespaces are absent; account locale/theme/mode synchronization and one-shot 401 refresh behavior are implemented.
-- Automated frontend unit, component/integration, accessibility, and Playwright coverage is absent.
+- Focused frontend unit coverage now covers preferences, organizer lifecycle, kiosk behavior, registration links, and PIN/navigation guards; broader component/integration, accessibility, and Playwright coverage remains absent.
 - Path-aware GitHub Actions, a single CI-equivalent command, full CDK application infrastructure, staging deployment, monitoring, and operational runbooks are absent.
 
 ## 5) Delivery rules
@@ -491,15 +490,14 @@ The milestones below are dependency ordered. A later milestone may be explored i
 
 Start with these independently reviewable slices:
 
-1. **Contract parity:** produce the gap matrix and align event update/delete, auth ownership, account preferences, token rotation, media, and reserved-handle operations.
-2. **Secure auth:** implement Cognito JWT verification and idempotent account provisioning with isolated tests.
-3. **Account preferences:** implement the account update API and frontend locale/theme/mode synchronization.
-4. **Organizer operations:** build the event roster against existing registration/performance APIs, then close missing API behavior exposed by the screen.
-5. **Kiosk:** add organizer-supervised registration UI and end-to-end permission/capacity tests.
-6. **Registration hardening:** add rate limiting, token rotation, dedicated claim/adoption management, and referral capture.
-7. **Canonical routing:** implement the vanity resolver and migrate the SPA to TanStack Router.
-8. **Media:** implement persistence/storage/CDK first, then organizer upload and recovery UI.
-9. **Quality and delivery:** establish frontend tests and CI early enough that each later slice adds coverage rather than deferring it to release week.
+1. **Contract parity:** maintain the gap matrix, operation coverage, and remaining OpenAPI/API/frontend alignment work.
+2. **Secure auth:** validate the Cognito boundary in staging and broaden sign-in/profile-switch coverage.
+3. **Account preferences:** broaden frontend preference coverage and validate cross-device persistence.
+4. **Organizer operations:** add Playwright coverage for event creation through roster operation, kiosk, links, QR codes, and server-PIN navigation guards.
+5. **Registration hardening:** add rate limiting, token rotation, dedicated claim/adoption management, and referral capture.
+6. **Canonical routing:** implement the vanity resolver and migrate the SPA to TanStack Router.
+7. **Media:** implement persistence/storage/CDK first, then organizer upload and recovery UI.
+8. **Quality and delivery:** establish frontend tests and CI early enough that each later slice adds coverage rather than deferring it to release week.
 
 Slices 2 and frontend test-harness setup may proceed in parallel after slice 1 settles their contracts. Media UI must not start before the storage/API contract. SSE must not start before the Milestone 0 decision.
 

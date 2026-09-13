@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, MapPin, MoreVertical, Sparkles } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, DoorOpen, Lock, LockOpen, MapPin, MoreVertical, Sparkles } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
-import { RegistrationLinkTools } from '../components/RegistrationLinkTools'
+import { EventManagementActions } from '../components/EventManagementActions'
+import { copyRegistrationLink, downloadRegistrationQr } from '../components/RegistrationLinkTools'
 import {
   PERFORMANCE_BOARD_STATUSES,
   PERFORMANCE_STATUS_LABELS,
@@ -14,7 +15,6 @@ import {
   useEventRoster,
   useOrganizerProfile,
   useRosterLiveUpdates,
-  useSetEventRunning,
   useUpdatePerformance,
   useUpdateRegistration,
   type Performance,
@@ -353,9 +353,7 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   const [provenanceFilter, setProvenanceFilter] = useState<ProvenanceFilter>('all')
   useRosterLiveUpdates(seriesId, eventId, isOrganizer)
   const isWide = useIsWideScreen()
-  const setRunning = useSetEventRunning(seriesId, eventId)
   const setRegistrationsClosed = useSetRegistrationsClosed(seriesId, eventId)
-  const [confirmStop, setConfirmStop] = useState(false)
 
   const cards = useMemo(() => {
     if (!roster.data) return []
@@ -446,18 +444,10 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
         <span className="event-meta"><MapPin size={15} /> {event.data.venue_name}, {event.data.city}</span>
       </p>}
       {event.data && isOrganizer && <div className="dashboard-series-card-actions">
-        <a className="quiet-button" href={`/dashboard/series/${seriesId}/events/${eventId}/kiosk`}>{t('openKiosk')}</a>
-        <RegistrationLinkTools url={`${window.location.origin}/events/${event.data.public_code}/register`} fileName={event.data.public_code} />
-        <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
-        {isRunning && !confirmStop && <button type="button" className="quiet-button" onClick={() => setConfirmStop(true)}>{t('stopEvent')}</button>}
-        {isRunning && confirmStop && <span className="roster-confirm-bar">
-          <span>{t('stopEventPrompt')}</span>
-          <button type="button" className="quiet-button" onClick={() => { setRunning.mutate(false); setConfirmStop(false) }} disabled={setRunning.isPending}>{t('confirmStop')}</button>
-          <button type="button" className="link-button" onClick={() => setConfirmStop(false)}>{t('cancel')}</button>
-        </span>}
-        {!isRunning && <button type="button" className="quiet-button" onClick={() => setRunning.mutate(true)} disabled={setRunning.isPending}>{wasStopped ? 'Restart event' : 'Start event'}</button>}
+        <a className="quiet-button" href={`/dashboard/series/${seriesId}/events/${eventId}/kiosk`}><DoorOpen size={17} /> {t('openKiosk')}</a>
+        <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? <LockOpen size={17} /> : <Lock size={17} />} {isClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
+        <EventManagementActions openMicId={seriesId} eventId={eventId} running={event.data?.running} onDeleted={() => window.location.assign('/dashboard')} navigationItems={[{ label: t('copyLink'), onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${eventId}/register`) }, { label: t('downloadQr'), onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${eventId}/register`, event.data?.public_code ?? eventId) }]} />
       </div>}
-      {setRunning.isError && <p className="form-error">{friendlyApiErrorMessage(setRunning.error, 'Could not update the event.')}</p>}
       {setRegistrationsClosed.isError && <p className="form-error">{friendlyApiErrorMessage(setRegistrationsClosed.error, 'Could not update registration availability.')}</p>}
       {event.data && <div className="roster-summary">
         <span className="roster-badge">{registrationCount} registration{registrationCount === 1 ? '' : 's'}</span>

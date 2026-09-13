@@ -3,6 +3,7 @@ import { z } from 'zod';
 const activitySchema = z.enum(['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other']);
 const registrationModeSchema = z.enum(['pre_only', 'on_night_only', 'both', 'external']);
 const agePolicySchema = z.enum(['adults_only', 'children_only', 'both']);
+const statusSchema = z.enum(['active', 'paused', 'ended', 'draft']);
 
 const baseFields = {
   name: z.string().min(1).optional(),
@@ -31,6 +32,7 @@ const baseFields = {
   entry_fee_amount: z.number().min(0).optional(),
   entry_fee_currency: z.string().optional(),
   entry_fee_note: z.string().optional(),
+  status: statusSchema.optional(),
 };
 
 // Mirrors the DB CHECK constraints so invalid combinations fail fast with a

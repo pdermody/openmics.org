@@ -313,7 +313,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
             <p>{t('kioskRegistrationQrIntro')}</p>
             <div className="kiosk-registration-qr-grid">
               <RegistrationLinkTools
-                url={`${window.location.origin}/events/${event.data.public_code}/register`}
+                url={`${window.location.origin}/events/${event.data.id}/register`}
                 fileName={event.data.public_code}
                 title={t('registerForThisEvent')}
                 showPreview

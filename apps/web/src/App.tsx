@@ -6,6 +6,7 @@ import { EventPage } from './views/EventPage'
 import { OpenMicPage } from './views/OpenMicPage'
 import { ProfilePage } from './views/ProfilePage'
 import { RegistrationPage } from './views/RegistrationPage'
+import { DurableRegistrationPage } from './views/DurableRegistrationPage'
 import { AuthPage } from './views/AuthPage'
 import { OnboardingPage } from './views/OnboardingPage'
 import { useAccountContext } from './features/account'
@@ -15,7 +16,6 @@ import { DEFAULT_THEME, isColorMode, isThemeId, MODE_STORAGE_KEY, systemColorMod
 
 const ProfileEditor = lazy(() => import('./views/ProfileEditorPage').then((module) => ({ default: module.ProfileEditorPage })))
 const OrganizerDashboard = lazy(() => import('./views/OrganizerDashboardPage').then((module) => ({ default: module.OrganizerDashboardPage })))
-const OrganizerSeries = lazy(() => import('./views/OrganizerSeriesPage').then((module) => ({ default: module.OrganizerSeriesPage })))
 const OrganizerEvents = lazy(() => import('./views/OrganizerEventsPage').then((module) => ({ default: module.OrganizerEventsPage })))
 const OpenMicForm = lazy(() => import('./views/OpenMicFormPage').then((module) => ({ default: module.OpenMicFormPage })))
 const EventForm = lazy(() => import('./views/EventFormPage').then((module) => ({ default: module.EventFormPage })))
@@ -37,12 +37,13 @@ function App() {
   const pathname = window.location.pathname
   const eventMatch = pathname.match(/^\/events\/([^/]+)$/)
   const registrationMatch = pathname.match(/^\/events\/([^/]+)\/register$/)
+  const openMicRegistrationMatch = pathname.match(/^\/open-mics\/([^/]+)\/register$/)
+  const vanityRegistrationMatch = pathname.match(/^\/@([^/]+)\/register$/)
   const openMicMatch = pathname.match(/^\/open-mics\/([^/]+)$/)
   const profileMatch = pathname.match(/^\/profiles\/([^/]+)$/)
   const profileEditMatch = pathname.match(/^\/profiles\/([^/]+)\/edit$/)
   const themeMatch = pathname === '/settings/theme'
   const dashboardMatch = pathname === '/dashboard'
-  const seriesMatch = pathname === '/dashboard/series'
   const seriesNewMatch = pathname === '/dashboard/series/new'
   const seriesEditMatch = pathname.match(/^\/dashboard\/series\/([^/]+)\/edit$/)
   const seriesEventsMatch = pathname.match(/^\/dashboard\/series\/([^/]+)$/)
@@ -73,7 +74,6 @@ function App() {
   if (authMatch) return <AuthPage mode={authMatch[1] as 'sign-in' | 'sign-up' | 'confirm-sign-up' | 'forgot-password' | 'reset-password'} theme={theme} colorMode={mode} />
   if (accountSecurityMatch) return <AuthPage mode="change-password" theme={theme} colorMode={mode} />
   if (dashboardMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OrganizerDashboard theme={theme} mode={mode} /></LazyView></RoutedView>
-  if (seriesMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OrganizerSeries theme={theme} mode={mode} /></LazyView></RoutedView>
   if (seriesNewMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OpenMicForm theme={theme} mode={mode} /></LazyView></RoutedView>
   if (seriesEditMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OpenMicForm seriesId={seriesEditMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
   if (eventNewMatch) return <RoutedView theme={theme} mode={mode}><LazyView><EventForm seriesId={eventNewMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
@@ -84,6 +84,8 @@ function App() {
   if (profileEditMatch) return <RoutedView theme={theme} mode={mode}><LazyView><ProfileEditor profileId={profileEditMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
   if (eventMatch) return <RoutedView theme={theme} mode={mode}><EventPage id={eventMatch[1]} theme={theme} mode={mode} /></RoutedView>
   if (registrationMatch) return <RoutedView theme={theme} mode={mode}><RegistrationPage eventCode={registrationMatch[1]} theme={theme} mode={mode} /></RoutedView>
+  if (openMicRegistrationMatch) return <RoutedView theme={theme} mode={mode}><DurableRegistrationPage openMicId={openMicRegistrationMatch[1]} theme={theme} mode={mode} /></RoutedView>
+  if (vanityRegistrationMatch) return <RoutedView theme={theme} mode={mode}><DurableRegistrationPage openMicId={vanityRegistrationMatch[1]} theme={theme} mode={mode} /></RoutedView>
   if (openMicMatch) return <RoutedView theme={theme} mode={mode}><OpenMicPage id={openMicMatch[1]} theme={theme} mode={mode} /></RoutedView>
   if (profileMatch) return <RoutedView theme={theme} mode={mode}><ProfilePage id={profileMatch[1]} theme={theme} mode={mode} /></RoutedView>
   return <RoutedView theme={theme} mode={mode}><HomePage theme={theme} mode={mode} /></RoutedView>

@@ -124,7 +124,7 @@ export async function findOpenMicById(client: Queryable, id: string): Promise<Op
 
 export async function findOpenMicByIdOrPublicCode(client: Queryable, identifier: string): Promise<OpenMicRow | null> {
   const result = await client.query<OpenMicRow>(
-    'SELECT * FROM open_mics WHERE (id::text = $1 OR public_code = upper($1)) AND deleted_at IS NULL',
+    'SELECT * FROM open_mics WHERE (id::text = $1 OR public_code = upper($1) OR lower(current_handle) = lower($1)) AND deleted_at IS NULL',
     [identifier],
   );
   return result.rows[0] ?? null;
@@ -222,6 +222,7 @@ const UPDATABLE_COLUMNS = [
   'entry_fee_amount',
   'entry_fee_currency',
   'entry_fee_note',
+  'status',
 ] as const;
 
 export async function updateOpenMic(
@@ -249,6 +250,17 @@ export async function updateOpenMic(
     values,
   );
   return result.rows[0] ?? null;
+}
+
+export async function softDeleteOpenMic(pool: Pool, id: string): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE open_mics
+     SET deleted_at = now(), recovery_deadline = now() + interval '30 days', updated_at = now()
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING id`,
+    [id],
+  );
+  return result.rowCount === 1;
 }
 
 // Per-series (not per-device) so the fallback works from any device/browser that runs this

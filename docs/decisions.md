@@ -89,7 +89,7 @@ This file records settled decisions that affect more than one planning document.
 - **Heartbeat:** the server sends an SSE comment ping every 15 seconds to keep the connection alive through intermediary proxies/load balancers and to let the client detect a silently-dead connection.
 - **Multi-instance fan-out:** the API runs as multiple ECS Fargate tasks, so an in-process event emitter cannot reach a connection held by a different task. The server uses PostgreSQL `LISTEN/NOTIFY` (channel keyed by event id) so any task holding the SSE connection for that event is notified regardless of which task handled the write, without introducing a separate message broker for Phase 1.
 - **Reconnect:** the client uses exponential backoff capped at 30 s, per [5-open-mic-frontend-architecture.md §6](../docs/5-open-mic-frontend-architecture.md).
-- This contract is defined now (Milestone 0) but not implemented; Milestone 2 either implements it or, if descoped, Milestone 2 must make polling the explicit fallback rather than leaving a placeholder claim (see IMPLEMENTATION-PLAN.md Milestone 0 item 3).
+- This contract is implemented in the API and frontend; reconnects use a full roster resync because PostgreSQL `NOTIFY` is not a durable replay log. Playwright coverage and staging validation remain open.
 
 ## Milestone 2 event lifecycle
 

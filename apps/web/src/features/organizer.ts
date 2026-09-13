@@ -63,6 +63,7 @@ export type OpenMicFormInput = {
   entry_fee_currency?: string
   entry_fee_note?: string
   handle?: string
+  status?: 'active' | 'paused' | 'ended' | 'draft'
 }
 
 export const organizerKeys = {
@@ -109,7 +110,7 @@ export function useCreateOpenMic(profileId: string | undefined) {
 export function useUpdateOpenMic(openMicId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: Omit<OpenMicFormInput, 'handle'>) => api<OpenMicDetail>(`/open-mics/${openMicId}`, {
+    mutationFn: (input: Partial<Omit<OpenMicFormInput, 'handle'>>) => api<OpenMicDetail>(`/open-mics/${openMicId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
@@ -117,6 +118,17 @@ export function useUpdateOpenMic(openMicId: string | undefined) {
     onSuccess: (updated) => {
       queryClient.setQueryData(organizerKeys.openMic(openMicId), updated)
       queryClient.invalidateQueries({ queryKey: organizerKeys.openMics(updated.owner_profile_id) })
+    },
+  })
+}
+
+export function useDeleteOpenMic(openMicId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => api<void>(`/open-mics/${openMicId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organizer', 'open-mics'] })
+      queryClient.removeQueries({ queryKey: organizerKeys.openMic(openMicId) })
     },
   })
 }
@@ -241,6 +253,17 @@ export function useUpdateEvent(openMicId: string | undefined, eventId: string | 
     onSuccess: (updated) => {
       queryClient.setQueryData([...organizerKeys.openMics(openMicId), 'event', eventId], updated)
       queryClient.invalidateQueries({ queryKey: [...organizerKeys.openMics(openMicId), 'events'] })
+    },
+  })
+}
+
+export function useDeleteEvent(openMicId: string | undefined, eventId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => api<void>(`/events/${eventId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...organizerKeys.openMics(openMicId), 'events'] })
+      queryClient.removeQueries({ queryKey: [...organizerKeys.openMics(openMicId), 'event', eventId] })
     },
   })
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { CalendarDays, Clock3, MapPin, Users } from 'lucide-react'
 import { ApiError, api } from '../api/client'
 import { useAccountContext } from '../features/account'
 import { markEventRegisteredLocally } from '../features/guestRegistrations'
@@ -42,8 +43,19 @@ function editSessionStorageKey(eventCode: string) {
   return `openmic_edit_registration_id_${eventCode}`
 }
 
+function formatEventDateTime(startsAt: string, timeZone: string, locale: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZone, timeZoneName: 'short',
+    }).format(new Date(startsAt))
+  } catch {
+    return new Date(startsAt).toLocaleString()
+  }
+}
+
 export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string } & ThemeProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const event = usePublicEvent(eventCode)
   const parentOpenMic = usePublicOpenMic(event.data?.open_mic_id)
   const accountContext = useAccountContext()
@@ -195,7 +207,14 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
         {event.data && <>
           <div className="eyebrow">{t('registration')}</div>
           <h1>{editRegistration ? t('editRegistrationTitle', { title: event.data.title }) : t('joinTitle', { title: event.data.title })}</h1>
-          <p className="detail-lede">{event.data.venue_name}, {event.data.city}. {t('registrationLead')}</p>
+          <div className="registration-event-summary" aria-label={t('eventDetails')}>
+            {parentOpenMic.data && <p className="registration-series-name">{parentOpenMic.data.name}</p>}
+            <p className="registration-event-fact"><CalendarDays size={17} aria-hidden="true" /><strong>{formatEventDateTime(event.data.starts_at, event.data.time_zone, i18n.language)}</strong></p>
+            <p className="registration-event-fact"><MapPin size={17} aria-hidden="true" /><span>{event.data.venue_name}, {event.data.city}, {event.data.country}</span></p>
+            {event.data.capacity && <p className="registration-event-fact"><Users size={17} aria-hidden="true" /><span>{t('eventCapacity', { count: event.data.capacity })}</span></p>}
+            <p className="registration-event-fact"><Clock3 size={17} aria-hidden="true" /><span>{eventRegistrationClosed ? t('registrationClosed') : registrationMode === 'on_night_only' ? t('onNightRegistration') : t('registrationOpen')}</span></p>
+          </div>
+          <p className="detail-lede">{t('registrationLead')}</p>
           {editState === 'loading' && <ReadState message={t('loadingRegistration')} />}
           {editState === 'error' && <div className="profile-context profile-context-warning" role="alert">{t('invalidEditLink')}</div>}
           {verifyState === 'verified' && <div className="profile-context" role="status">{t('emailConfirmed')}</div>}

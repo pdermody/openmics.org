@@ -178,11 +178,11 @@ Since Nominatim's public endpoint **explicitly forbids autocomplete-while-typing
 [^13]: docs/architecture/data-model.md:241-263 — `Events` entity mirrors the same address/lat/lng fields as `OpenMics`.
 [^14]: docs/architecture/data-model.md:261 — `CHECK ((lat IS NULL) = (lng IS NULL))` on `Events`.
 [^15]: docs/3-open-mic-requirements.md — full-document search found no map/geolocation/geocoding requirements text; only generic "venue" mentions at lines 67, 75, 126, 131.
-[^16]: [Leaflet](https://leafletjs.com/) documentation; [react-leaflet npm package](https://www.npmjs.com/package/react-leaflet).
+[^16]: [Leaflet](https://leafletjs.com/) documentation; [react-leaflet repository](https://github.com/PaulLeCam/react-leaflet).
 [^17]: [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/).
 [^18]: [Leaflet Marker API reference — drag events](https://leafletjs.com/reference.html#marker-event).
 [^19]: [React-Leaflet "Draggable Marker" official example](https://react-leaflet.js.org/docs/example-draggable-marker/).
-[^20]: [maplibre-gl npm package](https://www.npmjs.com/package/maplibre-gl); [MapLibre GL JS docs](https://maplibre.org/maplibre-gl-js/docs/).
+[^20]: [maplibre-gl repository](https://github.com/maplibre/maplibre-gl-js); [MapLibre GL JS docs](https://maplibre.org/maplibre-gl-js/docs/).
 [^21]: [MapTiler Cloud pricing](https://www.maptiler.com/cloud/pricing/).
 [^22]: [Protomaps](https://protomaps.com/).
 [^23]: [MapLibre GL JS Marker class API](https://maplibre.org/maplibre-gl-js/docs/API/classes/Marker/).
@@ -190,7 +190,7 @@ Since Nominatim's public endpoint **explicitly forbids autocomplete-while-typing
 [^25]: [Google Maps Geocoding API usage and billing](https://developers.google.com/maps/documentation/geocoding/usage-and-billing); [Google Maps Platform pricing](https://mapsplatform.google.com/pricing/).
 [^26]: [Google Places Autocomplete (new) documentation](https://developers.google.com/maps/documentation/javascript/place-autocomplete-new).
 [^27]: [Google Places Autocomplete + Address Form official sample](https://developers.google.com/maps/documentation/javascript/examples/places-autocomplete-addressform).
-[^28]: [mapbox-gl npm package](https://www.npmjs.com/package/mapbox-gl).
+[^28]: [mapbox-gl repository](https://github.com/mapbox/mapbox-gl-js).
 [^29]: [Mapbox pricing / Commercial Application License terms](https://www.mapbox.com/pricing).
 [^30]: [Mapbox "Create a draggable point" official example](https://docs.mapbox.com/mapbox-gl-js/example/drag-a-point/).
 [^31]: [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/) — 1 req/sec cap, autocomplete listed as "Unacceptable Use."

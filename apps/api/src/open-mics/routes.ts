@@ -7,7 +7,7 @@ import { parseGeoFilter } from '../geo.js';
 import { assignHandle } from '../handles/service.js';
 import { requireOwnedProfile } from '../profiles/current-profile.js';
 import { findProfileById } from '../profiles/repository.js';
-import { findOpenMicById, findOpenMicByIdOrPublicCode, findOwnedOpenMics, findPublicOpenMics, getKioskBackupPinHash, insertOpenMic, serializeOpenMic, setKioskBackupPinHash, updateOpenMic } from './repository.js';
+import { findOpenMicById, findOpenMicByIdOrPublicCode, findOwnedOpenMics, findPublicOpenMics, getKioskBackupPinHash, insertOpenMic, serializeOpenMic, setKioskBackupPinHash, softDeleteOpenMic, updateOpenMic } from './repository.js';
 import { createOpenMicSchema, kioskBackupPinSchema, updateOpenMicSchema } from './validation.js';
 
 export type OpenMicsPluginOptions = { pool: Pool };
@@ -118,6 +118,13 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
 
     const updated = await updateOpenMic(pool, existing.id, parsed.data);
     reply.send(serializeOpenMic(updated!));
+  });
+
+  app.delete<{ Params: { id: string } }>('/open-mics/:id', { preHandler: app.authenticate }, async (request, reply) => {
+    const openMic = await requireOwnedOpenMic(request);
+    if (openMic.status !== 'paused') throw new ValidationError('Only paused series can be deleted');
+    if (!(await softDeleteOpenMic(pool, openMic.id))) throw new NotFoundError('Open mic not found');
+    reply.code(204).send();
   });
 
   // Kiosk backup PIN: configured server-side per series (not per-device), so it's the organizer's

@@ -1,4 +1,4 @@
-import { Clock3, MapPin } from 'lucide-react'
+import { Clock3, Eye, MapPin, Pencil, Settings2 } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
 import { useTranslation } from 'react-i18next'
 import { useAccountContext } from '../features/account'
@@ -23,6 +23,8 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   const parentOpenMic = usePublicOpenMic(kind === 'event' ? event.data?.open_mic_id : undefined)
   const accountContext = useAccountContext()
   const activeProfile = accountContext.profiles.data?.items.find((profileItem) => profileItem.id === accountContext.account.data?.current_profile_id)
+  const ownsOpenMic = Boolean(openMic.data && accountContext.profiles.data?.items.some((profileItem) => profileItem.id === openMic.data?.owner_profile_id))
+  const ownsEvent = Boolean(parentOpenMic.data && accountContext.profiles.data?.items.some((profileItem) => profileItem.id === parentOpenMic.data?.owner_profile_id))
   const needsPerformerProfile = Boolean(accountContext.account.data) && activeProfile?.profile_kind !== 'performer'
   const registeredEventIds = useMyRegisteredEventIds()
   const isRegisteredForEvent = kind === 'event' && Boolean(event.data) && registeredEventIds.has(event.data!.id)
@@ -61,6 +63,16 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
             {profile.data?.profile_kind && <span>{profile.data.profile_kind}</span>}
           </div>
           <div className="detail-actions">
+            {kind === 'open-mic' && ownsOpenMic && <>
+              <a className="quiet-button icon-button" href={`/open-mics/${openMic.data?.current_handle ?? openMic.data?.id}`} aria-label={t('view')} title={t('view')}><Eye size={17} /></a>
+              <a className="quiet-button icon-button" href={`/dashboard/series/${openMic.data?.id}/edit`} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></a>
+              <a className="quiet-button icon-button" href={`/dashboard/series/${openMic.data?.id}`} aria-label={t('manage')} title={t('manage')}><Settings2 size={17} /></a>
+            </>}
+            {kind === 'event' && ownsEvent && <>
+              <a className="quiet-button icon-button" href={`/events/${event.data?.public_code}`} aria-label={t('view')} title={t('view')}><Eye size={17} /></a>
+              <a className="quiet-button icon-button" href={`/dashboard/series/${parentOpenMic.data?.id}/events/${event.data?.id}/edit`} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></a>
+              <a className="quiet-button icon-button" href={`/dashboard/series/${parentOpenMic.data?.id}/events/${event.data?.id}/roster`} aria-label={t('manage')} title={t('manage')}><Settings2 size={17} /></a>
+            </>}
             {kind === 'event' && (
               isRegisteredForEvent ? (
                 <span className="profile-context" role="status">{t('registeredEvent')}</span>

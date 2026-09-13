@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Clipboard, QrCode } from 'lucide-react'
+import { Check, Copy, QrCode } from 'lucide-react'
 import QRCode from 'qrcode'
 import { useTranslation } from 'react-i18next'
 
@@ -10,7 +10,7 @@ type RegistrationLinkToolsProps = {
   showPreview?: boolean
 }
 
-async function copyText(value: string): Promise<void> {
+export async function copyRegistrationLink(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value)
     return
@@ -24,6 +24,14 @@ async function copyText(value: string): Promise<void> {
   input.select()
   document.execCommand('copy')
   input.remove()
+}
+
+export async function downloadRegistrationQr(url: string, fileName: string): Promise<void> {
+  const dataUrl = await QRCode.toDataURL(url, { width: 512, margin: 2 })
+  const link = document.createElement('a')
+  link.href = dataUrl
+  link.download = `${fileName}-registration-qr.png`
+  link.click()
 }
 
 export function RegistrationLinkTools({ url, fileName, title, showPreview = false }: RegistrationLinkToolsProps) {
@@ -43,7 +51,7 @@ export function RegistrationLinkTools({ url, fileName, title, showPreview = fals
 
   async function handleCopy() {
     try {
-      await copyText(url)
+      await copyRegistrationLink(url)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1800)
     } catch {
@@ -54,11 +62,7 @@ export function RegistrationLinkTools({ url, fileName, title, showPreview = fals
   async function handleQrDownload() {
     setQrPending(true)
     try {
-      const dataUrl = await QRCode.toDataURL(url, { width: 512, margin: 2 })
-      const link = document.createElement('a')
-      link.href = dataUrl
-      link.download = `${fileName}-registration-qr.png`
-      link.click()
+      await downloadRegistrationQr(url, fileName)
     } finally {
       setQrPending(false)
     }
@@ -68,7 +72,7 @@ export function RegistrationLinkTools({ url, fileName, title, showPreview = fals
     {title && <h3>{title}</h3>}
     {showPreview && (qrDataUrl ? <img className="registration-qr" src={qrDataUrl} alt={title ? `${title} QR code` : t('registrationQr')} /> : <span className="registration-qr-loading" role="status">{t('preparingQr')}</span>)}
     <button type="button" className="quiet-button" onClick={() => void handleCopy()}>
-      {copied ? <Check size={15} aria-hidden="true" /> : <Clipboard size={15} aria-hidden="true" />}
+      {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
       {copied ? t('linkCopied') : t('copyLink')}
     </button>
     <button type="button" className="quiet-button" onClick={() => void handleQrDownload()} disabled={qrPending}>

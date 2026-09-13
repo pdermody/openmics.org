@@ -17,7 +17,6 @@ This document originally captured concerns from an early review of the Open Mic 
 - **Media source validation undefined.** Settled: photos must be objects in the platform's own S3 bucket via the upload-url flow; videos must link to an allowlisted host (`youtube.com`, `youtu.be`, `vimeo.com`) — arbitrary hosts are rejected (see [decisions.md → Media](decisions.md#media)). Upload size limits, MIME validation, and malware scanning remain open — see below (Media is Milestone 5 and not yet built).
 - **`PUT` vs `PATCH` inconsistency across the contract.** Settled as part of Milestone 0: profile, open-mic, event, registration, and account updates all use `PATCH` with a partial body (see [decisions.md → API Contract](decisions.md#api-contract) and [decisions.md → Milestone 0 contract reconciliation](decisions.md#milestone-0-contract-reconciliation)).
 - **`/auth/*` JSON endpoints vs. Cognito/Amplify.** Settled: `/auth/sign-up`, `/auth/sign-in`, `/auth/refresh-token` are removed from `openapi.yaml`; the browser talks to Cognito directly through Amplify (see [decisions.md → Milestone 0 contract reconciliation](decisions.md#milestone-0-contract-reconciliation)).
-- **No defined live-update contract.** Settled and implemented: a narrowly scoped organizer event-roster SSE stream is defined and implemented (auth, event names, ordering/resume, heartbeat, and multi-instance fan-out) — see [decisions.md → Live updates](decisions.md#live-updates).
 
 ## Still open for Phase 1
 

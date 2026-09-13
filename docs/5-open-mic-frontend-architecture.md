@@ -146,7 +146,7 @@ Events:
 - `/open-mics/:id/events/:eventId/edit` — Edit event (requires `events:manage`)
 - `/events/:eventId/register` — Public self-registration flow (guest or signed-in); shareable link, reachable via organic browsing, a shared link, an email reminder, a social ad, or a poster QR code — the page and verification behavior are identical regardless of entry point. If `?token=<edit_token>` is present, the server exchanges it for a short-lived HttpOnly edit session, strips the token before rendering, and loads the existing registration for editing without requiring an account. Accepts an optional `?ref=<profile_id>` referral param.
 - `/open-mics/:id/register` (and `/@:handle/register`) — Durable "next scheduled event" registration link for posters/QR codes that never need reprinting; forwards to the soonest upcoming event's register page, or shows the open mic's schedule summary if none is currently open.
-- `/dashboard/series/:seriesId/events/:eventId/kiosk` — Organizer walk-in kiosk. Requires the active organizer profile and event ownership. Uses a high-contrast, touch-friendly flow, loops after each registration, and protects exit with a session or series backup PIN.
+- `/dashboard/series/:seriesId/events/:eventId/kiosk` — Organizer walk-in kiosk. Requires the active organizer profile and event ownership. Uses a high-contrast, touch-friendly flow, loops after each registration, displays event and durable-series registration QR codes, and protects entry/exit with the server-stored series PIN plus navigation guards.
 
 Profiles:
 - `/accounts/:id/profiles` — All profiles for current user
@@ -387,7 +387,7 @@ Every string in the UI is translatable; **user-generated content is not** — op
 3. **Browser** — best-match between `navigator.languages` and the manifest in `src/i18n/supported.ts`.
 4. **Fallback** — `en`.
 
-**Changing language.** The switcher (a) writes to localStorage optimistically, (b) reloads active i18next namespaces, (c) updates the `<html lang>` attribute, and (d) if signed in, fires `PUT /accounts/:id` with the new `preferred_language`. If (d) fails, the local choice still stands; a retry piggybacks on the next mutation.
+**Changing language.** The switcher (a) writes to localStorage optimistically, (b) reloads active i18next namespaces, (c) updates the `<html lang>` attribute, and (d) if signed in, fires `PATCH /accounts/:id` with the new `preferred_language`. If (d) fails, the local choice still stands; a retry piggybacks on the next mutation.
 
 **Cross-device consistency.** On subsequent session start for a signed-in user, the server's `preferred_language` wins over localStorage (durable choice, possibly set from another device); the client updates localStorage to match, so a later signed-out visit on the same browser is consistent.
 
