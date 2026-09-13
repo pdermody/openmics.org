@@ -8,8 +8,14 @@ import { initAuth } from './auth/session'
 import { i18nReady } from './i18n'
 
 void i18nReady.then(() => initAuth({
-  onSignedIn: () => queryClient.invalidateQueries(),
-  onSignedOut: () => queryClient.clear(),
+  onSignedIn: () => {
+    queryClient.invalidateQueries({ queryKey: ['auth', 'session'] })
+    queryClient.invalidateQueries()
+  },
+  onSignedOut: () => {
+    queryClient.clear()
+    queryClient.invalidateQueries({ queryKey: ['auth', 'session'] })
+  },
 }))
 
 void i18nReady.then(() => createRoot(document.getElementById('root')!).render(

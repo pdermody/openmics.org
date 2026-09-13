@@ -36,7 +36,7 @@ export function EventCard({ event }: { event: Event }) {
       </div>
       <div className="event-main">
         <div className="event-type">
-          Open mic{event.capacity ? ` · ${event.capacity} spots` : ''}
+          {event.capacity ? t('openMicWithCapacity', { count: event.capacity }) : t('openMicSeries')}
         </div>
         <h3>
           <a className="card-link" href={`/events/${event.public_code}`}>

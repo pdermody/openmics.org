@@ -123,13 +123,20 @@ export async function getAccessToken(): Promise<string | undefined> {
   if (simulatedAuthToken) return simulatedAuthToken
   if (localAuthToken) return localAuthToken
   if (!isAuthConfigured) return undefined
-  const { fetchAuthSession } = await authModules()
-  const session = await fetchAuthSession()
-  // The API verifies the Cognito ID token, not the access token: only the ID token carries the
-  // verified `email` claim account provisioning relies on (see apps/api/src/auth/cognito-verifier.ts
-  // and docs/5-open-mic-frontend-architecture.md). `fetchAuthSession` transparently refreshes
-  // expired tokens using the stored refresh token before returning them.
-  return session.tokens?.idToken?.toString()
+
+  try {
+    const { getCurrentUser, fetchAuthSession } = await authModules()
+    const user = await getCurrentUser().catch(() => null)
+    if (!user) return undefined
+    const session = await fetchAuthSession()
+    // The API verifies the Cognito ID token, not the access token: only the ID token carries the
+    // verified `email` claim account provisioning relies on (see apps/api/src/auth/cognito-verifier.ts
+    // and docs/5-open-mic-frontend-architecture.md). `fetchAuthSession` transparently refreshes
+    // expired tokens using the stored refresh token before returning them.
+    return session.tokens?.idToken?.toString()
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -140,8 +147,10 @@ export async function getAccessToken(): Promise<string | undefined> {
  */
 export async function refreshAccessToken(): Promise<string | undefined> {
   if (getStoredSimulatedAuthToken() || localAuthToken || !isAuthConfigured) return undefined
-  const { fetchAuthSession } = await authModules()
   try {
+    const { getCurrentUser, fetchAuthSession } = await authModules()
+    const user = await getCurrentUser().catch(() => null)
+    if (!user) return undefined
     const session = await fetchAuthSession({ forceRefresh: true })
     return session.tokens?.idToken?.toString()
   } catch {

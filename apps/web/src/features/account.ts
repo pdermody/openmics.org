@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import { getStoredSimulatedAuthToken, isAuthConfigured } from '../auth/session'
+import { getAuthenticatedUser, getStoredSimulatedAuthToken, isAuthConfigured } from '../auth/session'
 
 export type Account = {
   id: string
@@ -41,7 +41,16 @@ type QueryState<T> = {
 export function useAccountContext(enabled = true) {
   const queryClient = useQueryClient()
   const simulatedAuthToken = getStoredSimulatedAuthToken()
-  const hasAuth = isAuthConfigured || Boolean(import.meta.env.VITE_LOCAL_AUTH_TOKEN) || Boolean(simulatedAuthToken)
+  const isSessionKnown = useQuery({
+    queryKey: ['auth', 'session'] as const,
+    queryFn: async () => {
+      if (!isAuthConfigured) return false
+      return Boolean(await getAuthenticatedUser())
+    },
+    enabled: isAuthConfigured && enabled,
+    retry: false,
+  })
+  const hasAuth = Boolean(import.meta.env.VITE_LOCAL_AUTH_TOKEN) || Boolean(simulatedAuthToken) || (isAuthConfigured && isSessionKnown.data === true)
 
   const account = useQuery({
     queryKey: accountKeys.me,

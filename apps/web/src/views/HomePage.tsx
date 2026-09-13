@@ -31,7 +31,7 @@ export function HomePage({ theme, mode }: ThemeProps) {
 
       <section className="content-grid" id="events">
         <div className="section-heading">
-          <div><span className="panel-label">{t('thisWeek')}</span><h2>{near ? `${t('roomsWorth')} ${accountContext.account.data?.city}` : t('roomsWorth')}</h2></div>
+          <div><span className="panel-label">{t('thisWeek')}</span><h2>{near ? t('roomsNear', { city: accountContext.account.data?.city }) : t('roomsWorth')}</h2></div>
         </div>
         {upcomingEvents.isPending && <ReadState message="Finding upcoming rooms…" />}
         {upcomingEvents.isError && <ReadState message={friendlyApiErrorMessage(upcomingEvents.error, 'We could not load upcoming events. Please try again.')} retry={() => void upcomingEvents.refetch()} />}
@@ -39,7 +39,7 @@ export function HomePage({ theme, mode }: ThemeProps) {
         {upcomingEvents.data?.slice(0, 3).map((event) => <EventCard event={event} key={event.id} />)}
 
         <div className="section-heading series-heading">
-          <div><span className="panel-label">{t('findYourRoom')}</span><h2>{near ? `${t('seriesNearby')} ${accountContext.account.data?.city}` : t('seriesNearby')}</h2></div>
+          <div><span className="panel-label">{t('findYourRoom')}</span><h2>{near ? t('seriesNear', { city: accountContext.account.data?.city }) : t('seriesNearby')}</h2></div>
         </div>
         {openMics.isPending && <ReadState message="Finding open mic series…" />}
         {openMics.isError && <ReadState message={friendlyApiErrorMessage(openMics.error, 'We could not load open mic series. Please try again.')} retry={() => void openMics.refetch()} />}
