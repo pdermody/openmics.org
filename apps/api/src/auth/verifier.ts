@@ -2,10 +2,9 @@ import type { Pool } from 'pg';
 
 import type { AuthVerifier } from './types.js';
 
-// Interim account resolution: treats the bearer token as an accounts.cognito_id.
-// A real Cognito verifier would validate the JWT against Cognito's JWKS and
-// extract the `sub` claim before this same lookup step; JWT signature
-// verification is not yet implemented and must be added before production use.
+// Development/test-only account resolution: treats the bearer token as an
+// accounts.cognito_id. Production never selects this verifier; it requires the
+// Cognito JWKS-backed ID-token verifier in createDefaultAuthVerifier.
 export function createAccountLookupVerifier(pool: Pool): AuthVerifier {
   return async (token) => {
     const result = await pool.query<{ id: string; is_platform_admin: boolean }>(

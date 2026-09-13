@@ -107,6 +107,15 @@ export async function initAuth(handlers: AuthEventHandlers = {}): Promise<void> 
       }
     }
   })
+
+  // Hub only reports future events. Notify the app when a session already exists so a
+  // full-page reload restores account/profile queries and preference synchronization too.
+  try {
+    const user = await getAuthenticatedUser()
+    if (user) handlers.onSignedIn?.()
+  } catch {
+    // An absent or expired session is the normal signed-out state; the API boundary handles it.
+  }
 }
 
 export async function getAccessToken(): Promise<string | undefined> {

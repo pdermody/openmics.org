@@ -77,4 +77,22 @@ describe('createDefaultAuthVerifier', () => {
     await verifier('dev-owner');
     expect(fakeCognitoVerifier).not.toHaveBeenCalled();
   });
+
+  it('does not enable simulated plain-token lookup outside development', async () => {
+    const pool = fakePool();
+    const fakeCognitoVerifier = vi.fn(async () => ({ accountId: 'cognito-account', isPlatformAdmin: false }));
+    const cognitoVerifierFactory = vi.fn(() => fakeCognitoVerifier);
+    const config: AppConfig = {
+      ...baseConfig,
+      environment: 'test',
+      simulatedAuthMode: true,
+      cognitoUserPoolId: 'pool',
+      cognitoClientId: 'client',
+    };
+
+    const verifier = createDefaultAuthVerifier(pool, config, { createCognitoVerifier: cognitoVerifierFactory });
+    await verifier('dev-owner');
+
+    expect(fakeCognitoVerifier).toHaveBeenCalledWith('dev-owner');
+  });
 });

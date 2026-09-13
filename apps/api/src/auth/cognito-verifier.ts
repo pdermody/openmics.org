@@ -46,6 +46,7 @@ export function createCognitoVerifier(pool: Pool, options: CognitoVerifierOption
 
     if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null;
     if (typeof payload.email !== 'string' || payload.email.length === 0) return null;
+    if (payload.email_verified !== true) return null;
 
     // `cognito:username` is not a reliable display name: for user pools with email as the
     // sign-in alias (this one), Cognito sets it to the raw `sub` GUID unless the user set a

@@ -45,6 +45,7 @@ describe('createCognitoVerifier', () => {
       aud: CLIENT_ID,
       sub: 'cognito-sub-123',
       email: 'user@example.com',
+      email_verified: true,
       name: 'Test User',
       ...overrides,
     };
@@ -167,6 +168,20 @@ describe('createCognitoVerifier', () => {
 
     const token = await signToken(validIdTokenClaims({ email: undefined }));
     expect(await verifier(token)).toBeNull();
+  });
+
+  it('returns null when the Cognito email is not verified', async () => {
+    const pool = fakePool([{ id: 'account-1', is_platform_admin: false }]);
+    const verifier = createCognitoVerifier(pool as never, {
+      region: REGION,
+      userPoolId: USER_POOL_ID,
+      clientId: CLIENT_ID,
+      getKey,
+    });
+
+    const token = await signToken(validIdTokenClaims({ email_verified: false }));
+    expect(await verifier(token)).toBeNull();
+    expect(pool.query).not.toHaveBeenCalled();
   });
 
   it('rejects a token signed by an unrelated key (bad signature)', async () => {
