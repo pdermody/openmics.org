@@ -17,7 +17,5 @@ export default defineConfig({
     clearMocks: true,
     fileParallelism: false,
     maxWorkers: 1,
-    pool: 'forks',
-    singleFork: true,
   },
 })

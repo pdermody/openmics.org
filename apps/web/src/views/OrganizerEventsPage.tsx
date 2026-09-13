@@ -8,20 +8,21 @@ import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
 
 export function OrganizerEventsPage({ seriesId, theme, mode }: { seriesId: string; theme: ThemeId; mode: ColorMode }) {
   const { t } = useTranslation()
-  const { context, activeProfile: selected, isOrganizer } = useOrganizerProfile()
+  const { context, activeProfile: selected, isOrganizer, isOrganizerPending } = useOrganizerProfile()
   const series = useOrganizerOpenMics(isOrganizer ? selected?.id : undefined, isOrganizer)
   const openMic = series.data?.find((item) => item.id === seriesId)
   const events = useOrganizerSeriesEvents(seriesId, Boolean(isOrganizer && openMic))
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
       <a className="back-link" href="/dashboard/series">{t('backToDashboard')}</a>
       <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{openMic?.name ?? 'Series events'}</h1>
       {isOrganizer && openMic && <div className="dashboard-series-card-actions"><a className="quiet-button" href={`/dashboard/series/${seriesId}/edit`}>{t('editSeriesDetails')}</a><a className="quiet-button" href={`/dashboard/series/${seriesId}/events/new`}>{t('newEvent')}</a></div>}
-      {!context.account.data && <ReadState message={t('signInDashboard')} />}
-      {context.account.data && !isOrganizer && <ReadState message={t('selectOrganizer')} />}
+      {isOrganizerPending && <ReadState message={t('loading')} />}
+      {!isOrganizerPending && !context.account.data && <ReadState message={t('signInDashboard')} />}
+      {!isOrganizerPending && context.account.data && !isOrganizer && <ReadState message={t('selectOrganizer')} />}
       {isOrganizer && series.isPending && <ReadState message="Loading series…" />}
       {isOrganizer && series.isError && <ReadState message={friendlyApiErrorMessage(series.error, 'We could not load your series.')} retry={() => void series.refetch()} />}
       {isOrganizer && openMic && events.isPending && <ReadState message="Loading events…" />}

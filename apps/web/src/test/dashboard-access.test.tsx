@@ -14,7 +14,7 @@ describe('OrganizerDashboardPage access states', () => {
 
     renderWithProviders(<OrganizerDashboardPage theme="venue" mode="light" />)
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Sign in to open your dashboard.')
+    expect(await screen.findByText('Sign in to open your dashboard.')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Manage series' })).not.toBeInTheDocument()
   })
 })

@@ -6,17 +6,18 @@ import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
 
 export function OrganizerSeriesPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }) {
   const { t } = useTranslation()
-  const { context, activeProfile: selected, isOrganizer } = useOrganizerProfile()
+  const { context, activeProfile: selected, isOrganizer, isOrganizerPending } = useOrganizerProfile()
   const series = useOrganizerOpenMics(isOrganizer ? selected?.id : undefined, isOrganizer)
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
       <a className="back-link" href="/dashboard">{t('backToDashboard')}</a>
       <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{t('openMicSeries')}</h1>
-      {!context.account.data && <ReadState message={t('signInDashboard')} />}
-      {context.account.data && !isOrganizer && <ReadState message={t('selectOrganizer')} />}
+      {isOrganizerPending && <ReadState message={t('loading')} />}
+      {!isOrganizerPending && !context.account.data && <ReadState message={t('signInDashboard')} />}
+      {!isOrganizerPending && context.account.data && !isOrganizer && <ReadState message={t('selectOrganizer')} />}
       {isOrganizer && <a className="quiet-button" href="/dashboard/series/new">{t('createSeries')}</a>}
       {isOrganizer && series.isPending && <ReadState message="Loading your open mic series…" />}
       {isOrganizer && series.isError && <ReadState message="We could not load your open mic series." retry={() => void series.refetch()} />}

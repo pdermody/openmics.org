@@ -11,7 +11,8 @@ export function useOrganizerProfile() {
   const context = useAccountContext()
   const activeProfile = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
   const isOrganizer = Boolean(activeProfile?.profile_kind === 'organizer' && context.permissions.data?.permissions.includes('profiles:manage'))
-  return { context, activeProfile, isOrganizer }
+  const isOrganizerPending = context.account.isPending || context.profiles.isPending || context.permissions.isPending
+  return { context, activeProfile, isOrganizer, isOrganizerPending }
 }
 
 export type OpenMicDetail = OpenMic & {

@@ -102,6 +102,16 @@ describe('account context routes (real database)', () => {
     expect(invalid.statusCode).toBe(400);
   });
 
+  it('rejects malformed preferred language tags', async () => {
+    const invalid = await app.inject({
+      method: 'PATCH',
+      url: `/api/accounts/${accountId}`,
+      headers: { authorization: 'Bearer account-context-owner' },
+      payload: { preferred_language: 'not a language' },
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+
   it('exposes seeded local-dev simulated auth roles when enabled on the backend', async () => {
     await pool.query(`
       INSERT INTO accounts (cognito_id, email, display_name)

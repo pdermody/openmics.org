@@ -433,7 +433,7 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   const showPendingList = provenanceFilter === 'all' || provenanceFilter === 'pending'
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
       <a className="back-link" href={`/dashboard/series/${seriesId}`}>← Back to events</a>
       <div className="eyebrow">{t('eventOperations')}</div>

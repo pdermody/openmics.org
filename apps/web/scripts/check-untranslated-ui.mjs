@@ -28,7 +28,7 @@ const textChildPattern = /(?<![=])>\s*([A-Za-z][^<{\n]*?)\s*</g
 const attributePattern = /\b(?:aria-label|placeholder|title)\s*=\s*["']([A-Za-z][^"']*)["']/g
 const translationCallPattern = /\bt\s*\(/
 const nonUiLinePattern = /^(?:\s*\/\/|\s*\*|\s*\/\*)/
-const ignoredText = new Set(['open mic'])
+const ignoredText = new Set(['OpenMics.org'])
 
 for (const file of sourceFiles) {
   const source = await readFile(file, 'utf8')
