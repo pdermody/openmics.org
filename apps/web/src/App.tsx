@@ -56,6 +56,13 @@ function App() {
   useEffect(() => localStorage.setItem(THEME_STORAGE_KEY, theme), [theme])
   useEffect(() => localStorage.setItem(MODE_STORAGE_KEY, mode), [mode])
 
+  const activeProfile = account.profiles.data?.items.find((profile) => profile.id === account.account.data?.current_profile_id)
+  useEffect(() => {
+    if (!activeProfile) return
+    if (isThemeId(activeProfile.theme_name)) setTheme(activeProfile.theme_name)
+    if (isColorMode(activeProfile.color_mode)) setMode(activeProfile.color_mode)
+  }, [activeProfile?.id, activeProfile?.theme_name, activeProfile?.color_mode])
+
   // Every account must have at least one profile; gate all routes on a mandatory onboarding
   // step until the first profile is created (never gate while the profiles query is pending,
   // to avoid flashing onboarding for an account that already has profiles).

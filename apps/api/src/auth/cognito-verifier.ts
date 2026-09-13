@@ -29,7 +29,9 @@ export function createCognitoVerifier(pool: Pool, options: CognitoVerifierOption
     try {
       const verified = await jwtVerify(token, getKey, {
         issuer,
+        audience: options.clientId,
         algorithms: ['RS256'],
+        requiredClaims: ['exp', 'iat', 'sub', 'token_use', 'aud'],
       });
       payload = verified.payload;
     } catch {

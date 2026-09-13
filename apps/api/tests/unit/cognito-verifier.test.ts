@@ -103,6 +103,25 @@ describe('createCognitoVerifier', () => {
     expect(await verifier(token)).toBeNull();
   });
 
+  it('returns null when a signed token has no expiration claim', async () => {
+    const pool = fakePool([{ id: 'account-1', is_platform_admin: false }]);
+    const verifier = createCognitoVerifier(pool as never, {
+      region: REGION,
+      userPoolId: USER_POOL_ID,
+      clientId: CLIENT_ID,
+      getKey,
+    });
+
+    const token = await new SignJWT(validIdTokenClaims())
+      .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+      .setIssuedAt()
+      .setIssuer(ISSUER)
+      .sign(privateKey);
+
+    expect(await verifier(token)).toBeNull();
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
   it('returns null for the wrong issuer', async () => {
     const pool = fakePool([{ id: 'account-1', is_platform_admin: false }]);
     const verifier = createCognitoVerifier(pool as never, {

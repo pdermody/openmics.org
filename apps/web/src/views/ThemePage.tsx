@@ -12,17 +12,14 @@ export function ThemePage({ theme, mode, setTheme, setMode }: ThemeProps & { set
   const themeText = (id: ThemeId, field: 'name' | 'source' | 'note') => t(`themes.${id}.${field}`)
   const context = useAccountContext()
   const currentProfile = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
-  const hasSyncedFromProfile = useRef(false)
+  const syncedProfileId = useRef<string | undefined>(undefined)
 
-  // On first load of a signed-in profile, prefer the profile's saved preferences over
-  // whatever was already in localStorage (server is the source of truth once signed in).
   useEffect(() => {
-    if (!currentProfile || hasSyncedFromProfile.current) return
-    hasSyncedFromProfile.current = true
+    if (!currentProfile || syncedProfileId.current === currentProfile.id) return
+    syncedProfileId.current = currentProfile.id
     if (currentProfile.theme_name && currentProfile.theme_name !== theme) setTheme(currentProfile.theme_name as ThemeId)
     if (currentProfile.color_mode && currentProfile.color_mode !== mode) setMode(currentProfile.color_mode as ColorMode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProfile])
+  }, [currentProfile?.id, currentProfile?.theme_name, currentProfile?.color_mode, mode, setMode, setTheme, theme])
 
   function chooseTheme(next: ThemeId) {
     setTheme(next)

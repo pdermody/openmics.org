@@ -83,8 +83,8 @@ This status is a planning baseline, not a substitute for tests.
 
 ### Partial or not yet production-ready
 
-- The API auth verifier currently treats a bearer token as a Cognito ID; it does not validate a Cognito JWT signature, issuer, audience/client, token use, or expiry.
-- Account provisioning, account preference persistence, browser refresh/retry semantics, logout completion, and deployed Cognito configuration are incomplete.
+- The API auth verifier now validates Cognito ID-token signatures through cached JWKS, issuer, audience/client, required claims, token use, and expiry; production Cognito configuration and staging validation remain incomplete.
+- Account provisioning is idempotent on first verified sign-in, browser refresh/retry and logout cleanup are implemented, and account/profile preferences persist through the API; deployed Cognito configuration and broader frontend preference coverage remain incomplete.
 - `openapi.yaml`, API routes, and frontend calls are not fully aligned.
 - Public vanity resolution and canonical redirects are not wired end to end.
 - Organizer roster and kiosk screens are implemented, including performance lifecycle controls, provenance states, and organizer-supervised registration.
@@ -93,7 +93,7 @@ This status is a planning baseline, not a substitute for tests.
 - Media routes, persistence service, S3 upload adapter, validation, recovery UI, and CDK storage resources are absent.
 - Live roster delivery is implemented through the scoped event-roster SSE contract in [docs/decisions.md](docs/decisions.md#live-updates), using PostgreSQL `LISTEN`/`NOTIFY` fan-out and full resync on reconnect.
 - The SPA still uses manual pathname matching rather than the planned TanStack Router route tree and loaders.
-- Generated OpenAPI frontend types, route error boundaries, one-401 refresh, quota state, lazy translation namespaces, and account preference synchronization are absent.
+- Generated OpenAPI frontend types, route error boundaries, quota state, and lazy translation namespaces are absent; account locale/theme/mode synchronization and one-shot 401 refresh behavior are implemented.
 - Automated frontend unit, component/integration, accessibility, and Playwright coverage is absent.
 - Path-aware GitHub Actions, a single CI-equivalent command, full CDK application infrastructure, staging deployment, monitoring, and operational runbooks are absent.
 
