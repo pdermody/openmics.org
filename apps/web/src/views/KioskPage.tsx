@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Sparkles } from 'lucide-react'
 import { ApiError, friendlyApiErrorMessage } from '../api/client'
+import { RegistrationLinkTools } from '../components/RegistrationLinkTools'
 import { hashKioskPin, useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
 import { isRegistrationClosed } from '../features/publicReads'
 import type { ColorMode, ThemeId } from '../theme'
@@ -21,13 +22,87 @@ function kioskErrorMessage(error: unknown): string {
   return friendlyApiErrorMessage(error, 'We could not record that sign-up. Please try again.')
 }
 
-// Kiosk lock/exit flow: 'loading' while checking whether this series already has a backup PIN
-// configured server-side, 'setup-backup' if it doesn't yet (organizer must set one before kiosk
-// mode can start), 'choose-pin' lets the organizer pick their own fresh one-time PIN for this
-// session (held only in memory — never persisted or sent anywhere), 'active' is the fullscreen
-// kiosk form, and 'exit-gate' requires either PIN before releasing fullscreen and returning to
-// the roster page.
-type KioskLockPhase = 'loading' | 'setup-backup' | 'choose-pin' | 'active' | 'exit-gate'
+// Kiosk lock flow: the series PIN is always server-backed. It is configured once by the
+// organizer and reused to exit every kiosk session on every device.
+type KioskLockPhase = 'loading' | 'setup-backup' | 'active' | 'exit-gate'
+
+export function PinCombinationInput({ onComplete, disabled = false }: { onComplete: (pin: string) => void; disabled?: boolean }) {
+  const [digits, setDigits] = useState(['', '', '', ''])
+  const inputs = useRef<Array<HTMLInputElement | null>>([])
+
+  useEffect(() => {
+    if (!disabled) inputs.current[0]?.focus()
+  }, [disabled])
+
+  function resetInput() {
+    setDigits(['', '', '', ''])
+    window.setTimeout(() => inputs.current[0]?.focus(), 0)
+  }
+
+  function updateDigit(index: number, value: string) {
+    const digit = value.replace(/\D/g, '').slice(-1)
+    if (!digit) return
+    const next = [...digits]
+    next[index] = digit
+    setDigits(next)
+    if (index < 3) inputs.current[index + 1]?.focus()
+    else {
+      onComplete(next.join(''))
+      resetInput()
+    }
+  }
+
+  function handleKeyDown(index: number, event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Backspace') return
+    event.preventDefault()
+    if (digits[index]) {
+      const next = [...digits]
+      next[index] = ''
+      setDigits(next)
+      return
+    }
+    if (index > 0) {
+      const next = [...digits]
+      next[index - 1] = ''
+      setDigits(next)
+      inputs.current[index - 1]?.focus()
+    }
+  }
+
+  function handlePaste(event: ClipboardEvent<HTMLInputElement>) {
+    const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4)
+    if (!pasted) return
+    event.preventDefault()
+    const next = [...digits]
+    pasted.split('').forEach((digit, index) => { next[index] = digit })
+    setDigits(next)
+    const lastIndex = pasted.length - 1
+    if (pasted.length === 4) {
+      onComplete(next.join(''))
+      resetInput()
+    }
+    else inputs.current[lastIndex + 1]?.focus()
+  }
+
+  return <div className="pin-combination" role="group" aria-label="4 digit PIN">
+    {digits.map((digit, index) => <input
+      key={index}
+      ref={(input) => { inputs.current[index] = input }}
+      type="password"
+      inputMode="numeric"
+      pattern="[0-9]"
+      maxLength={1}
+      autoComplete={index === 0 ? 'one-time-code' : 'off'}
+      aria-label={`PIN digit ${index + 1}`}
+      value={digit}
+      disabled={disabled}
+      autoFocus={index === 0}
+      onChange={(event) => updateDigit(index, event.target.value)}
+      onKeyDown={(event) => handleKeyDown(index, event)}
+      onPaste={handlePaste}
+    />)}
+  </div>
+}
 
 function KioskLock({
   seriesId,
@@ -46,21 +121,22 @@ function KioskLock({
   const verifyBackupPin = useVerifyKioskBackupPin(seriesId)
 
   const [phase, setPhase] = useState<KioskLockPhase>('loading')
-  const [oneTimePin, setOneTimePin] = useState('')
   const [backupPinDraft, setBackupPinDraft] = useState('')
   const [backupPinConfirm, setBackupPinConfirm] = useState('')
-  const [oneTimePinDraft, setOneTimePinDraft] = useState('')
-  const [oneTimePinConfirm, setOneTimePinConfirm] = useState('')
-  const [exitPinEntry, setExitPinEntry] = useState('')
   const [error, setError] = useState('')
 
-  // Derived (not effect-driven): once the server tells us whether a backup PIN already exists for
-  // this series, render straight into whichever flow applies. `phase` itself only ever moves past
-  // 'loading' via explicit user actions below (saveBackupPin, etc.), so there's no state-in-effect
-  // synchronization needed here.
+  // Once a server PIN exists, enter kiosk mode immediately. There is no per-session PIN.
   const effectivePhase: KioskLockPhase = phase === 'loading' && backupPinStatus.isSuccess
-    ? (backupPinStatus.data.configured ? 'choose-pin' : 'setup-backup')
+    ? (backupPinStatus.data.configured ? 'active' : 'setup-backup')
     : phase
+  const phaseRef = useRef(effectivePhase)
+  phaseRef.current = effectivePhase
+
+  useEffect(() => {
+    if (effectivePhase !== 'active') return
+    const requestFullscreen = rootRef.current?.requestFullscreen
+    if (requestFullscreen) void requestFullscreen.call(rootRef.current).catch(() => undefined)
+  }, [effectivePhase, rootRef])
 
   // If a bystander exits fullscreen without going through the "Exit kiosk" PIN gate (e.g. the Esc
   // key), fall back to the same PIN gate rather than silently revealing the roster underneath.
@@ -70,6 +146,37 @@ function KioskLock({
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
+  useEffect(() => {
+    // Keep browser Back inside the kiosk until the server PIN has been verified. Browser chrome
+    // controls cannot be disabled by a web page, but this catches same-document navigation and
+    // prevents an accidental Back press from exposing the organizer roster.
+    window.history.replaceState({ ...window.history.state, kiosk: true }, '', window.location.href)
+    window.history.pushState({ kiosk: true }, '', window.location.href)
+
+    function trapKioskNavigation() {
+      // Restore the sentinel entry immediately after the browser starts a Back traversal. This
+      // keeps the document in place even when the previous history entry belongs to another page.
+      window.history.go(1)
+      if (phaseRef.current === 'active') setPhase('exit-gate')
+    }
+
+    function trapEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      if (phaseRef.current === 'active' || phaseRef.current === 'exit-gate') {
+        setPhase(phaseRef.current === 'active' ? 'exit-gate' : 'active')
+      }
+    }
+
+    window.addEventListener('popstate', trapKioskNavigation)
+    window.addEventListener('keydown', trapEscape, true)
+    return () => {
+      window.removeEventListener('popstate', trapKioskNavigation)
+      window.removeEventListener('keydown', trapEscape, true)
+    }
   }, [])
 
   async function saveBackupPin(formEvent: FormEvent<HTMLFormElement>) {
@@ -82,40 +189,18 @@ function KioskLock({
       await setBackupPin.mutateAsync(hash)
       setBackupPinDraft('')
       setBackupPinConfirm('')
-      setPhase('choose-pin')
+      setPhase('active')
     } catch {
       setError('Could not save the backup PIN. Please try again.')
     }
   }
 
-  async function startKiosk(formEvent: FormEvent<HTMLFormElement>) {
-    formEvent.preventDefault()
+  async function submitExitPin(entered: string) {
     setError('')
-    if (oneTimePinDraft.trim().length < 4) { setError('One-time PIN must be at least 4 digits.'); return }
-    if (oneTimePinDraft !== oneTimePinConfirm) { setError('One-time PINs do not match.'); return }
-    setOneTimePin(oneTimePinDraft.trim())
-    setOneTimePinDraft('')
-    setOneTimePinConfirm('')
-    setPhase('active')
-    try { await rootRef.current?.requestFullscreen() } catch { /* fullscreen is best-effort; kiosk still works windowed */ }
-  }
-
-  async function submitExitPin(formEvent: FormEvent<HTMLFormElement>) {
-    formEvent.preventDefault()
-    setError('')
-    const entered = exitPinEntry.trim()
-    if (entered.length === 0) { setError('Incorrect PIN.'); return }
-    if (entered === oneTimePin) {
-      setExitPinEntry('')
-      if (document.fullscreenElement) { try { await document.exitFullscreen() } catch { /* already released */ } }
-      window.location.href = `/dashboard/series/${seriesId}/events/${eventId}/roster`
-      return
-    }
     try {
       const hash = await hashKioskPin(entered)
       const result = await verifyBackupPin.mutateAsync(hash)
       if (!result.valid) { setError('Incorrect PIN.'); return }
-      setExitPinEntry('')
       if (document.fullscreenElement) { try { await document.exitFullscreen() } catch { /* already released */ } }
       window.location.href = `/dashboard/series/${seriesId}/events/${eventId}/roster`
     } catch {
@@ -143,27 +228,11 @@ function KioskLock({
     <a className="back-link" href={`/dashboard/series/${seriesId}/events/${eventId}/roster`}>← Back to roster</a>
   </div>
 
-  if (effectivePhase === 'choose-pin') return <div className="kiosk-lock-screen">
-    <h1>{t('chooseExitPin')}</h1>
-    <p>{t('kioskSessionIntro')}</p>
-    <form className="kiosk-form" noValidate onSubmit={(formEvent) => void startKiosk(formEvent)}>
-      <RequiredFieldsNote />
-      <label><span>{t('oneTimePin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required autoFocus value={oneTimePinDraft} onChange={(input) => setOneTimePinDraft(input.target.value)} /></label>
-      <label><span>{t('confirmOneTimePin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={oneTimePinConfirm} onChange={(input) => setOneTimePinConfirm(input.target.value)} /></label>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary-button kiosk-submit" type="submit">{t('startKiosk')}</button>
-    </form>
-    <button className="link-button" type="button" onClick={() => setPhase('setup-backup')}>{t('changeBackupPin')}</button>
-    <a className="back-link" href={`/dashboard/series/${seriesId}/events/${eventId}/roster`}>← Back to roster</a>
-  </div>
-
   if (effectivePhase === 'exit-gate') return <div className="kiosk-lock-screen kiosk-exit-gate">
     <h1>{t('enterExitPin')}</h1>
-    <form className="kiosk-form" noValidate onSubmit={(formEvent) => void submitExitPin(formEvent)}>
-      <label><span>{t('oneTimeOrBackupPin')}<Required /></span><input type="password" inputMode="numeric" autoFocus required value={exitPinEntry} onChange={(input) => setExitPinEntry(input.target.value)} /></label>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary-button kiosk-submit" type="submit" disabled={verifyBackupPin.isPending}>{t('unlock')}</button>
-    </form>
+    <p>{t('serverPinExitIntro')}</p>
+    <PinCombinationInput onComplete={(pin) => void submitExitPin(pin)} disabled={verifyBackupPin.isPending} />
+    {error && <p className="form-error" role="alert">{error}</p>}
   </div>
 
   // phase === 'active'
@@ -238,6 +307,25 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
         <header className="topbar kiosk-topbar"><span className="brand" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></span></header>
         <section className="kiosk-body">
           <h1>{event.data?.title ?? 'Event kiosk'}</h1>
+
+          {event.data && <section className="kiosk-registration-qr" aria-labelledby="kiosk-registration-qr-title">
+            <h2 id="kiosk-registration-qr-title">{t('kioskRegistrationQrTitle')}</h2>
+            <p>{t('kioskRegistrationQrIntro')}</p>
+            <div className="kiosk-registration-qr-grid">
+              <RegistrationLinkTools
+                url={`${window.location.origin}/events/${event.data.public_code}/register`}
+                fileName={event.data.public_code}
+                title={t('registerForThisEvent')}
+                showPreview
+              />
+              <RegistrationLinkTools
+                url={`${window.location.origin}/open-mics/${seriesId}/register`}
+                fileName={seriesId}
+                title={t('registerForAnyEvent')}
+                showPreview
+              />
+            </div>
+          </section>}
 
           {event.isPending && <ReadState message="Loading event…" />}
           {event.isError && <ReadState message={friendlyApiErrorMessage(event.error, 'We could not load this event.')} retry={() => void event.refetch()} />}

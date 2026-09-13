@@ -146,7 +146,7 @@ Events:
 - `/open-mics/:id/events/:eventId/edit` — Edit event (requires `events:manage`)
 - `/events/:eventId/register` — Public self-registration flow (guest or signed-in); shareable link, reachable via organic browsing, a shared link, an email reminder, a social ad, or a poster QR code — the page and verification behavior are identical regardless of entry point. If `?token=<edit_token>` is present, the server exchanges it for a short-lived HttpOnly edit session, strips the token before rendering, and loads the existing registration for editing without requiring an account. Accepts an optional `?ref=<profile_id>` referral param.
 - `/open-mics/:id/register` (and `/@:handle/register`) — Durable "next scheduled event" registration link for posters/QR codes that never need reprinting; forwards to the soonest upcoming event's register page, or shows the open mic's schedule summary if none is currently open.
-- `/events/:eventId/collect` — Organizer/assistant walk-in kiosk. Requires `registrations:collect` permission. Loops after each registration to a clean form; toolbar links to view/edit the full roster and to close the event to new registrations.
+- `/dashboard/series/:seriesId/events/:eventId/kiosk` — Organizer walk-in kiosk. Requires the active organizer profile and event ownership. Uses a high-contrast, touch-friendly flow, loops after each registration, and protects exit with a session or series backup PIN.
 
 Profiles:
 - `/accounts/:id/profiles` — All profiles for current user

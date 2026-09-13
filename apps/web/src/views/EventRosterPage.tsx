@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, MapPin, MoreVertical, Sparkles } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
+import { RegistrationLinkTools } from '../components/RegistrationLinkTools'
 import {
   PERFORMANCE_BOARD_STATUSES,
   PERFORMANCE_STATUS_LABELS,
@@ -446,6 +447,7 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
       </p>}
       {event.data && isOrganizer && <div className="dashboard-series-card-actions">
         <a className="quiet-button" href={`/dashboard/series/${seriesId}/events/${eventId}/kiosk`}>{t('openKiosk')}</a>
+        <RegistrationLinkTools url={`${window.location.origin}/events/${event.data.public_code}/register`} fileName={event.data.public_code} />
         <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
         {isRunning && !confirmStop && <button type="button" className="quiet-button" onClick={() => setConfirmStop(true)}>{t('stopEvent')}</button>}
         {isRunning && confirmStop && <span className="roster-confirm-bar">

@@ -66,6 +66,7 @@ This status is a planning baseline, not a substitute for tests.
 - Event creation, listing, public-code reads, next-event lookup, owner-scoped reads, and partial updates.
 - Guest, authenticated performer, and organizer-supervised registration creation; capacity and duplicate enforcement; email verification; protected edit-cookie exchange; registration updates; claim/adoption; organizer roster reads; and account/profile registration reads.
 - Performance creation, update, deletion, status, sequence, and organizer authorization.
+- Organizer event operations, kiosk registration, live roster refresh, and copy/QR controls for event-specific and durable series registration links.
 - PostGIS radius filtering and authenticated LocationIQ search/reverse-geocoding proxy behavior.
 - Email adapter boundary, local adapters, SQS producer, and CDK SES/SQS/Lambda email stack.
 - DB-free unit tests, Fastify injection tests, and PostgreSQL/Testcontainers integration tests across the principal implemented domains.
@@ -87,7 +88,7 @@ This status is a planning baseline, not a substitute for tests.
 - Account provisioning is idempotent on first verified sign-in, browser refresh/retry and logout cleanup are implemented, and account/profile preferences persist through the API; deployed Cognito configuration and broader frontend preference coverage remain incomplete.
 - `openapi.yaml`, API routes, and frontend calls are not fully aligned.
 - Public vanity resolution and canonical redirects are not wired end to end.
-- Organizer roster and kiosk screens are implemented, including performance lifecycle controls, provenance states, and organizer-supervised registration.
+- Organizer roster and kiosk screens are implemented, including performance lifecycle controls, provenance states, organizer-supervised registration, live refresh, registration-link sharing controls, and server-stored four-digit PIN exit.
 - Claim-all behavior, a dedicated claim route, partial-failure handling, and post-claim attribution management are incomplete.
 - Guest registration rate limiting and referral capture are not complete.
 - Media routes, persistence service, S3 upload adapter, validation, recovery UI, and CDK storage resources are absent.
