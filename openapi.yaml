@@ -2398,7 +2398,8 @@ components:
           type: boolean
           nullable: true
         registrations_closed_at:
-          $ref: "#/components/schemas/Timestamp"
+          type: string
+          format: date-time
           nullable: true
         capacity:
           type: integer
@@ -2463,7 +2464,8 @@ components:
             It also closes registrations. Setting it back to true (restarting) does not undo
             either side effect.
         registrations_closed_at:
-          $ref: "#/components/schemas/Timestamp"
+          type: string
+          format: date-time
           nullable: true
         capacity:
           type: integer

@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
@@ -23,6 +23,9 @@ const command = process.platform === 'win32'
 let failed = false;
 
 for (const file of markdownFiles) {
+  const contents = await readFile(file, 'utf8');
+  if (!/\[[^\]]+\]\([^\)]+\)/.test(contents)) continue;
+
   const result = await new Promise((resolve) => {
     const child = spawn(command, [file], {
       stdio: 'inherit',

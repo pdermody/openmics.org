@@ -87,11 +87,11 @@ This status is a planning baseline, not a substitute for tests.
 - Account provisioning, account preference persistence, browser refresh/retry semantics, logout completion, and deployed Cognito configuration are incomplete.
 - `openapi.yaml`, API routes, and frontend calls are not fully aligned.
 - Public vanity resolution and canonical redirects are not wired end to end.
-- Organizer roster and kiosk screens are absent; current performance APIs are not exposed as a complete operational workflow.
+- Organizer roster and kiosk screens are implemented, including performance lifecycle controls, provenance states, and organizer-supervised registration.
 - Claim-all behavior, a dedicated claim route, partial-failure handling, and post-claim attribution management are incomplete.
 - Guest registration rate limiting and referral capture are not complete.
 - Media routes, persistence service, S3 upload adapter, validation, recovery UI, and CDK storage resources are absent.
-- Live roster delivery is unresolved; no confirmed SSE API contract or implementation exists.
+- Live roster delivery is implemented through the scoped event-roster SSE contract in [docs/decisions.md](docs/decisions.md#live-updates), using PostgreSQL `LISTEN`/`NOTIFY` fan-out and full resync on reconnect.
 - The SPA still uses manual pathname matching rather than the planned TanStack Router route tree and loaders.
 - Generated OpenAPI frontend types, route error boundaries, one-401 refresh, quota state, lazy translation namespaces, and account preference synchronization are absent.
 - Automated frontend unit, component/integration, accessibility, and Playwright coverage is absent.
@@ -510,6 +510,7 @@ Use the narrowest relevant checks while developing, then the complete release ch
 npm run validate:openapi
 npm run lint:openapi
 npm run check:links
+npm run coverage:openapi
 npm run typecheck:api
 npm run test:unit
 npm run test:api

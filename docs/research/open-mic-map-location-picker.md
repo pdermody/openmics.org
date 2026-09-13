@@ -200,10 +200,10 @@ Since Nominatim's public endpoint **explicitly forbids autocomplete-while-typing
 [^35]: [Photon demo ToS](https://photon.komoot.io/); [Photon GitHub README](https://github.com/komoot/photon) — ~95GB disk, 64GB+ RAM recommended for full planet.
 [^36]: [Nominatim Docker (mediagis)](https://github.com/mediagis/nominatim-docker); [Nominatim Installation docs](https://nominatim.org/release-docs/latest/admin/Installation/) — 128GB+ RAM, 1TB disk, 2.5–5 day import for full planet.
 [^37]: [Pelias](https://pelias.io/); [pelias/docker](https://github.com/pelias/docker) — 8GB+ RAM minimum, Linux/macOS only.
-[^38]: [use-debounce npm package](https://www.npmjs.com/package/use-debounce).
-[^39]: [leaflet-geosearch npm package](https://www.npmjs.com/package/leaflet-geosearch); [leaflet-geosearch docs/demo](https://leaflet-geosearch.meijer.works).
+[^38]: [use-debounce repository](https://github.com/xnimorz/use-debounce).
+[^39]: [leaflet-geosearch repository](https://github.com/smeijer/leaflet-geosearch).
 [^40]: [Nominatim Reverse API docs](https://nominatim.org/release-docs/latest/api/Reverse/) — reverse geocoding returns exactly one result or an error for unmapped areas.
-[^41]: [react-geocode npm package](https://www.npmjs.com/package/react-geocode) — `fromLatLng`/`fromAddress` forward+reverse geocoding wrapper pattern.
+[^41]: [react-geocode package documentation](https://unpkg.com/react-geocode@2.0.1/README.md) — `fromLatLng`/`fromAddress` forward+reverse geocoding wrapper pattern.
 [^42]: [Google Maps Markers documentation — draggable option and accessibility note](https://developers.google.com/maps/documentation/javascript/markers#draggable).
 [^43]: [WAI-ARIA APG Combobox Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/).
 [^44]: [W3C WAI Forms Tutorial](https://www.w3.org/WAI/tutorials/forms/).

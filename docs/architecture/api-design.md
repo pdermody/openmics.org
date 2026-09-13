@@ -30,14 +30,14 @@ The public vanity resolver (`GET /@:handle`) intentionally does not appear in `o
 
 The Fastify service serves the same contract at `GET /api/openapi.json`. Paths in the endpoint inventory below are relative to the base URL, so for example `GET /open-mics` is served at `GET https://api.openmics.org/api/open-mics`. Browser-facing paths remain outside the API root and receive the shared SPA entry point; the API does not render entity-specific HTML.
 
+> **Contract note:** The endpoint inventory below is retained as architectural history and is not the executable Phase 1 contract. Use [`openapi.yaml`](../../openapi.yaml), [docs/decisions.md](../decisions.md), and [docs/contract-gap-matrix.md](../contract-gap-matrix.md) for current paths, methods, authentication, and implementation status. In particular, browser authentication is handled by Cognito through Amplify; Phase 1 SSE is limited to the organizer event-roster stream; and the current contract uses `PATCH` for partial resource updates.
+
 **Core Resources:**
 
 ```
 Authentication
-  POST   /auth/sign-up            (starts Cognito hosted-UI sign-up; accepts the client-generated, signed OAuth state containing an optional referral and provisions the application Account with that referral after the validated callback)
-  POST   /auth/sign-in            (delegates to Cognito)
-  POST   /auth/refresh-token
-  GET    /auth/profile            (current user)
+  GET    /auth/profile            (current application account from the verified Cognito ID token)
+  GET    /me                       (alias for the current application account)
 
 Public documents (CloudFront origin for canonical handle URLs)
   GET    /@:handle                (shared SPA entry point; the SPA resolves the handle through the API)
