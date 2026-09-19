@@ -6,9 +6,13 @@
   "scripts": {
     "build:api": "tsc -p tsconfig.json",
     "db:migrate": "node --env-file=.env node_modules/node-pg-migrate/bin/node-pg-migrate.js up -m apps/api/migrations",
+    "db:migrate:e2e": "node --env-file=.env --env-file=.env.e2e node_modules/node-pg-migrate/bin/node-pg-migrate.js up -m apps/api/migrations",
     "db:rollback": "node --env-file=.env node_modules/node-pg-migrate/bin/node-pg-migrate.js down -m apps/api/migrations",
     "db:seed:dev": "node --env-file=.env scripts/seed-dev.mjs",
+    "db:seed:e2e": "node --env-file=.env --env-file=.env.e2e scripts/seed-dev.mjs",
+    "db:reset:e2e": "npm run db:migrate:e2e && npm run db:seed:e2e",
     "dev:api": "tsx watch --env-file=.env apps/api/src/server.ts",
+    "dev:api:e2e": "tsx watch --env-file=.env --env-file=.env.e2e apps/api/src/server.ts",
     "dev:web": "npm --prefix apps/web run dev",
     "start:api": "node dist/apps/api/src/server.js",
     "build:web": "npm run build --prefix apps/web",

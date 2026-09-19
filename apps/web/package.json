@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test:e2e": "playwright test -c playwright.config.ts",
+    "test:e2e:report": "playwright show-report",
     "test:i18n": "node scripts/check-untranslated-ui.mjs",
     "test": "vitest run && npm run test:i18n",
     "test:watch": "vitest"
@@ -34,6 +36,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",

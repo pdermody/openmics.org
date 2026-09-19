@@ -4,8 +4,8 @@ const { Pool } = pg;
 const connectionString = process.env.DATABASE_URL ?? 'postgres://openmic:openmic_local@127.0.0.1:5432/openmic_dev';
 const databaseName = new URL(connectionString).pathname.slice(1);
 
-if (databaseName !== 'openmic_dev') {
-  throw new Error(`Refusing to seed database "${databaseName}". This script only accepts openmic_dev.`);
+if (!['openmic_dev', 'openmic_e2e'].includes(databaseName)) {
+  throw new Error(`Refusing to seed database "${databaseName}". This script only accepts openmic_dev or openmic_e2e.`);
 }
 
 const pool = new Pool({ connectionString });
@@ -263,7 +263,7 @@ try {
   );
 
   await pool.query('COMMIT');
-  console.log('Seeded openmic_dev with frontend development data.');
+  console.log(`Seeded ${databaseName} with frontend development data.`);
 } catch (error) {
   await pool.query('ROLLBACK');
   throw error;
