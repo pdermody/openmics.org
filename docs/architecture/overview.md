@@ -1,5 +1,7 @@
 # Architecture Overview
 
+> **Superseded historical document.** Current architecture decisions are recorded in [docs/decisions.md](../decisions.md), and delivery sequencing is maintained in [IMPLEMENTATION-PLAN.md](../../IMPLEMENTATION-PLAN.md). This page is retained for historical context and should not be used as current implementation guidance.
+
 **Related:** [../4-open-mic-technical-architecture.md](../4-open-mic-technical-architecture.md)
 
 ---

@@ -81,6 +81,7 @@ This status is a planning baseline, not a substitute for tests.
 - Profile editing with phone/privacy behavior.
 - Reusable location picker with map, geocoding assist, manual coordinates, and progressive failure behavior.
 - Twelve source-informed light/dark variants, persisted theme/mode selection, visible focus foundations, reduced-motion styles, and responsive layouts.
+- Organizer management UX refinements completed this session: grouped series and event actions in hamburger menus, modal confirmations for publish/pause/resume/delete, copy-link and QR actions moved into those menus, and the dashboard/series/roster management surfaces made visually consistent.
 
 ### Partial or not yet production-ready
 

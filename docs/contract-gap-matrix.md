@@ -23,3 +23,17 @@ This matrix records the remaining contract and coverage gaps for the selected Ph
 - Add or update a row when a Phase 1 route, API operation, permission rule, or visibility rule changes.
 - Link each row to a deterministic seed fixture and the narrowest test that proves its contract.
 - Mark a gap resolved only after `npm run validate:openapi`, `npm run lint:openapi`, and the relevant API/frontend checks pass.
+
+## Coverage audit (2026-09-19)
+
+The coverage script now strips query strings before comparing test URLs with OpenAPI path templates. This corrected false negatives caused by requests such as `/events/upcoming?limit=10`; structural coverage increased from 34/62 to 46/62 operations after adding boundary and registration lifecycle coverage.
+
+The remaining uncovered operations are classified as follows:
+
+| Classification | Operations | Next action |
+|---|---|---|
+| Implemented and boundary-tested | `listClaimableRegistrations`, `getAuthProfile`, `deleteOpenMic` | Keep focused API coverage and add success-path assertions in the owning integration suites where needed. |
+| Implemented, integration-tested but not detected by the structural matcher | `listOpenMics`, `listUpcomingEvents`, `reverseGeocode`, `getMyPermissions`, `listMyRegistrations`, `resolveRegistrationEditLink` | Covered after query-string normalization; retain the integration tests as the behavioral evidence. |
+| Missing route or contract entry requiring a decision | `getOpenApiDocument`, `deleteProfile` | Reconcile OpenAPI with the actual route surface before adding tests; do not claim these operations are implemented. |
+| Implemented and integration-tested | `updateRegistration`, `verifyRegistrationEmail` | Keep the success-path assertions; rerun the integration suite when a Testcontainers runtime is available. |
+| Intentionally deferred | Reserved-handle administration, event/profile media, media CRUD/upload, registration edit-token rotation | Keep documented as Milestones 4, 5, and 3 work; do not add placeholder tests. |

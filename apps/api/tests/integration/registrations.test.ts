@@ -85,6 +85,22 @@ describe('registration routes (real database)', () => {
     expect(confirmUrl.searchParams.get('token')).toBeTruthy();
     expect(confirmUrl.searchParams.get('verify')).toBeTruthy();
 
+    const verified = await app.inject({
+      method: 'POST',
+      url: `/api/registrations/${guest.json().id}/verify-email`,
+      payload: { token: confirmUrl.searchParams.get('verify') },
+    });
+    expect(verified.statusCode).toBe(200);
+    expect(verified.json().visibility_state).toBe('valid');
+
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: `/api/registrations/${guest.json().id}`,
+      payload: { performer_name: 'Updated Guest Performer' },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().performer_name).toBe('Updated Guest Performer');
+
     const kiosk = await app.inject({
       method: 'POST',
       url: `/api/events/${eventId}/registrations`,

@@ -1,5 +1,7 @@
 # Infrastructure, Scalability, Security, and Deployment
 
+> **Superseded historical document.** The current infrastructure authority is [docs/decisions.md](../decisions.md#infrastructure), with implementation sequencing in [IMPLEMENTATION-PLAN.md](../../IMPLEMENTATION-PLAN.md). This page retains the former EC2-oriented design for history and should not be used as deployment guidance.
+
 **Related:** [../4-open-mic-technical-architecture.md](../4-open-mic-technical-architecture.md)
 
 ---

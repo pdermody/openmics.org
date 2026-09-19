@@ -9,6 +9,8 @@
 - `openapi.yaml` is the API contract and must be aligned with the authoritative product and architecture documents.
 - `docs/decisions.md` records settled cross-document decisions. If a document conflicts with it, flag the conflict before changing behavior.
 
+The following detailed architecture pages are historical and superseded for current implementation guidance: `docs/architecture/overview.md`, `docs/architecture/infrastructure.md`, and `docs/architecture/development.md`. Use `IMPLEMENTATION-PLAN.md`, `docs/decisions.md`, and the current repository scripts instead. Do not pull the superseded pages into planning context unless the task is specifically to review or rewrite them.
+
 ## Working Rules
 
 - Treat documentation changes as specification changes: identify contradictions before editing.

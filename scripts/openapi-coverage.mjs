@@ -22,7 +22,8 @@ function listTestFiles(dir) {
 function toSegments(pathTemplate) {
   // Normalize both OpenAPI `{param}` templates and test-file `${expr}` interpolations to a single `:param`
   // marker, strip a leading /api (tests call the mounted API, the contract paths are already relative to it).
-  const withoutApi = pathTemplate.replace(/^\/api\b/, '');
+  const withoutQuery = pathTemplate.split('?', 1)[0];
+  const withoutApi = withoutQuery.replace(/^\/api\b/, '');
   const normalized = withoutApi
     .replace(/\{[^}]+\}/g, ':param')
     .replace(/\$\{[^}]+\}/g, ':param');

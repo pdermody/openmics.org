@@ -1,5 +1,7 @@
 # Development Workflow, Limitations, and Roadmap
 
+> **Superseded historical document.** Current workflow and sequencing are maintained in [IMPLEMENTATION-PLAN.md](../../IMPLEMENTATION-PLAN.md) and the repository guidance in [AGENTS.md](../../AGENTS.md). This page is retained for history and should not be used as current planning guidance.
+
 **Related:** [../4-open-mic-technical-architecture.md](../4-open-mic-technical-architecture.md)
 
 ---

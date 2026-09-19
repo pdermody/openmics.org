@@ -28,6 +28,14 @@ This file records settled decisions that affect more than one planning document.
 - Media consent can be revoked after registration, but revocation is future-only: it blocks new media publication under that registration and is not retroactive against media already published. `Registration.media_consent_updated_at` records when consent last changed, for audit purposes.
 - Guest registration submission is rate-limited per source (e.g. per IP) to deter abuse; exceeding the limit returns `429`.
 
+## Organizer management actions
+
+- Series and event management controls are grouped into hamburger menus on the dashboard, `/series/{id}`, and `/roster` pages so a single action surface covers navigation, lifecycle state changes, and sharing utilities without exposing inconsistent per-page toolbars.
+- Publish, pause, resume, and delete actions use modal confirmation dialogs before mutating API state.
+- Paused series can be soft-deleted through the same owner-scoped path as other organizer-managed resources, with a 30-day recovery window matching the uniform retention policy.
+- Event lifecycle actions use the existing `PATCH /events/{id}` running-state behavior plus the existing soft-delete endpoint; copy-link and QR download actions are included in the same menu alongside those lifecycle actions.
+- Copy-link actions use the `Copy` icon and QR actions use the `QrCode` icon across the surfaces that expose shared registration links.
+
 ## Forms and location picker
 
 - React Hook Form + Zod is the standard for every form in `apps/web`, including forms that don't touch location (e.g. the profile editor). Shared per-form Zod schemas live near each page; shared cross-form pieces (e.g. `baseLocationFieldsSchema`) live in `apps/web/src/features/location.ts`.
