@@ -272,6 +272,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   const [songNames, setSongNames] = useState('')
   const [bio, setBio] = useState('')
   const [mediaConsent, setMediaConsent] = useState(true)
+  const [remindersOptIn, setRemindersOptIn] = useState(false)
   const [confirmation, setConfirmation] = useState('')
   const [emailPromptOpen, setEmailPromptOpen] = useState(false)
 
@@ -285,6 +286,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
     setSongNames('')
     setBio('')
     setMediaConsent(true)
+    setRemindersOptIn(false)
     nameInputRef.current?.focus()
   }
 
@@ -299,6 +301,8 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
         song_names: songNames.split(',').map((song) => song.trim()).filter(Boolean),
         bio: bio.trim() || undefined,
         media_consent: mediaConsent,
+        // Reminders have nowhere to go without an email, so the opt-in only ever applies then.
+        reminders_opt_in: contactEmail.trim() ? remindersOptIn : undefined,
       },
       {
         onSuccess: () => {
@@ -375,7 +379,8 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
             <label>{t('kioskEmailLabel')} <span className="field-hint">{t('kioskEmailHint')}</span><input ref={emailInputRef} type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
             <label>{t('performancePrompt')} <span className="field-hint">{t('kioskPerformanceHint')}</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
             <label>{t('bio')} <span className="field-hint">{t('kioskBioHint')}</span><textarea value={bio} onChange={(input) => setBio(input.target.value)} /></label>
-            <label className="checkbox-label kiosk-checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>{t('mediaConsentPrompt')}</span></label>
+            <label className="checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>{t('mediaConsentPrompt')}</span></label>
+            <label className="checkbox-label"><input type="checkbox" checked={remindersOptIn} onChange={(input) => setRemindersOptIn(input.target.checked)} /><span>{t('kioskRemindersOptIn')}</span></label>
             {kioskRegistration.isError && <p className="form-error" role="alert">{kioskErrorMessage(kioskRegistration.error)}</p>}
             {confirmation && <p className="kiosk-success" role="status">{confirmation} ✓</p>}
             <button className="primary-button kiosk-submit" type="submit" disabled={kioskRegistration.isPending}>{kioskRegistration.isPending ? t('loading') : t('addRoster')}</button>
@@ -388,6 +393,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
               <li>{t('kioskEmailPromptBenefit3')}</li>
               <li>{t('kioskEmailPromptBenefit4')}</li>
             </ul>
+            <p className="field-hint">{t('kioskEmailPromptPrivacyNote')}</p>
             <div className="dashboard-series-card-actions">
               <button type="button" className="link-button" onClick={() => { setEmailPromptOpen(false); performSubmit() }}>{t('kioskEmailPromptContinue')}</button>
               <button type="button" className="primary-button" onClick={() => { setEmailPromptOpen(false); emailInputRef.current?.focus() }}>{t('kioskEmailPromptAddEmail')}</button>

@@ -674,6 +674,7 @@ export type KioskRegistrationInput = {
   song_names?: string[]
   bio?: string
   media_consent?: boolean
+  reminders_opt_in?: boolean
 }
 
 export function useKioskRegistration(eventId: string | undefined) {

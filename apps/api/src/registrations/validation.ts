@@ -22,6 +22,7 @@ const registrationFields = {
   organizer_supervised: z.boolean().optional(),
   referred_by_profile_id: z.string().uuid().optional(),
   media_consent: z.boolean().optional(),
+  reminders_opt_in: z.boolean().optional(),
 };
 
 export const createRegistrationSchema = z.object(registrationFields).required({
@@ -46,6 +47,7 @@ export const updateRegistrationSchema = z.object({
   song_names: z.array(z.string()).optional(),
   bio: z.string().optional(),
   media_consent: z.boolean().optional(),
+  reminders_opt_in: z.boolean().optional(),
   adopted_profile_id: z.string().uuid().nullable().optional(),
 }).strict();
 export type UpdateRegistrationInput = z.infer<typeof updateRegistrationSchema>;

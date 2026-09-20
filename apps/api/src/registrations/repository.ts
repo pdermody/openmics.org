@@ -17,6 +17,7 @@ export type RegistrationRow = {
   referred_by_profile_id: string | null;
   media_consent: boolean;
   media_consent_updated_at: Date | null;
+  reminders_opt_in: boolean;
   edit_token_hash: string | null;
   edit_token_expires_at: Date | null;
   email_verification_token_hash: string | null;
@@ -46,6 +47,7 @@ export type InsertRegistrationInput = {
   organizerSupervised: boolean;
   referredByProfileId?: string | null;
   mediaConsent?: boolean;
+  remindersOptIn?: boolean;
   editTokenHash?: string | null;
   editTokenExpiresAt?: Date | null;
   emailVerificationTokenHash?: string | null;
@@ -58,12 +60,12 @@ export async function insertRegistration(client: PoolClient, input: InsertRegist
   const result = await client.query<RegistrationRow>(
     `INSERT INTO registrations (
       event_id, profile_id, performer_name, performer_city, contact_email, contact_phone, song_names,
-      bio, submission_channel, organizer_supervised, referred_by_profile_id, media_consent,
+      bio, submission_channel, organizer_supervised, referred_by_profile_id, media_consent, reminders_opt_in,
       edit_token_hash, edit_token_expires_at, email_verification_token_hash,
       email_verification_token_expires_at, verification_method, email_verified_at
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, COALESCE($7, '{}'::text[]), $8, $9, $10, $11, COALESCE($12, true),
-      $13, $14, $15, $16, $17, $18
+      $1, $2, $3, $4, $5, $6, COALESCE($7, '{}'::text[]), $8, $9, $10, $11, COALESCE($12, true), COALESCE($13, false),
+      $14, $15, $16, $17, $18, $19
     ) RETURNING *`,
     [
       input.eventId,
@@ -78,6 +80,7 @@ export async function insertRegistration(client: PoolClient, input: InsertRegist
       input.organizerSupervised,
       input.referredByProfileId ?? null,
       input.mediaConsent ?? null,
+      input.remindersOptIn ?? null,
       input.editTokenHash ?? null,
       input.editTokenExpiresAt ?? null,
       input.emailVerificationTokenHash ?? null,
@@ -142,7 +145,7 @@ export async function updateRegistration(
   changes: Partial<Record<string, unknown>>,
 ): Promise<RegistrationRow | null> {
   const allowed = new Set([
-    'performer_name', 'performer_city', 'contact_email', 'contact_phone', 'song_names', 'bio', 'media_consent', 'adopted_profile_id',
+    'performer_name', 'performer_city', 'contact_email', 'contact_phone', 'song_names', 'bio', 'media_consent', 'reminders_opt_in', 'adopted_profile_id',
     'claimed_by_account_id', 'claimed_at', 'verification_method', 'email_verified_at',
     'email_verification_token_hash', 'email_verification_token_expires_at',
   ]);
@@ -212,6 +215,7 @@ export function serializeRegistration(row: RegistrationRow) {
     referred_by_profile_id: row.referred_by_profile_id,
     media_consent: row.media_consent,
     media_consent_updated_at: row.media_consent_updated_at,
+    reminders_opt_in: row.reminders_opt_in,
     email_verified_at: row.email_verified_at,
     verification_method: row.verification_method,
     visibility_state: row.email_verified_at ? 'valid' : 'pending',

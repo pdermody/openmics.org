@@ -15,7 +15,7 @@ describe('organizer route preload wiring', () => {
       '/profiles/$profileId/edit',
     ]
     for (const path of paths) {
-      const route = router.routesById[path]
+      const route = router.routesById[path as keyof typeof router.routesById]
       expect(route, `missing route for ${path}`).toBeTruthy()
       expect(typeof route.options.component?.preload, `${path} component should have a .preload`).toBe('function')
     }

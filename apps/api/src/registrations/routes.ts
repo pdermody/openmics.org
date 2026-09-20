@@ -181,6 +181,7 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
             organizerSupervised: input.organizer_supervised,
             referredByProfileId: input.referred_by_profile_id,
             mediaConsent: input.media_consent,
+            remindersOptIn: input.reminders_opt_in,
             editTokenHash: editToken?.hash,
             editTokenExpiresAt: editToken?.expiresAt,
             emailVerificationTokenHash: verificationToken?.hash,

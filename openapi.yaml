@@ -1845,6 +1845,11 @@ components:
           description: Set whenever media_consent changes. Revocation only blocks future
             media publication under this registration; media already published
             beforehand is not retroactively removed.
+        reminders_opt_in:
+          type: boolean
+          description: Performer opted in to being reminded about upcoming events in this
+            open mic series. Never used for marketing and never shared with anyone
+            else.
         email_verified_at:
           allOf:
             - $ref: "#/components/schemas/Timestamp"
@@ -2551,6 +2556,8 @@ components:
           $ref: "#/components/schemas/Id"
         media_consent:
           type: boolean
+        reminders_opt_in:
+          type: boolean
     RegistrationUpdateRequest:
       type: object
       properties:
@@ -2570,6 +2577,8 @@ components:
         bio:
           type: string
         media_consent:
+          type: boolean
+        reminders_opt_in:
           type: boolean
         adopted_profile_id:
           allOf:
