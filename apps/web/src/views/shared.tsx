@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Heart, Menu, MessageCircle, Sparkles, X } from 'lucide-react'
@@ -59,6 +60,7 @@ export function ReadState({ message, retry }: { message: string; retry?: () => v
 
 export function SignInButton() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [message, setMessage] = useState('')
   const [signedIn, setSignedIn] = useState(false)
@@ -74,12 +76,12 @@ export function SignInButton() {
       void endSession().then(() => {
         setSignedIn(false)
         queryClient.clear()
-        window.location.href = '/'
+        void navigate({ to: '/' })
       })
     }}>{t('signOut')}</button></div>
   }
 
-  return <div className="auth-slot"><button className="text-button" type="button" onClick={() => { window.location.href = '/auth/sign-in' }}>{t('signIn')}</button>{message && <span className="auth-note" role="status">{message}</span>}</div>
+  return <div className="auth-slot"><button className="text-button" type="button" onClick={() => { void navigate({ to: '/auth/$mode', params: { mode: 'sign-in' } }) }}>{t('signIn')}</button>{message && <span className="auth-note" role="status">{message}</span>}</div>
 }
 
 // Shared by any <details>-based popover/menu (the page HeaderMenu, and the roster page's
@@ -93,8 +95,8 @@ export function HeaderMenu() {
   const menuRef = useDismissableDetails()
 
   return <>
-    <nav className="header-actions" aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><a href="/settings/theme">{t('theme')}</a></nav>
-    <details className="header-menu" ref={menuRef}><summary aria-label={t('menu')}><Menu size={18} /><span>{t('menu')}</span></summary><nav aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><a href="/settings/theme">{t('theme')}</a></nav></details>
+    <nav className="header-actions" aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><Link to="/settings/theme">{t('theme')}</Link></nav>
+    <details className="header-menu" ref={menuRef}><summary aria-label={t('menu')}><Menu size={18} /><span>{t('menu')}</span></summary><nav aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><Link to="/settings/theme">{t('theme')}</Link></nav></details>
   </>
 }
 
@@ -105,7 +107,7 @@ export function ProfileSwitcher() { return <div className="profile-context-slot"
 
 export function SiteHeader() {
   const { t } = useTranslation()
-  return <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('appName')}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+  return <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('appName')}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
 }
 
 export function LanguageSelector() {
@@ -132,5 +134,5 @@ export function LanguageSelector() {
 
 export function SiteFooter({ theme, mode }: ThemeProps) {
   const { t } = useTranslation()
-  return <footer className="footer app" data-theme={theme} data-mode={mode}><div className="footer-content"><span>{t('footerCopy')}</span><LanguageSelector /><a className="footer-link" href="/settings/theme">{t('appearance')}</a></div></footer>
+  return <footer className="footer app" data-theme={theme} data-mode={mode}><div className="footer-content"><span>{t('footerCopy')}</span><LanguageSelector /><Link className="footer-link" to="/settings/theme">{t('appearance')}</Link></div></footer>
 }

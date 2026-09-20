@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { friendlyApiErrorMessage } from '../api/client'
 import { useNextEvent } from '../features/publicReads'
@@ -7,11 +8,12 @@ import { ReadState, SiteHeader } from './shared'
 
 export function DurableRegistrationPage({ openMicId, theme, mode }: { openMicId: string } & ThemeProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const nextEvent = useNextEvent(openMicId)
 
   useEffect(() => {
-    if (nextEvent.data) window.location.replace(`/events/${nextEvent.data.id}/register`)
-  }, [nextEvent.data])
+    if (nextEvent.data) void navigate({ to: '/events/$eventId/register', params: { eventId: nextEvent.data.id }, replace: true })
+  }, [nextEvent.data, navigate])
 
   return <main className="app" data-theme={theme} data-mode={mode}>
     <SiteHeader />

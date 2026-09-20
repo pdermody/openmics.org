@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
@@ -47,9 +48,9 @@ export function ProfileEditorPage({ profileId, theme, mode }: { profileId: strin
   }
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="registration-page profile-editor">
-      <a className="back-link" href={`/profiles/${profileId}`}>← Back to profile</a>
+      <Link className="back-link" to="/profiles/$profileId" params={{ profileId }}>← Back to profile</Link>
       <div className="eyebrow">{t('profileSettings')}</div>
       <h1>{t('editProfile')} {profile.profile_name}</h1>
       <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>

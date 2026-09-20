@@ -1,4 +1,5 @@
 import { Moon, Sun } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAccountContext } from '../features/account'
@@ -35,7 +36,7 @@ export function ThemePage({ theme, mode, setTheme, setMode }: ThemeProps & { set
     <main className="app" data-theme={theme} data-mode={mode}>
       <SiteHeader />
       <section className="theme-page">
-        <a className="back-link" href="/">{t('backToDiscovery')}</a>
+        <Link className="back-link" to="/">{t('backToDiscovery')}</Link>
         <div className="eyebrow">{t('appearance')}</div>
         <h1>{t('chooseMood')}</h1>
         <p className="detail-lede">{t('themeIntro')}</p>

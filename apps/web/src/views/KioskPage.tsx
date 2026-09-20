@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CalendarDays, MapPin, Sparkles } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { RegistrationLinkTools } from '../components/RegistrationLinkTools'
 import { hashKioskPin, useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
@@ -127,6 +128,7 @@ function KioskLock({
   children: (requestExit: () => void) => React.ReactNode
 }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const backupPinStatus = useKioskBackupPinStatus(seriesId)
   const setBackupPin = useSetKioskBackupPin(seriesId)
   const verifyBackupPin = useVerifyKioskBackupPin(seriesId)
@@ -213,7 +215,7 @@ function KioskLock({
       const result = await verifyBackupPin.mutateAsync(hash)
       if (!result.valid) { setError('Incorrect PIN.'); return }
       if (document.fullscreenElement) { try { await document.exitFullscreen() } catch { /* already released */ } }
-      window.location.href = `/dashboard/series/${seriesId}/events/${eventId}/roster`
+      void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/roster', params: { seriesId, eventId } })
     } catch {
       setError('Could not check that PIN. Please try again.')
     }
@@ -221,7 +223,7 @@ function KioskLock({
 
   if (effectivePhase === 'loading' && backupPinStatus.isError) return <div className="kiosk-lock-screen">
     <ReadState message={friendlyApiErrorMessage(backupPinStatus.error, 'We could not load this kiosk\'s settings.')} retry={() => void backupPinStatus.refetch()} />
-    <a className="back-link" href={`/dashboard/series/${seriesId}/events/${eventId}/roster`}>← Back to roster</a>
+    <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>← Back to roster</Link>
   </div>
 
   if (effectivePhase === 'loading') return <div className="kiosk-lock-screen"><ReadState message="Loading kiosk settings…" /></div>
@@ -236,7 +238,7 @@ function KioskLock({
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="primary-button kiosk-submit" type="submit" disabled={setBackupPin.isPending}>{t('saveBackupPin')}</button>
     </form>
-    <a className="back-link" href={`/dashboard/series/${seriesId}/events/${eventId}/roster`}>← Back to roster</a>
+    <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>← Back to roster</Link>
   </div>
 
   if (effectivePhase === 'exit-gate') return <div className="kiosk-lock-screen kiosk-exit-gate">
@@ -320,7 +322,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   if (!isOrganizer) return <main className="app kiosk-page" data-theme={theme} data-mode={mode}>
     <header className="topbar kiosk-topbar"><span className="brand" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></span></header>
     <section className="kiosk-body">
-      <a className="back-link" href={`/dashboard/series/${seriesId}/events/${eventId}/roster`}>← Back to roster</a>
+      <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>← Back to roster</Link>
       {!context.account.data && <ReadState message={t('signInKiosk')} />}
       {context.account.data && <ReadState message="Select an organizer profile to run the kiosk." />}
     </section>

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from '@tanstack/react-router'
 import {
   changePassword,
   confirmPasswordReset,
@@ -15,6 +16,7 @@ type AuthMode = 'sign-in' | 'sign-up' | 'confirm-sign-up' | 'forgot-password' | 
 
 export function AuthPage({ mode, theme, colorMode }: { mode: AuthMode; theme: ThemeId; colorMode: ColorMode }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
@@ -35,7 +37,7 @@ export function AuthPage({ mode, theme, colorMode }: { mode: AuthMode; theme: Th
     try {
       if (currentMode === 'sign-in') {
         const result = await signInWithPassword(username, password)
-        if (result.isSignedIn) window.location.href = '/dashboard'
+        if (result.isSignedIn) void navigate({ to: '/dashboard' })
         else setMessage(t('authContinueMessage'))
       } else if (currentMode === 'sign-up') {
         const result = await signUpWithPassword(username, password)

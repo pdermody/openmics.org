@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
 import { CircleAlert, CircleCheck, Sparkles } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
 import { useHandleAvailability } from '../features/handles'
@@ -112,6 +113,7 @@ function applyServerFieldErrors(error: unknown, setError: UseFormSetError<OpenMi
 
 export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; theme: ThemeId; mode: ColorMode }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const isEdit = Boolean(seriesId)
   const { context, activeProfile, isOrganizer } = useOrganizerProfile()
   const existing = useOpenMicDetail(seriesId)
@@ -265,14 +267,15 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
       updateOpenMic.mutate(input, { onSuccess: () => reset(values) })
     } else {
       createOpenMic.mutate(input, {
-        onSuccess: (created) => { reset(values); window.location.href = `/dashboard/series/${created.id}` },
+        onSuccess: (created) => { reset(values); void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId: created.id } }) },
       })
     }
   }
 
   function discardChanges() {
     if (isDirty && !window.confirm(t('confirmDiscardChanges'))) return
-    window.location.href = isEdit ? `/dashboard/series/${seriesId}` : '/dashboard'
+    if (isEdit) void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId: seriesId ?? '' } })
+    else void navigate({ to: '/dashboard' })
   }
 
   const isOwner = !isEdit || !existing.data || existing.data.owner_profile_id === activeProfile?.id
@@ -282,7 +285,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   }
   if (!context.account.data || !isOrganizer || (isEdit && existing.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
-      <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+      <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
       <section className="dashboard-page"><ReadState message={t('selectOrganizerSeries')} /></section>
     </main>
   }
@@ -291,9 +294,11 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   }
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
-      <a className="back-link" href={isEdit ? `/dashboard/series/${seriesId}` : '/dashboard'}>← Back to {isEdit ? 'series' : 'dashboard'}</a>
+      {isEdit
+        ? <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId: seriesId ?? '' }}>← Back to series</Link>
+        : <Link className="back-link" to="/dashboard">← Back to dashboard</Link>}
       <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{isEdit ? t('editSeriesTitle', { name: existing.data?.name ?? t('openMicSeries') }) : t('createSeriesTitle')}</h1>
       <form className="registration-form series-form" onSubmit={handleSubmit(onSubmit)} noValidate>

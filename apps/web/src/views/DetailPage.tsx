@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { Clock3, Eye, MapPin, Pencil, Settings2 } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
 import { useTranslation } from 'react-i18next'
@@ -50,7 +51,7 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
     <main className="app" data-theme={theme} data-mode={mode}>
       <SiteHeader />
       <section className="detail-page">
-        <a className="back-link" href="/">{t('backToDiscovery')}</a>
+        <Link className="back-link" to="/">{t('backToDiscovery')}</Link>
           {loading && <ReadState message={t('loading')} />}
         {error && <ReadState message={friendlyApiErrorMessage(errorObject, 'This page could not be loaded. Please try again.')} retry={retry} />}
         {!loading && !error && title && <>
@@ -64,14 +65,14 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
           </div>
           <div className="detail-actions">
             {kind === 'open-mic' && ownsOpenMic && <>
-              <a className="quiet-button icon-button" href={`/open-mics/${openMic.data?.current_handle ?? openMic.data?.id}`} aria-label={t('view')} title={t('view')}><Eye size={17} /></a>
-              <a className="quiet-button icon-button" href={`/dashboard/series/${openMic.data?.id}/edit`} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></a>
-              <a className="quiet-button icon-button" href={`/dashboard/series/${openMic.data?.id}`} aria-label={t('manage')} title={t('manage')}><Settings2 size={17} /></a>
+              <Link className="quiet-button icon-button" to="/open-mics/$openMicId" params={{ openMicId: openMic.data?.current_handle ?? openMic.data?.id ?? '' }} aria-label={t('view')} title={t('view')}><Eye size={17} /></Link>
+              <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/edit" params={{ seriesId: openMic.data?.id ?? '' }} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></Link>
+              <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId" params={{ seriesId: openMic.data?.id ?? '' }} aria-label={t('manage')} title={t('manage')}><Settings2 size={17} /></Link>
             </>}
             {kind === 'event' && ownsEvent && <>
-              <a className="quiet-button icon-button" href={`/events/${event.data?.public_code}`} aria-label={t('view')} title={t('view')}><Eye size={17} /></a>
-              <a className="quiet-button icon-button" href={`/dashboard/series/${parentOpenMic.data?.id}/events/${event.data?.id}/edit`} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></a>
-              <a className="quiet-button icon-button" href={`/dashboard/series/${parentOpenMic.data?.id}/events/${event.data?.id}/roster`} aria-label={t('manage')} title={t('manage')}><Settings2 size={17} /></a>
+              <Link className="quiet-button icon-button" to="/events/$eventId" params={{ eventId: event.data?.public_code ?? '' }} aria-label={t('view')} title={t('view')}><Eye size={17} /></Link>
+              <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/events/$eventId/edit" params={{ seriesId: parentOpenMic.data?.id ?? '', eventId: event.data?.id ?? '' }} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></Link>
+              <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId: parentOpenMic.data?.id ?? '', eventId: event.data?.id ?? '' }} aria-label={t('manage')} title={t('manage')}><Settings2 size={17} /></Link>
             </>}
             {kind === 'event' && (
               isRegisteredForEvent ? (
@@ -85,20 +86,20 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
                   Switch to a performer profile to register
                 </button>
               ) : (
-                <a className="primary-button" href={`/events/${event.data?.public_code}/register`}>{t('register')}</a>
+                <Link className="primary-button" to="/events/$eventId/register" params={{ eventId: event.data?.public_code ?? '' }}>{t('register')}</Link>
               )
             )}
             {kind === 'open-mic' && (
               isRegisteredForNextEvent ? (
                 <span className="profile-context" role="status">{t('registeredNext')}</span>
               ) : nextEvent.data ? (
-                <a className="primary-button" href={`/events/${nextEvent.data.public_code}`}>{t('seeNextEvent')}</a>
+                <Link className="primary-button" to="/events/$eventId" params={{ eventId: nextEvent.data.public_code }}>{t('seeNextEvent')}</Link>
               ) : needsPerformerProfile ? (
                 <button className="primary-button" type="button" onClick={focusProfileSwitcher}>
                   Switch to a performer profile to register
                 </button>
               ) : (
-                <a className="primary-button" href={`/open-mics/${openMic.data?.public_code ?? id}/register`}>{t('viewRegistration')}</a>
+                <Link className="primary-button" to="/open-mics/$openMicId/register" params={{ openMicId: openMic.data?.public_code ?? id }}>{t('viewRegistration')}</Link>
               )
             )}
             {kind === 'profile' && <button className="primary-button" type="button">{t('followProfile')}</button>}

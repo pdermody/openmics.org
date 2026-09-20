@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CalendarDays, Clock3, MapPin, Users } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { ApiError, api } from '../api/client'
 import { useAccountContext } from '../features/account'
 import { markEventRegisteredLocally } from '../features/guestRegistrations'
@@ -201,7 +202,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
     <main className="app" data-theme={theme} data-mode={mode}>
       <SiteHeader />
       <section className="registration-page">
-        <a className="back-link" href={`/events/${eventCode}`}>← Back to event</a>
+        <Link className="back-link" to="/events/$eventId" params={{ eventId: eventCode }}>← Back to event</Link>
         {event.isPending && <ReadState message={t('loading')} />}
         {event.isError && <ReadState message={t('eventLoadError')} retry={() => void event.refetch()} />}
         {event.data && <>

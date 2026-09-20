@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
 import { Sparkles } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
 import { useCreateEvent, useEventDetail, useOpenMicDetail, useOrganizerProfile, useUpdateEvent, type EventFormInput } from '../features/organizer'
@@ -126,6 +127,7 @@ function applyServerFieldErrors(error: unknown, setError: UseFormSetError<EventF
 
 export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: string; eventId?: string; theme: ThemeId; mode: ColorMode }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const isEdit = Boolean(eventId)
   const { context, activeProfile, isOrganizer } = useOrganizerProfile()
   const openMic = useOpenMicDetail(seriesId)
@@ -267,7 +269,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
       updateEvent.mutate(input, { onSuccess: () => reset(values) })
     } else {
       createEvent.mutate(input, {
-        onSuccess: (created) => { reset(values); window.location.href = `/events/${created.public_code}` },
+        onSuccess: (created) => { reset(values); void navigate({ to: '/events/$eventId', params: { eventId: created.public_code } }) },
       })
     }
   }
@@ -278,7 +280,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
 
   function discardChanges() {
     if (isDirty && !window.confirm(t('confirmDiscardChanges'))) return
-    window.location.href = `/dashboard/series/${seriesId}`
+    void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId } })
   }
 
   if (context.account.isPending || context.profiles.isPending || openMic.isPending || (isEdit && existing.isPending)) {
@@ -287,7 +289,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   const isOwner = !openMic.data || openMic.data.owner_profile_id === activeProfile?.id
   if (!context.account.data || !isOrganizer || (openMic.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
-      <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+      <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
       <section className="dashboard-page"><ReadState message={t('selectOrganizer')} /></section>
     </main>
   }
@@ -296,9 +298,9 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   }
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
-      <a className="back-link" href={`/dashboard/series/${seriesId}`}>← Back to {openMic.data?.name ?? 'series'}</a>
+      <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId }}>← Back to {openMic.data?.name ?? 'series'}</Link>
       <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{isEdit ? t('editEventTitle', { name: existing.data?.title ?? t('eventDetail') }) : t('newEventTitle', { name: openMic.data?.name ?? t('openMicSeries') })}</h1>
       <form className="registration-form series-form" onSubmit={handleSubmit(onSubmit, focusFirstError)} noValidate>

@@ -1,4 +1,5 @@
 import { Clock3, MapPin } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useMyRegisteredEventIds } from '../features/myRegistrations'
 import { isRegistrationClosed, usePublicOpenMic, type Event, type OpenMic } from '../features/publicReads'
@@ -39,9 +40,9 @@ export function EventCard({ event }: { event: Event }) {
           {event.capacity ? t('openMicWithCapacity', { count: event.capacity }) : t('openMicSeries')}
         </div>
         <h3>
-          <a className="card-link" href={`/events/${event.public_code}`}>
+          <Link className="card-link" to="/events/$eventId" params={{ eventId: event.public_code }}>
             {event.title}
-          </a>
+          </Link>
         </h3>
         <p className="event-meta">
           <Clock3 size={15} /> {time}
@@ -63,9 +64,9 @@ export function EventCard({ event }: { event: Event }) {
             {registrationDisabledLabel}
           </button>
         ) : (
-          <a className="primary-button" href={`/events/${event.public_code}/register`}>
+          <Link className="primary-button" to="/events/$eventId/register" params={{ eventId: event.public_code }}>
             Register
-          </a>
+          </Link>
         )}
         <div className="social-row">
           <SocialButton label="React" icon="heart" />
@@ -93,9 +94,9 @@ export function SeriesCard({ openMic }: { openMic: OpenMic }) {
       <div className="series-copy">
         <div className="event-type">{t('openMicSeries')}</div>
         <h3>
-          <a className="card-link" href={`/open-mics/${openMic.public_code}`}>
+          <Link className="card-link" to="/open-mics/$openMicId" params={{ openMicId: openMic.public_code }}>
             {openMic.name}
-          </a>
+          </Link>
         </h3>
         <p>{openMic.description ?? 'A welcoming room for singers, poets, and the curious.'}</p>
         <div className="event-meta">

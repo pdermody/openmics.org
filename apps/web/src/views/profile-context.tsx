@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchSimulatedAuthConfig, getStoredSimulatedAuthToken, LOCAL_SIMULATED_ROLE_KEY, type SimulatedAuthRole } from '../auth/session'
@@ -77,5 +78,5 @@ export function ProfileSwitcher() {
 export function DashboardMenuLink() {
   const { t } = useTranslation()
   const context = useAccountContext()
-  return context.account.data ? <a href="/dashboard">{t('dashboard')}</a> : null
+  return context.account.data ? <Link to="/dashboard">{t('dashboard')}</Link> : null
 }

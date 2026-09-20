@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, DoorOpen, Lock, LockOpen, MapPin, MoreVertical, Sparkles } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
 import { EventManagementActions } from '../components/EventManagementActions'
@@ -347,6 +348,7 @@ function PerformerCard({
 
 export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: string; eventId: string; theme: ThemeId; mode: ColorMode }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { context, isOrganizer } = useOrganizerProfile()
   const event = useEventDetail(seriesId, eventId)
   const roster = useEventRoster(eventId, isOrganizer)
@@ -432,9 +434,9 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   const showPendingList = provenanceFilter === 'all' || provenanceFilter === 'pending'
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
-      <a className="back-link" href={`/dashboard/series/${seriesId}`}>← Back to events</a>
+      <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId }}>← Back to events</Link>
       <div className="eyebrow">{t('eventOperations')}</div>
       <h1>{event.data?.title ?? 'Event roster'}</h1>
       {/* Roster is reached from several places (dashboard, kiosk, direct links) — always show
@@ -444,9 +446,9 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
         <span className="event-meta"><MapPin size={15} /> {event.data.venue_name}, {event.data.city}</span>
       </p>}
       {event.data && isOrganizer && <div className="dashboard-series-card-actions">
-        <a className="quiet-button" href={`/dashboard/series/${seriesId}/events/${eventId}/kiosk`}><DoorOpen size={17} /> {t('openKiosk')}</a>
+        <Link className="quiet-button" to="/dashboard/series/$seriesId/events/$eventId/kiosk" params={{ seriesId, eventId }}><DoorOpen size={17} /> {t('openKiosk')}</Link>
         <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? <LockOpen size={17} /> : <Lock size={17} />} {isClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
-        <EventManagementActions openMicId={seriesId} eventId={eventId} running={event.data?.running} onDeleted={() => window.location.assign('/dashboard')} navigationItems={[{ label: t('copyLink'), onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${eventId}/register`) }, { label: t('downloadQr'), onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${eventId}/register`, event.data?.public_code ?? eventId) }]} />
+        <EventManagementActions openMicId={seriesId} eventId={eventId} running={event.data?.running} onDeleted={() => void navigate({ to: '/dashboard' })} navigationItems={[{ label: t('copyLink'), onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${eventId}/register`) }, { label: t('downloadQr'), onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${eventId}/register`, event.data?.public_code ?? eventId) }]} />
       </div>}
       {setRegistrationsClosed.isError && <p className="form-error">{friendlyApiErrorMessage(setRegistrationsClosed.error, 'Could not update registration availability.')}</p>}
       {event.data && <div className="roster-summary">

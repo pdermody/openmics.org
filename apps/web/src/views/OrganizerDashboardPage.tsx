@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Clock3, Copy, Eye, MapPin, Pause, Pencil, Play, QrCode, Settings2, Sparkles, Trash2, Upload } from 'lucide-react'
 import { EventManagementActions } from '../components/EventManagementActions'
 import { ActionMenu } from '../components/ActionMenu'
@@ -12,6 +13,7 @@ import { HeaderMenu, Modal, ProfileSwitcher, ReadState, SignInButton } from './s
 
 function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const events = useOrganizerSeriesEvents(openMic.id, true)
   const updateOpenMic = useUpdateOpenMic(openMic.id)
   const deleteOpenMic = useDeleteOpenMic(openMic.id)
@@ -22,15 +24,15 @@ function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
     <div className="dashboard-series-card-header">
       <div>
         <span className="panel-label">{openMic.status}</span>
-        <h2><a href={`/dashboard/series/${openMic.id}`}>{openMic.name}</a></h2>
+        <h2><Link to="/dashboard/series/$seriesId" params={{ seriesId: openMic.id }}>{openMic.name}</Link></h2>
         <p>{openMic.description ?? t('noDescription')}</p>
         <span className="event-meta"><MapPin size={15} /> {openMic.venue_name}, {openMic.city}</span>
       </div>
       <div className="dashboard-series-card-actions">
         <ActionMenu label={t('seriesActions')} items={[
-          { label: t('view'), icon: <Eye size={16} />, onClick: () => { window.location.href = `/open-mics/${openMic.current_handle ?? openMic.id}` } },
-          { label: t('edit'), icon: <Pencil size={16} />, onClick: () => { window.location.href = `/dashboard/series/${openMic.id}/edit` } },
-          { label: t('manage'), icon: <Settings2 size={16} />, onClick: () => { window.location.href = `/dashboard/series/${openMic.id}` } },
+          { label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/open-mics/$openMicId', params: { openMicId: openMic.current_handle ?? openMic.id } }) },
+          { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/edit', params: { seriesId: openMic.id } }) },
+          { label: t('manage'), icon: <Settings2 size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId: openMic.id } }) },
           { label: t('copyLink'), icon: <Copy size={16} />, onClick: () => void copyRegistrationLink(`${window.location.origin}/${openMic.current_handle ? `@${openMic.current_handle}` : `open-mics/${openMic.id}`}/register`) },
           { label: t('downloadQr'), icon: <QrCode size={16} />, onClick: () => void downloadRegistrationQr(`${window.location.origin}/${openMic.current_handle ? `@${openMic.current_handle}` : `open-mics/${openMic.id}`}/register`, openMic.current_handle ?? openMic.id) },
           ...(openMic.status === 'draft' ? [{ label: t('publishSeries'), icon: <Upload size={16} />, onClick: () => setConfirmation('publish') }] : []),
@@ -53,7 +55,7 @@ function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
       {events.isSuccess && upcomingEvents.length === 0 && <ReadState message={t('noEvents')} />}
       {upcomingEvents.map((event) => <article className="dashboard-event-card" key={event.id}>
         <div>
-          <h3><a href={`/dashboard/series/${openMic.id}/events/${event.id}/roster`}>{event.title}</a></h3>
+          <h3><Link to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId: openMic.id, eventId: event.id }}>{event.title}</Link></h3>
           <p className="event-meta"><Clock3 size={15} /> {new Date(event.starts_at).toLocaleString()}</p>
           <p className="event-meta"><MapPin size={15} /> {event.venue_name}, {event.city}</p>
         </div>
@@ -63,9 +65,9 @@ function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
             eventId={event.id}
             running={event.running}
             navigationItems={[
-              { label: t('view'), icon: <Eye size={16} />, onClick: () => { window.location.href = `/events/${event.public_code}` } },
-              { label: t('edit'), icon: <Pencil size={16} />, onClick: () => { window.location.href = `/dashboard/series/${openMic.id}/events/${event.id}/edit` } },
-              { label: t('manage'), icon: <Settings2 size={16} />, onClick: () => { window.location.href = `/dashboard/series/${openMic.id}/events/${event.id}/roster` } },
+              { label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/events/$eventId', params: { eventId: event.public_code } }) },
+              { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/edit', params: { seriesId: openMic.id, eventId: event.id } }) },
+              { label: t('manage'), icon: <Settings2 size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/roster', params: { seriesId: openMic.id, eventId: event.id } }) },
               { label: t('copyLink'), icon: <Copy size={16} />, onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${event.id}/register`) },
               { label: t('downloadQr'), icon: <QrCode size={16} />, onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${event.id}/register`, event.public_code) },
             ]}
@@ -83,7 +85,7 @@ export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: 
   const hasNoOpenMics = isOrganizer && !openMics.isPending && (openMics.data?.length ?? 0) === 0
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
     <section className="dashboard-page">
       <div className="eyebrow">{t('dashboard')}</div>
       <h1>{t('dashboardTitle')}</h1>
@@ -93,7 +95,7 @@ export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: 
       {!isOrganizerPending && context.account.data && !isOrganizer && <ReadState message={t('selectOrganizer')} />}
       {isOrganizer && selected && <>
         <p className="detail-lede">{t('workingAs', { name: selected.profile_name })}</p>
-        {hasNoOpenMics && <div className="dashboard-card"><span className="panel-label">{t('getStarted')}</span><h2>{t('setupFirst')}</h2><p>{t('noSeriesYet')}</p><a className="quiet-button" href="/dashboard/series/new">{t('setupFirstLink')}</a></div>}
+        {hasNoOpenMics && <div className="dashboard-card"><span className="panel-label">{t('getStarted')}</span><h2>{t('setupFirst')}</h2><p>{t('noSeriesYet')}</p><Link className="quiet-button" to="/dashboard/series/new">{t('setupFirstLink')}</Link></div>}
         <div className="dashboard-series-list">
           {openMics.isPending && <ReadState message={t('loading')} />}
           {openMics.isError && <ReadState message={t('seriesLoadError')} retry={() => void openMics.refetch()} />}
