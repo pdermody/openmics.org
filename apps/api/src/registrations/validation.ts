@@ -17,6 +17,7 @@ const registrationFields = {
   contact_email: z.string().email().optional(),
   contact_phone: z.string().optional(),
   song_names: z.array(z.string()).optional(),
+  bio: z.string().optional(),
   submission_channel: submissionChannelSchema.optional(),
   organizer_supervised: z.boolean().optional(),
   referred_by_profile_id: z.string().uuid().optional(),
@@ -43,6 +44,7 @@ export const updateRegistrationSchema = z.object({
   contact_email: z.string().email().optional(),
   contact_phone: z.string().optional(),
   song_names: z.array(z.string()).optional(),
+  bio: z.string().optional(),
   media_consent: z.boolean().optional(),
   adopted_profile_id: z.string().uuid().nullable().optional(),
 }).strict();

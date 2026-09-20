@@ -11,6 +11,7 @@ export type RegistrationRow = {
   contact_email: string | null;
   contact_phone: string | null;
   song_names: string[];
+  bio: string | null;
   submission_channel: string;
   organizer_supervised: boolean;
   referred_by_profile_id: string | null;
@@ -40,6 +41,7 @@ export type InsertRegistrationInput = {
   contactEmail?: string | null;
   contactPhone?: string | null;
   songNames?: string[];
+  bio?: string | null;
   submissionChannel: string;
   organizerSupervised: boolean;
   referredByProfileId?: string | null;
@@ -56,12 +58,12 @@ export async function insertRegistration(client: PoolClient, input: InsertRegist
   const result = await client.query<RegistrationRow>(
     `INSERT INTO registrations (
       event_id, profile_id, performer_name, performer_city, contact_email, contact_phone, song_names,
-      submission_channel, organizer_supervised, referred_by_profile_id, media_consent,
+      bio, submission_channel, organizer_supervised, referred_by_profile_id, media_consent,
       edit_token_hash, edit_token_expires_at, email_verification_token_hash,
       email_verification_token_expires_at, verification_method, email_verified_at
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, COALESCE($7, '{}'::text[]), $8, $9, $10, COALESCE($11, true),
-      $12, $13, $14, $15, $16, $17
+      $1, $2, $3, $4, $5, $6, COALESCE($7, '{}'::text[]), $8, $9, $10, $11, COALESCE($12, true),
+      $13, $14, $15, $16, $17, $18
     ) RETURNING *`,
     [
       input.eventId,
@@ -71,6 +73,7 @@ export async function insertRegistration(client: PoolClient, input: InsertRegist
       input.contactEmail ?? null,
       input.contactPhone ?? null,
       input.songNames ?? null,
+      input.bio ?? null,
       input.submissionChannel,
       input.organizerSupervised,
       input.referredByProfileId ?? null,
@@ -139,7 +142,7 @@ export async function updateRegistration(
   changes: Partial<Record<string, unknown>>,
 ): Promise<RegistrationRow | null> {
   const allowed = new Set([
-    'performer_name', 'performer_city', 'contact_email', 'contact_phone', 'song_names', 'media_consent', 'adopted_profile_id',
+    'performer_name', 'performer_city', 'contact_email', 'contact_phone', 'song_names', 'bio', 'media_consent', 'adopted_profile_id',
     'claimed_by_account_id', 'claimed_at', 'verification_method', 'email_verified_at',
     'email_verification_token_hash', 'email_verification_token_expires_at',
   ]);
@@ -203,6 +206,7 @@ export function serializeRegistration(row: RegistrationRow) {
     contact_email: row.contact_email,
     contact_phone: row.contact_phone,
     song_names: row.song_names ?? [],
+    bio: row.bio,
     submission_channel: row.submission_channel,
     organizer_supervised: row.organizer_supervised,
     referred_by_profile_id: row.referred_by_profile_id,

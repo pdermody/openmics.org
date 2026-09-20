@@ -669,8 +669,10 @@ export function useRosterLiveUpdates(openMicId: string | undefined, eventId: str
 export type KioskRegistrationInput = {
   performer_name: string
   performer_city?: string
+  contact_email?: string
   contact_phone?: string
   song_names?: string[]
+  bio?: string
   media_consent?: boolean
 }
 

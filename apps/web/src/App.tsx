@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import './App.css'
 import { HomePage } from './views/HomePage'
 import { ThemePage } from './views/ThemePage'
@@ -12,6 +12,7 @@ import { OnboardingPage } from './views/OnboardingPage'
 import { useAccountContext } from './features/account'
 import { SiteFooter } from './views/shared'
 import { i18n } from './i18n'
+import { getCurrentPath, subscribeToLocation } from './navigation'
 import { DEFAULT_THEME, isColorMode, isThemeId, MODE_STORAGE_KEY, systemColorMode, THEME_STORAGE_KEY, type ColorMode, type ThemeId } from './theme'
 
 const ProfileEditor = lazy(() => import('./views/ProfileEditorPage').then((module) => ({ default: module.ProfileEditorPage })))
@@ -34,7 +35,7 @@ function App() {
   const [theme, setTheme] = useState<ThemeId>(() => { const stored = localStorage.getItem(THEME_STORAGE_KEY); return isThemeId(stored) ? stored : DEFAULT_THEME })
   const [mode, setMode] = useState<ColorMode>(() => { const stored = localStorage.getItem(MODE_STORAGE_KEY); return isColorMode(stored) ? stored : systemColorMode() })
   const account = useAccountContext()
-  const pathname = window.location.pathname
+  const pathname = useSyncExternalStore(subscribeToLocation, getCurrentPath)
   const eventMatch = pathname.match(/^\/events\/([^/]+)$/)
   const registrationMatch = pathname.match(/^\/events\/([^/]+)\/register$/)
   const openMicRegistrationMatch = pathname.match(/^\/open-mics\/([^/]+)\/register$/)
@@ -79,7 +80,9 @@ function App() {
   if (eventNewMatch) return <RoutedView theme={theme} mode={mode}><LazyView><EventForm seriesId={eventNewMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
   if (eventEditMatch) return <RoutedView theme={theme} mode={mode}><LazyView><EventForm seriesId={eventEditMatch[1]} eventId={eventEditMatch[2]} theme={theme} mode={mode} /></LazyView></RoutedView>
   if (eventRosterMatch) return <RoutedView theme={theme} mode={mode}><LazyView><EventRoster seriesId={eventRosterMatch[1]} eventId={eventRosterMatch[2]} theme={theme} mode={mode} /></LazyView></RoutedView>
-  if (eventKioskMatch) return <RoutedView theme={theme} mode={mode}><LazyView><Kiosk seriesId={eventKioskMatch[1]} eventId={eventKioskMatch[2]} theme={theme} mode={mode} /></LazyView></RoutedView>
+  // No SiteFooter here: its site-wide nav links (home, appearance settings) would let someone
+  // slip out of the locked kiosk without going through the PIN-gated exit flow.
+  if (eventKioskMatch) return <LazyView><Kiosk seriesId={eventKioskMatch[1]} eventId={eventKioskMatch[2]} theme={theme} mode={mode} /></LazyView>
   if (seriesEventsMatch) return <RoutedView theme={theme} mode={mode}><LazyView><OrganizerEvents seriesId={seriesEventsMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
   if (profileEditMatch) return <RoutedView theme={theme} mode={mode}><LazyView><ProfileEditor profileId={profileEditMatch[1]} theme={theme} mode={mode} /></LazyView></RoutedView>
   if (eventMatch) return <RoutedView theme={theme} mode={mode}><EventPage id={eventMatch[1]} theme={theme} mode={mode} /></RoutedView>

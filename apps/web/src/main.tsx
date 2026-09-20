@@ -6,6 +6,9 @@ import App from './App.tsx'
 import { queryClient } from './api/queryClient'
 import { initAuth } from './auth/session'
 import { i18nReady } from './i18n'
+import { installLinkInterceptor } from './navigation'
+
+installLinkInterceptor()
 
 void i18nReady.then(() => initAuth({
   onSignedIn: () => {

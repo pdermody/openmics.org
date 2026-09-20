@@ -176,6 +176,7 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
             contactEmail: input.contact_email?.toLowerCase(),
             contactPhone: input.contact_phone,
             songNames: input.song_names,
+            bio: input.bio,
             submissionChannel: input.submission_channel,
             organizerSupervised: input.organizer_supervised,
             referredByProfileId: input.referred_by_profile_id,

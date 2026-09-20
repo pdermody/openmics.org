@@ -1823,6 +1823,11 @@ components:
           type: array
           items:
             type: string
+        bio:
+          type: string
+          nullable: true
+          description: Optional short bio the performer gave at sign-up, separate from any
+            profile bio (adopting a profile does not overwrite this).
         submission_channel:
           $ref: "#/components/schemas/RegistrationChannel"
         organizer_supervised:
@@ -2536,6 +2541,8 @@ components:
           type: array
           items:
             type: string
+        bio:
+          type: string
         submission_channel:
           $ref: "#/components/schemas/RegistrationChannel"
         organizer_supervised:
@@ -2560,6 +2567,8 @@ components:
           type: array
           items:
             type: string
+        bio:
+          type: string
         media_consent:
           type: boolean
         adopted_profile_id:

@@ -1,14 +1,25 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sparkles } from 'lucide-react'
+import { CalendarDays, MapPin, Sparkles } from 'lucide-react'
 import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { RegistrationLinkTools } from '../components/RegistrationLinkTools'
 import { hashKioskPin, useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
 import { isRegistrationClosed } from '../features/publicReads'
 import type { ColorMode, ThemeId } from '../theme'
-import { ReadState, Required, RequiredFieldsNote } from './shared'
+import { Modal, ReadState, Required, RequiredFieldsNote } from './shared'
 
 const CONFIRMATION_DISPLAY_MS = 2500
+
+function formatEventDateTime(startsAt: string, timeZone: string, locale: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZone, timeZoneName: 'short',
+    }).format(new Date(startsAt))
+  } catch {
+    return new Date(startsAt).toLocaleString()
+  }
+}
 
 function kioskErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -243,42 +254,48 @@ function KioskLock({
 // runs themselves) at the door: no account/email required from the performer, and the form
 // resets itself right after each successful entry so the next performer can sign up quickly.
 export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string; eventId: string; theme: ThemeId; mode: ColorMode }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { context, isOrganizer } = useOrganizerProfile()
   const event = useEventDetail(seriesId, eventId)
   const kioskRegistration = useKioskRegistration(eventId)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const emailInputRef = useRef<HTMLInputElement>(null)
   const confirmationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement>(null)
 
   const [performerName, setPerformerName] = useState('')
   const [performerCity, setPerformerCity] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [songNames, setSongNames] = useState('')
+  const [bio, setBio] = useState('')
   const [mediaConsent, setMediaConsent] = useState(true)
   const [confirmation, setConfirmation] = useState('')
+  const [emailPromptOpen, setEmailPromptOpen] = useState(false)
 
   const eventClosed = Boolean(event.data) && isRegistrationClosed(event.data!)
 
   function resetForm() {
     setPerformerName('')
     setPerformerCity('')
+    setContactEmail('')
     setContactPhone('')
     setSongNames('')
+    setBio('')
     setMediaConsent(true)
     nameInputRef.current?.focus()
   }
 
-  function submit(formEvent: FormEvent<HTMLFormElement>) {
-    formEvent.preventDefault()
-    if (!performerName.trim()) return
+  function performSubmit() {
     const submittedName = performerName.trim()
     kioskRegistration.mutate(
       {
         performer_name: submittedName,
         performer_city: performerCity.trim() || undefined,
+        contact_email: contactEmail.trim() || undefined,
         contact_phone: contactPhone.trim() || undefined,
         song_names: songNames.split(',').map((song) => song.trim()).filter(Boolean),
+        bio: bio.trim() || undefined,
         media_consent: mediaConsent,
       },
       {
@@ -290,6 +307,14 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
         },
       },
     )
+  }
+
+  function submit(formEvent: FormEvent<HTMLFormElement>) {
+    formEvent.preventDefault()
+    if (!performerName.trim()) return
+    // No email? Explain why one helps before recording a sign-up with no way to follow up.
+    if (!contactEmail.trim()) { setEmailPromptOpen(true); return }
+    performSubmit()
   }
 
   if (!isOrganizer) return <main className="app kiosk-page" data-theme={theme} data-mode={mode}>
@@ -304,12 +329,18 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   return <div ref={rootRef} className="app kiosk-page" data-theme={theme} data-mode={mode}>
     <KioskLock seriesId={seriesId} eventId={eventId} rootRef={rootRef}>
       {(requestExit) => <>
-        <header className="topbar kiosk-topbar"><span className="brand" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></span></header>
+        <header className="topbar kiosk-topbar"><button type="button" className="brand" aria-label={t('exitKiosk')} onClick={requestExit}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></button></header>
         <section className="kiosk-body">
+          <div className="eyebrow">{t('kioskPageEyebrow')}</div>
           <h1>{event.data?.title ?? 'Event kiosk'}</h1>
+          <p className="detail-lede">{t('kioskPageIntro')}</p>
+          {event.data && <div className="registration-event-summary" aria-label={t('eventDetails')}>
+            <p className="registration-event-fact"><CalendarDays size={17} aria-hidden="true" /><strong>{formatEventDateTime(event.data.starts_at, event.data.time_zone, i18n.language)}</strong></p>
+            <p className="registration-event-fact"><MapPin size={17} aria-hidden="true" /><span>{event.data.venue_name}, {event.data.city}</span></p>
+          </div>}
 
-          {event.data && <section className="kiosk-registration-qr" aria-labelledby="kiosk-registration-qr-title">
-            <h2 id="kiosk-registration-qr-title">{t('kioskRegistrationQrTitle')}</h2>
+          {event.data && <details className="kiosk-registration-qr">
+            <summary>{t('kioskRegistrationQrTitle')}</summary>
             <p>{t('kioskRegistrationQrIntro')}</p>
             <div className="kiosk-registration-qr-grid">
               <RegistrationLinkTools
@@ -325,7 +356,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
                 showPreview
               />
             </div>
-          </section>}
+          </details>}
 
           {event.isPending && <ReadState message="Loading event…" />}
           {event.isError && <ReadState message={friendlyApiErrorMessage(event.error, 'We could not load this event.')} retry={() => void event.refetch()} />}
@@ -336,16 +367,30 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
 
           {event.data && !eventClosed && <form className="kiosk-form" noValidate onSubmit={submit}>
             <RequiredFieldsNote />
-            <label><span>{t('performerName')}<Required /></span><input ref={nameInputRef} autoFocus required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
-            <label>{t('cityLabel')} <span className="field-hint">{t('optional')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
-            <label>{t('phoneLabel')} <span className="field-hint">{t('optional')}</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
-            <label>{t('performancePrompt')} <span className="field-hint">{t('performanceHint')}</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
+            <label><span>{t('performerName')}<Required /></span> <span className="field-hint">{t('kioskNameHint')}</span><input ref={nameInputRef} autoFocus required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
+            <label>{t('cityLabel')} <span className="field-hint">{t('kioskCityHint')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
+            <label>{t('phoneLabel')} <span className="field-hint">{t('kioskPhoneHint')}</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
+            <label>{t('kioskEmailLabel')} <span className="field-hint">{t('kioskEmailHint')}</span><input ref={emailInputRef} type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
+            <label>{t('performancePrompt')} <span className="field-hint">{t('kioskPerformanceHint')}</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
+            <label>{t('bio')} <span className="field-hint">{t('kioskBioHint')}</span><textarea value={bio} onChange={(input) => setBio(input.target.value)} /></label>
             <label className="checkbox-label kiosk-checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>{t('mediaConsentPrompt')}</span></label>
             {kioskRegistration.isError && <p className="form-error" role="alert">{kioskErrorMessage(kioskRegistration.error)}</p>}
             {confirmation && <p className="kiosk-success" role="status">{confirmation} ✓</p>}
             <button className="primary-button kiosk-submit" type="submit" disabled={kioskRegistration.isPending}>{kioskRegistration.isPending ? t('loading') : t('addRoster')}</button>
           </form>}
-          {event.data && <button type="button" className="link-button kiosk-exit-button" onClick={requestExit}>{t('exitKiosk')}</button>}
+          {emailPromptOpen && <Modal title={t('kioskEmailPromptTitle')} onClose={() => setEmailPromptOpen(false)}>
+            <p>{t('kioskEmailPromptIntro')}</p>
+            <ul className="kiosk-email-prompt-benefits">
+              <li>{t('kioskEmailPromptBenefit1')}</li>
+              <li>{t('kioskEmailPromptBenefit2')}</li>
+              <li>{t('kioskEmailPromptBenefit3')}</li>
+              <li>{t('kioskEmailPromptBenefit4')}</li>
+            </ul>
+            <div className="dashboard-series-card-actions">
+              <button type="button" className="link-button" onClick={() => { setEmailPromptOpen(false); performSubmit() }}>{t('kioskEmailPromptContinue')}</button>
+              <button type="button" className="primary-button" onClick={() => { setEmailPromptOpen(false); emailInputRef.current?.focus() }}>{t('kioskEmailPromptAddEmail')}</button>
+            </div>
+          </Modal>}
         </section>
       </>}
     </KioskLock>
