@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
@@ -8,6 +8,7 @@ import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
 import { useHandleAvailability } from '../features/handles'
 import { CURRENCIES } from '../features/currencies'
+import { ACTIVITY_LABEL_KEYS, browserTimeZone, COUNTRY_OPTIONS, formatTimeZoneOption, TIME_ZONE_OPTIONS } from '../features/form-options'
 import { baseLocationFieldsSchema } from '../features/location'
 import { useCreateOpenMic, useOpenMicDetail, useOrganizerProfile, useUpdateOpenMic, type OpenMicFormInput } from '../features/organizer'
 import { suggestHandle } from '../features/slugify'
@@ -16,6 +17,13 @@ import { KioskBackupPinSection } from './KioskBackupPin'
 import { HeaderMenu, ProfileSwitcher, ReadState, Required, RequiredFieldsNote, SignInButton } from './shared'
 
 const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
+
+const FORM_TABS = [
+  { id: 'basics', labelKey: 'seriesTabBasics', fields: ['name', 'activities'] },
+  { id: 'location', labelKey: 'seriesTabLocation', fields: ['venue_name', 'address_line1', 'city', 'country', 'lat', 'lng'] },
+  { id: 'schedule', labelKey: 'seriesTabSchedule', fields: ['time_zone', 'website', 'contact_email', 'schedule_summary', 'schedule_details'] },
+  { id: 'registration', labelKey: 'seriesTabRegistration', fields: ['handle', 'tags', 'registration_mode', 'external_registration_url', 'entry_fee_amount', 'entry_fee_currency', 'entry_fee_note'] },
+] as const
 
 const openMicFormSchema = z
   .object({
@@ -67,7 +75,7 @@ const DEFAULT_VALUES: OpenMicFormValues = {
   country: '',
   lat: undefined,
   lng: undefined,
-  time_zone: '',
+  time_zone: browserTimeZone(),
   website: '',
   contact_email: '',
   schedule_summary: '',
@@ -115,6 +123,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
     defaultValues: DEFAULT_VALUES,
   })
   const { errors, dirtyFields, isDirty } = formState
+  const [activeTab, setActiveTab] = useState(0)
 
   const name = watch('name')
   const handle = watch('handle') ?? ''
@@ -190,8 +199,30 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
 
   const mutation = isEdit ? updateOpenMic : createOpenMic
 
+  function tabHasErrors(tabIndex: number): boolean {
+    return FORM_TABS[tabIndex].fields.some((field) => Boolean(errors[field as keyof OpenMicFormValues]))
+  }
+
+  function focusFirstError(errorValues: Partial<Record<keyof OpenMicFormValues, unknown>>) {
+    const firstTab = FORM_TABS.findIndex((tab) => tab.fields.some((field) => Boolean(errorValues[field as keyof OpenMicFormValues])))
+    const tabIndex = firstTab < 0 ? 0 : firstTab
+    setActiveTab(tabIndex)
+    const firstField = firstTab < 0 ? undefined : FORM_TABS[tabIndex].fields.find((field) => Boolean(errorValues[field as keyof OpenMicFormValues]))
+    if (firstField) {
+      window.setTimeout(() => {
+        const element = document.querySelector<HTMLElement>(`[name="${firstField}"]`)
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        element?.focus()
+      }, 0)
+    }
+  }
+
   useEffect(() => {
-    if (mutation.error) applyServerFieldErrors(mutation.error, setError)
+    if (mutation.error) {
+      applyServerFieldErrors(mutation.error, setError)
+      const fieldErrors = (mutation.error instanceof ApiError ? mutation.error.details : undefined) as { fieldErrors?: Record<string, string[]> } | undefined
+      if (fieldErrors?.fieldErrors) focusFirstError(fieldErrors.fieldErrors)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mutation.error])
 
@@ -239,6 +270,11 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
     }
   }
 
+  function discardChanges() {
+    if (isDirty && !window.confirm(t('confirmDiscardChanges'))) return
+    window.location.href = isEdit ? `/dashboard/series/${seriesId}` : '/dashboard'
+  }
+
   const isOwner = !isEdit || !existing.data || existing.data.owner_profile_id === activeProfile?.id
 
   if (context.account.isPending || context.profiles.isPending || (isEdit && existing.isPending)) {
@@ -247,7 +283,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   if (!context.account.data || !isOrganizer || (isEdit && existing.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
       <header className="topbar"><a className="brand" href="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></a><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
-      <section className="dashboard-page"><ReadState message="Switch to an organizer profile to manage open mic series." /></section>
+      <section className="dashboard-page"><ReadState message={t('selectOrganizerSeries')} /></section>
     </main>
   }
   if (isEdit && existing.isError) {
@@ -260,91 +296,115 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
       <a className="back-link" href={isEdit ? `/dashboard/series/${seriesId}` : '/dashboard'}>← Back to {isEdit ? 'series' : 'dashboard'}</a>
       <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{isEdit ? t('editSeriesTitle', { name: existing.data?.name ?? t('openMicSeries') }) : t('createSeriesTitle')}</h1>
-      <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <form className="registration-form series-form" onSubmit={handleSubmit(onSubmit)} noValidate>
         <RequiredFieldsNote />
-        <label><span>{t('seriesName')}<Required /></span><input required {...register('name')} /></label>
-        {errors.name && <p className="form-error" role="alert">{errors.name.message}</p>}
-        <label>Description <span className="field-hint">{t('optional')}</span><textarea {...register('description')} /></label>
-        {!isEdit && <label>{t('handleLabel')} <span className="field-hint">{t('handleHint')}</span><span className="handle-input"><span aria-hidden="true">@</span><input {...handleFieldProps} onChange={(event) => { handleTouchedRef.current = true; void handleFieldOnChange(event) }} /></span></label>}
-        {!isEdit && handle && <p className={`handle-feedback ${handleCheck.state === 'available' ? 'form-success' : handleCheck.state === 'checking' ? 'field-hint' : 'form-error'}`} role={handleCheck.state === 'unavailable' || handleCheck.state === 'invalid' ? 'alert' : 'status'}>
+        <div className="form-tabs" role="tablist" aria-label={t('seriesFormSections')}>
+          {FORM_TABS.map((tab, index) => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === index} aria-controls={`series-tab-${tab.id}`} className={`form-tab${activeTab === index ? ' form-tab-active' : ''}`} onClick={() => setActiveTab(index)}>
+            {t(tab.labelKey)}{tabHasErrors(index) && <span className="form-tab-error" aria-label={t('requiredInformationMissing')}>!</span>}
+          </button>)}
+        </div>
+
+        <section id="series-tab-basics" role="tabpanel" hidden={activeTab !== 0}>
+          <label><span>{t('seriesName')}<Required /></span><input required {...register('name')} /></label>
+          {errors.name && <p className="form-error" role="alert">{errors.name.message}</p>}
+          <p className="field-hint">{t('seriesNameHint')}</p>
+          <label>{t('description')}<textarea {...register('description')} /></label>
+          <p className="field-hint">{t('seriesDescriptionHint')}</p>
+          <fieldset>
+            <legend>{t('activities')}<Required /></legend>
+            {ACTIVITIES.map((activity) => <label className="checkbox-label" key={activity}><input type="checkbox" checked={activities.includes(activity)} onChange={() => toggleActivity(activity)} /><span>{t(ACTIVITY_LABEL_KEYS[activity])}</span></label>)}
+          </fieldset>
+          {errors.activities && <p className="form-error" role="alert">{errors.activities.message}</p>}
+        </section>
+
+        <section id="series-tab-location" role="tabpanel" hidden={activeTab !== 1}>
+          <label><span>{t('venueName')}<Required /></span><input required {...register('venue_name')} /></label>
+          {errors.venue_name && <p className="form-error" role="alert">{errors.venue_name.message}</p>}
+          <p className="field-hint">{t('venueNameHint')}</p>
+          <label><span>{t('address')}<Required /></span><input required {...register('address_line1')} /></label>
+          {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
+          <label>{t('addressLine2')}<textarea {...register('address_line2')} /></label>
+          <label>{t('postcode')}<input {...register('postcode')} /></label>
+          <label><span>{t('city')}<Required /></span><input required {...register('city')} /></label>
+          {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
+          <label><span>{t('country')}<Required /></span><select required {...register('country')}><option value="">{t('selectCountry')}</option>{COUNTRY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.name} ({option.code})</option>)}</select></label>
+          {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
+          <p className="field-hint">{t('locationFieldsHint')}</p>
+          <LocationPicker
+            lat={lat}
+            lng={lng}
+            onChange={({ lat: nextLat, lng: nextLng }) => { setValue('lat', nextLat, { shouldDirty: true, shouldValidate: true }); setValue('lng', nextLng, { shouldDirty: true, shouldValidate: true }) }}
+            addressQuery={[addressLine1, postcode, city, country].filter(Boolean).join(', ')}
+            latInputId="open-mic-lat"
+            lngInputId="open-mic-lng"
+          />
+          {errors.lng && <p className="form-error" role="alert">{errors.lng.message}</p>}
+        </section>
+
+        <section id="series-tab-schedule" role="tabpanel" hidden={activeTab !== 2}>
+          <label><span>{t('timeZone')}<Required /></span><select required {...register('time_zone')}>{TIME_ZONE_OPTIONS.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone)}</option>)}</select></label>
+          {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
+          <p className="field-hint">{t('timeZoneFormHint')}</p>
+          <label>{t('website')}<input type="url" {...register('website')} /></label>
+          {errors.website && <p className="form-error" role="alert">{errors.website.message}</p>}
+          <label>{t('contactEmail')}<input type="email" {...register('contact_email')} /></label>
+          {errors.contact_email && <p className="form-error" role="alert">{errors.contact_email.message}</p>}
+          <p className="field-hint">{t('seriesContactHint')}</p>
+          <label>{t('scheduleSummary')}<input {...register('schedule_summary')} /></label>
+          <p className="field-hint">{t('scheduleSummaryFormHint')}</p>
+          <label>{t('scheduleDetails')}<textarea {...register('schedule_details')} /></label>
+        </section>
+
+        <section id="series-tab-registration" role="tabpanel" hidden={activeTab !== 3}>
+          {!isEdit && <label>{t('handleLabel')}<span className="handle-input"><span aria-hidden="true">@</span><input {...handleFieldProps} onChange={(event) => { handleTouchedRef.current = true; void handleFieldOnChange(event) }} /></span></label>}
+          {!isEdit && <p className="field-hint">{t('seriesHandleFormHint')}</p>}
+          {!isEdit && handle && <p className={`handle-feedback ${handleCheck.state === 'available' ? 'form-success' : handleCheck.state === 'checking' ? 'field-hint' : 'form-error'}`} role={handleCheck.state === 'unavailable' || handleCheck.state === 'invalid' ? 'alert' : 'status'}>
           {handleCheck.state === 'available' && <CircleCheck aria-hidden="true" size={16} />}
           {(handleCheck.state === 'unavailable' || handleCheck.state === 'invalid') && <CircleAlert aria-hidden="true" size={16} />}
-          {handleCheck.state === 'checking' ? 'Checking availability…' : handleCheck.message}
+          {handleCheck.state === 'checking' ? t('checkingAvailability') : handleCheck.message}
         </p>}
-
-        <label><span>{t('venueName')}<Required /></span><input required {...register('venue_name')} /></label>
-        {errors.venue_name && <p className="form-error" role="alert">{errors.venue_name.message}</p>}
-        <label><span>{t('address')}<Required /></span><input required {...register('address_line1')} /></label>
-        {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
-        <label>Address line 2 <span className="field-hint">{t('optional')}</span><input {...register('address_line2')} /></label>
-        <label>{t('postcode')} <span className="field-hint">{t('optional')}</span><input {...register('postcode')} /></label>
-        <label><span>{t('city')}<Required /></span><input required {...register('city')} /></label>
-        {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
-        <label><span>{t('country')}<Required /></span> <span className="field-hint">Two-letter code, e.g. IE</span><input required maxLength={2} {...register('country')} /></label>
-        {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
-
-        <LocationPicker
-          lat={lat}
-          lng={lng}
-          onChange={({ lat: nextLat, lng: nextLng }) => {
-            setValue('lat', nextLat, { shouldDirty: true, shouldValidate: true })
-            setValue('lng', nextLng, { shouldDirty: true, shouldValidate: true })
-          }}
-          addressQuery={[addressLine1, postcode, city, country].filter(Boolean).join(', ')}
-          latInputId="open-mic-lat"
-          lngInputId="open-mic-lng"
-        />
-        {errors.lng && <p className="form-error" role="alert">{errors.lng.message}</p>}
-
-        <label><span>{t('timeZone')}<Required /></span> <span className="field-hint">{t('timeZoneHint')}</span><input required {...register('time_zone')} /></label>
-        {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
-
-        <label>{t('website')} <span className="field-hint">{t('optional')}</span><input type="url" {...register('website')} /></label>
-        {errors.website && <p className="form-error" role="alert">{errors.website.message}</p>}
-        <label>{t('contactEmail')} <span className="field-hint">{t('contactEmailHint')}</span><input type="email" {...register('contact_email')} /></label>
-        {errors.contact_email && <p className="form-error" role="alert">{errors.contact_email.message}</p>}
-        <label>{t('scheduleSummary')} <span className="field-hint">{t('scheduleSummaryHint')}</span><input {...register('schedule_summary')} /></label>
-        <label>{t('scheduleDetails')} <span className="field-hint">{t('optional')}</span><textarea {...register('schedule_details')} /></label>
-
-        <fieldset>
-          <legend>{t('activities')}<Required /></legend>
-          {ACTIVITIES.map((activity) => (
-            <label className="checkbox-label" key={activity}><input type="checkbox" checked={activities.includes(activity)} onChange={() => toggleActivity(activity)} /><span>{activity}</span></label>
-          ))}
-        </fieldset>
-        {errors.activities && <p className="form-error" role="alert">{errors.activities.message}</p>}
-        <label>{t('tags')} <span className="field-hint">{t('optional')} · separate with commas</span><input {...register('tags')} /></label>
+          <label>{t('tags')}<input {...register('tags')} /></label>
+          <p className="field-hint">{t('seriesTagsHint')}</p>
 
         <label className="checkbox-label"><input type="checkbox" {...register('originals_only')} /><span>{t('originalsOnly')}</span></label>
         <label className="checkbox-label"><input type="checkbox" {...register('amplification_available')} /><span>{t('amplification')}</span></label>
-        <label>{t('agePolicy')}<select {...register('age_policy')}>
+          <label>{t('agePolicy')}<select {...register('age_policy')}>
           <option value="both">{t('allAges')}</option>
           <option value="adults_only">{t('adultsOnly')}</option>
           <option value="children_only">{t('childrenOnly')}</option>
         </select></label>
 
-        <label>{t('registrationMode')}<select {...register('registration_mode')}>
+          <label>{t('registrationMode')}<select {...register('registration_mode')}>
           <option value="both">{t('onlineNight')}</option>
           <option value="pre_only">{t('onlineOnly')}</option>
           <option value="on_night_only">{t('nightOnly')}</option>
           <option value="external">{t('externalLink')}</option>
         </select></label>
-        {registrationMode === 'external' && <label><span>{t('externalRegistrationUrl')}<Required /></span><input required type="url" {...register('external_registration_url')} /></label>}
-        {errors.external_registration_url && <p className="form-error" role="alert">{errors.external_registration_url.message}</p>}
+          {registrationMode === 'external' && <label><span>{t('externalRegistrationUrl')}<Required /></span><input required type="url" {...register('external_registration_url')} /></label>}
+          {errors.external_registration_url && <p className="form-error" role="alert">{errors.external_registration_url.message}</p>}
 
-        <label>{t('entryFee')} <span className="field-hint">{t('entryFeeHint')}</span><input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
-        {Number(entryFeeAmount) > 0 && <label><span>{t('entryFeeCurrency')}<Required /></span><select required {...register('entry_fee_currency')}><option value="">{t('selectCurrency')}</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
-        {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
-        <label>{t('entryFeeNote')} <span className="field-hint">{t('optional')}</span><input {...register('entry_fee_note')} /></label>
+          <label>{t('entryFee')}<input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
+          <p className="field-hint">{t('entryFeeFormHint')}</p>
+          {Number(entryFeeAmount) > 0 && <label><span>{t('entryFeeCurrency')}<Required /></span><select required {...register('entry_fee_currency')}><option value="">{t('selectCurrency')}</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
+          {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
+          <label>{t('entryFeeNote')}<input {...register('entry_fee_note')} /></label>
+          <p className="field-hint">{t('entryFeeNoteHint')}</p>
+          {isEdit && seriesId && <KioskBackupPinSection seriesId={seriesId} embedded />}
+        </section>
 
         {mutation.isError && <p className="form-error" role="alert">{openMicErrorMessage(mutation.error)}</p>}
         {mutation.isSuccess && isEdit && <p className="form-success" role="status">{t('saved')}</p>}
-        <button className="primary-button" type="submit" disabled={mutation.isPending || activities.length === 0 || (!isEdit && Boolean(handle) && (handleCheck.state === 'unavailable' || handleCheck.state === 'invalid'))}>
-          {mutation.isPending ? t('saving') : isEdit ? t('saveChanges') : t('createSeries')}
-        </button>
+        <div className="form-tab-navigation">
+          <button type="button" className="link-button" onClick={discardChanges}>{t('discardChanges')}</button>
+          <button className="primary-button" type="submit" disabled={mutation.isPending || activities.length === 0 || (!isEdit && Boolean(handle) && (handleCheck.state === 'unavailable' || handleCheck.state === 'invalid'))}>
+            {mutation.isPending ? t('saving') : isEdit ? t('saveChanges') : t('createSeries')}
+          </button>
+          <span className="form-tab-navigation-spacer" aria-hidden="true" />
+          <button type="button" className="quiet-button" disabled={activeTab === 0} onClick={() => setActiveTab((tab) => Math.max(0, tab - 1))}>{t('previousTab')}</button>
+          <button type="button" className="quiet-button" disabled={activeTab === FORM_TABS.length - 1} onClick={() => setActiveTab((tab) => Math.min(FORM_TABS.length - 1, tab + 1))}>{t('nextTab')}</button>
+        </div>
         {activities.length === 0 && <p className="field-hint">{t('selectActivity')}</p>}
       </form>
-      {isEdit && seriesId && <KioskBackupPinSection seriesId={seriesId} />}
     </section>
   </main>
 }

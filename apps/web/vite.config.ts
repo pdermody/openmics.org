@@ -17,5 +17,6 @@ export default defineConfig({
     clearMocks: true,
     fileParallelism: false,
     maxWorkers: 1,
+    exclude: ['e2e/**', 'node_modules/**'],
   },
 })

@@ -1,3 +1,7 @@
+.series-form { min-width: 0; max-width: 100%; }
+.series-form > section { display: grid; gap: 18px; max-width: 620px; }
+.series-form > section[hidden] { display: none; }
+.series-form > section > label + .field-hint { margin-top: -10px; }
 .app { --bg: #f2f0e9; --surface: #fbfaf5; --surface-2: #e7e8dd; --ink: #1d2524; --muted: #69716c; --line: #ccd0c4; --accent: #b7492e; --accent-ink: #fffaf3; --soft-accent: #e8c0a7; --tag: #dce5d6; --focus: #0f7b70; min-height: 100svh; background: radial-gradient(circle at 85% 8%, color-mix(in srgb, var(--soft-accent) 35%, transparent), transparent 27rem), var(--bg); color: var(--ink); transition: background .35s ease, color .35s ease; }
 /* Themed scrollbars: without this, browsers fall back to a fixed light-chrome scrollbar that
    clashes with dark themes (light track, gray thumb regardless of the page's own colors). */
@@ -117,6 +121,20 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline
 .registration-form textarea, .registration-form select { width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); padding: 13px 14px; outline: none; }
 .registration-form textarea { min-height: 130px; resize: vertical; line-height: 1.5; }
 .registration-form textarea:focus, .registration-form select:focus { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 20%, transparent); }
+.form-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+.form-tab { min-width: 0; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); cursor: pointer; padding: 12px 8px; font: 600 .72rem 'DM Mono', monospace; line-height: 1.25; overflow-wrap: anywhere; text-align: center; }
+.form-tab:hover, .form-tab-active { color: var(--ink); border-bottom-color: var(--accent); }
+.form-tab-error { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: 7px; border-radius: 50%; background: #b42318; color: white; font: 700 .7rem sans-serif; }
+.form-tab-navigation { display: flex; align-items: center; gap: 10px; min-width: 0; border-top: 1px solid var(--line); padding-top: 16px; }
+.form-tab-navigation > button { min-width: 0; }
+.form-tab-navigation-spacer { flex: 1; }
+@media (max-width: 560px) {
+   .form-tabs { gap: 2px; }
+   .form-tab { padding-inline: 4px; font-size: .62rem; }
+   .form-tab-navigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+   .form-tab-navigation > button { width: 100%; padding-inline: 8px; }
+   .form-tab-navigation-spacer { display: none; }
+}
 .roster-summary { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 20px; }
 .roster-badge { display: inline-flex; align-items: center; background: var(--tag); color: var(--ink); border-radius: 999px; padding: 5px 12px; font: 600 .72rem/1 'DM Mono', monospace; letter-spacing: .03em; text-transform: uppercase; }
 .roster-badge-pending { background: color-mix(in srgb, #b45309 18%, var(--tag)); }

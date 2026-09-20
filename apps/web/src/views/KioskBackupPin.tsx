@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { hashKioskPin, useKioskBackupPinStatus, useSetKioskBackupPin } from '../features/organizer'
 import { Required, RequiredFieldsNote } from './shared'
@@ -7,7 +7,7 @@ import { Required, RequiredFieldsNote } from './shared'
 // this series' kiosk backup PIN without having to open the kiosk itself first (see KioskPage.tsx
 // for the one-time PIN an organizer chooses each time they start a kiosk session, and
 // docs/decisions.md for why the backup PIN lives server-side per series rather than per device).
-export function KioskBackupPinSection({ seriesId }: { seriesId: string }) {
+export function KioskBackupPinSection({ seriesId, embedded = false }: { seriesId: string; embedded?: boolean }) {
   const { t } = useTranslation()
   const status = useKioskBackupPinStatus(seriesId)
   const setBackupPin = useSetKioskBackupPin(seriesId)
@@ -17,8 +17,7 @@ export function KioskBackupPinSection({ seriesId }: { seriesId: string }) {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
-  async function save(formEvent: FormEvent<HTMLFormElement>) {
-    formEvent.preventDefault()
+  async function save() {
     setError('')
     setSaved(false)
     if (draft.trim().length < 4) { setError('Backup PIN must be at least 4 digits.'); return }
@@ -35,7 +34,7 @@ export function KioskBackupPinSection({ seriesId }: { seriesId: string }) {
     }
   }
 
-  return <div className="kiosk-backup-pin-panel">
+  return <div className={`kiosk-backup-pin-panel${embedded ? ' kiosk-backup-pin-panel-embedded' : ''}`}>
     <h2>{t('backupPin')}</h2>
     <p className="field-hint">{t('backupPinHelp')}</p>
     {status.isPending && <p className="field-hint">{t('checkingStatus')}</p>}
@@ -46,15 +45,15 @@ export function KioskBackupPinSection({ seriesId }: { seriesId: string }) {
       <button type="button" className="link-button" onClick={() => { setEditing(true); setSaved(false) }}>{status.data.configured ? 'Change backup PIN' : 'Set backup PIN'}</button>
     </p>}
     {saved && !editing && <p className="kiosk-success" role="status">{t('backupSaved')}</p>}
-    {editing && <form className="kiosk-form" noValidate onSubmit={(formEvent) => void save(formEvent)}>
+    {editing && <div className="kiosk-form">
       <RequiredFieldsNote />
       <label><span>{t('backupPin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={draft} onChange={(input) => setDraft(input.target.value)} /></label>
       <label><span>{t('confirmBackupPin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={confirm} onChange={(input) => setConfirm(input.target.value)} /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="dashboard-series-card-actions">
-        <button className="primary-button" type="submit" disabled={setBackupPin.isPending}>{t('saveBackupPin')}</button>
+        <button className="primary-button" type="button" onClick={() => void save()} disabled={setBackupPin.isPending}>{t('saveBackupPin')}</button>
         <button type="button" className="link-button" onClick={() => { setEditing(false); setDraft(''); setConfirm(''); setError('') }}>{t('cancel')}</button>
       </div>
-    </form>}
+    </div>}
   </div>
 }

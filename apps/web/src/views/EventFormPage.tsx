@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
@@ -8,11 +8,19 @@ import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
 import { useCreateEvent, useEventDetail, useOpenMicDetail, useOrganizerProfile, useUpdateEvent, type EventFormInput } from '../features/organizer'
 import { CURRENCIES } from '../features/currencies'
+import { ACTIVITY_LABEL_KEYS, browserTimeZone, COUNTRY_OPTIONS, formatTimeZoneOption, TIME_ZONE_OPTIONS } from '../features/form-options'
 import { baseLocationFieldsSchema } from '../features/location'
 import type { ColorMode, ThemeId } from '../theme'
 import { HeaderMenu, ProfileSwitcher, ReadState, Required, RequiredFieldsNote, SignInButton } from './shared'
 
 const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
+
+const EVENT_TABS = [
+  { id: 'details', labelKey: 'eventTabDetails', fields: ['title', 'starts_at', 'ends_at', 'capacity'] },
+  { id: 'schedule', labelKey: 'eventTabSchedule', fields: ['time_zone', 'registrations_closed_at'] },
+  { id: 'location', labelKey: 'eventTabLocation', fields: ['venue_name', 'address_line1', 'city', 'country', 'lat', 'lng'] },
+  { id: 'registration', labelKey: 'eventTabRegistration', fields: ['activities', 'tags', 'notes', 'entry_fee_amount', 'entry_fee_currency', 'entry_fee_note'] },
+] as const
 
 function toDatetimeLocalValue(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -38,7 +46,7 @@ const eventFormSchema = z
     open_registrations: z.boolean(),
     capacity: z.string().optional(),
     override_location: z.boolean(),
-    venue_name: z.string().trim().optional(),
+    venue_name: z.string().trim().min(1, 'Venue name is required'),
     activities: z.array(z.string()).optional(),
     tags: z.string().optional(),
     notes: z.string().trim().optional(),
@@ -48,23 +56,21 @@ const eventFormSchema = z
   })
   .extend(baseLocationFieldsSchema.shape)
   .extend({
-    address_line1: z.string().trim().optional(),
-    city: z.string().trim().optional(),
-    country: z.string().trim().optional(),
+    address_line1: z.string().trim().min(1, 'Address is required'),
+    city: z.string().trim().min(1, 'City is required'),
+    country: z.string().trim().min(1, 'Country is required'),
   })
   .superRefine((value, ctx) => {
     if ((value.lat === undefined) !== (value.lng === undefined)) {
       ctx.addIssue({ code: 'custom', message: 'Latitude and longitude must be set together', path: ['lng'] })
     }
+    if (value.country && !/^[A-Za-z]{2}$/.test(value.country)) {
+      ctx.addIssue({ code: 'custom', message: 'Use a two-letter country code, e.g. IE', path: ['country'] })
+    }
+    // The API stores venue_name/address/city/country/lat/lng as an all-or-nothing snapshot: lat/lng
+    // are only mandatory once the organizer is actually editing this event's own location (override
+    // on create, or always on edit), matching the parent series' own optional coordinates otherwise.
     if (value.override_location) {
-      if (!value.venue_name) ctx.addIssue({ code: 'custom', message: 'Venue name is required', path: ['venue_name'] })
-      if (!value.address_line1) ctx.addIssue({ code: 'custom', message: 'Address is required', path: ['address_line1'] })
-      if (!value.city) ctx.addIssue({ code: 'custom', message: 'City is required', path: ['city'] })
-      if (!value.country) {
-        ctx.addIssue({ code: 'custom', message: 'Country is required', path: ['country'] })
-      } else if (!/^[A-Za-z]{2}$/.test(value.country)) {
-        ctx.addIssue({ code: 'custom', message: 'Use a two-letter country code, e.g. IE', path: ['country'] })
-      }
       if (value.lat === undefined) ctx.addIssue({ code: 'custom', message: 'Latitude is required', path: ['lat'] })
       if (value.lng === undefined) ctx.addIssue({ code: 'custom', message: 'Longitude is required', path: ['lng'] })
     }
@@ -80,7 +86,7 @@ const DEFAULT_VALUES: EventFormValues = {
   title: '',
   starts_at: '',
   ends_at: '',
-  time_zone: '',
+  time_zone: browserTimeZone(),
   registrations_closed_at: '',
   open_registrations: true,
   capacity: '',
@@ -132,6 +138,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
     defaultValues: DEFAULT_VALUES,
   })
   const { errors, isDirty } = formState
+  const [activeTab, setActiveTab] = useState(0)
 
   const overrideLocation = watch('override_location')
   const lat = watch('lat')
@@ -143,11 +150,21 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   const activities = watch('activities') ?? []
   const entryFeeAmount = watch('entry_fee_amount')
 
-  // Prefill sensible defaults from the parent series when creating a new event.
+  // Prefill sensible defaults from the parent series when creating a new event. The event
+  // always stores its own location snapshot; these values are copied so it saves correctly
+  // even if the organizer never opens the location fields to change them.
   useEffect(() => {
     if (isEdit || !openMic.data) return
     setValue('time_zone', openMic.data.time_zone)
     setValue('activities', openMic.data.activities)
+    setValue('venue_name', openMic.data.venue_name)
+    setValue('address_line1', openMic.data.address_line1)
+    setValue('address_line2', openMic.data.address_line2 ?? '')
+    setValue('postcode', openMic.data.postcode ?? '')
+    setValue('city', openMic.data.city)
+    setValue('country', openMic.data.country)
+    setValue('lat', openMic.data.lat ?? undefined)
+    setValue('lng', openMic.data.lng ?? undefined)
   }, [isEdit, openMic.data, setValue])
 
   useEffect(() => {
@@ -192,8 +209,28 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
 
   const mutation = isEdit ? updateEvent : createEvent
 
+  function tabHasErrors(tabIndex: number): boolean {
+    return EVENT_TABS[tabIndex].fields.some((field) => Boolean(errors[field as keyof EventFormValues]))
+  }
+
+  function focusFirstError(errorValues: Partial<Record<keyof EventFormValues, unknown>>) {
+    const firstTab = EVENT_TABS.findIndex((tab) => tab.fields.some((field) => Boolean(errorValues[field as keyof EventFormValues])))
+    const tabIndex = firstTab < 0 ? 0 : firstTab
+    setActiveTab(tabIndex)
+    const firstField = firstTab < 0 ? undefined : EVENT_TABS[tabIndex].fields.find((field) => Boolean(errorValues[field as keyof EventFormValues]))
+    if (firstField) window.setTimeout(() => {
+      const element = document.querySelector<HTMLElement>(`[name="${firstField}"]`)
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      element?.focus()
+    }, 0)
+  }
+
   useEffect(() => {
-    if (mutation.error) applyServerFieldErrors(mutation.error, setError)
+    if (mutation.error) {
+      applyServerFieldErrors(mutation.error, setError)
+      const fieldErrors = (mutation.error instanceof ApiError ? mutation.error.details : undefined) as { fieldErrors?: Record<string, string[]> } | undefined
+      if (fieldErrors?.fieldErrors) focusFirstError(fieldErrors.fieldErrors)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mutation.error])
 
@@ -221,7 +258,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
         address_line2: values.address_line2 || undefined,
         postcode: values.postcode || undefined,
         city: values.city,
-        country: values.country?.toUpperCase(),
+        country: values.country.toUpperCase(),
         lat: values.lat,
         lng: values.lng,
       } : {}),
@@ -237,6 +274,11 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
 
   function toggleRegistrationAvailability() {
     setValue('registrations_closed_at', watch('registrations_closed_at') ? '' : toDatetimeLocalValue(new Date().toISOString()), { shouldDirty: true })
+  }
+
+  function discardChanges() {
+    if (isDirty && !window.confirm(t('confirmDiscardChanges'))) return
+    window.location.href = `/dashboard/series/${seriesId}`
   }
 
   if (context.account.isPending || context.profiles.isPending || openMic.isPending || (isEdit && existing.isPending)) {
@@ -258,67 +300,78 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
     <section className="dashboard-page">
       <a className="back-link" href={`/dashboard/series/${seriesId}`}>← Back to {openMic.data?.name ?? 'series'}</a>
       <div className="eyebrow">{t('organizerWorkspace')}</div>
-      <h1>{isEdit ? `Edit ${existing.data?.title ?? 'event'}` : `New event for ${openMic.data?.name ?? 'this series'}`}</h1>
-      <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <h1>{isEdit ? t('editEventTitle', { name: existing.data?.title ?? t('eventDetail') }) : t('newEventTitle', { name: openMic.data?.name ?? t('openMicSeries') })}</h1>
+      <form className="registration-form series-form" onSubmit={handleSubmit(onSubmit, focusFirstError)} noValidate>
         <RequiredFieldsNote />
-        <label><span>{t('eventTitle')}<Required /></span><input required {...register('title')} /></label>
-        {errors.title && <p className="form-error" role="alert">{errors.title.message}</p>}
-        <label><span>{t('startsAt')}<Required /></span><input required type="datetime-local" {...register('starts_at')} /></label>
-        {errors.starts_at && <p className="form-error" role="alert">{errors.starts_at.message}</p>}
-        <label>Ends at <span className="field-hint">{t('optional')}</span><input type="datetime-local" {...register('ends_at')} /></label>
-        <label><span>{t('timeZone')}<Required /></span> <span className="field-hint">{t('timeZoneHint')}</span><input required {...register('time_zone')} /></label>
-        {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
-        <label>Capacity <span className="field-hint">{t('optional')} · leave blank for unlimited</span><input type="number" min="1" {...register('capacity')} /></label>
+        <div className="form-tabs" role="tablist" aria-label={t('eventFormSections')}>
+          {EVENT_TABS.map((tab, index) => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === index} aria-controls={`event-tab-${tab.id}`} className={`form-tab${activeTab === index ? ' form-tab-active' : ''}`} onClick={() => setActiveTab(index)}>
+            {t(tab.labelKey)}{tabHasErrors(index) && <span className="form-tab-error" aria-label={t('requiredInformationMissing')}>!</span>}
+          </button>)}
+        </div>
 
-        <label>{t('closeAt')} <span className="field-hint">{t('closeAtHint')}</span><input type="datetime-local" {...register('registrations_closed_at')} /></label>
-        {!isEdit && <label className="checkbox-label"><input type="checkbox" {...register('open_registrations')} /><span>{t('openRegistrationsOnCreate')}</span></label>}
-        <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{watch('registrations_closed_at') ? t('reopenRegistrations') : t('stopRegistrations')}</button>
+        <section id="event-tab-details" role="tabpanel" hidden={activeTab !== 0}>
+          <label><span>{t('eventTitle')}<Required /></span><input required {...register('title')} /></label>
+          {errors.title && <p className="form-error" role="alert">{errors.title.message}</p>}
+          <label><span>{t('startsAt')}<Required /></span><input required type="datetime-local" {...register('starts_at')} /></label>
+          {errors.starts_at && <p className="form-error" role="alert">{errors.starts_at.message}</p>}
+          <label>{t('endsAt')}<input type="datetime-local" {...register('ends_at')} /></label>
+          <label>{t('capacity')}<input type="number" min="1" {...register('capacity')} /></label>
+          <p className="field-hint">{t('eventCapacityHint')}</p>
+        </section>
 
-        <label className="checkbox-label"><input type="checkbox" disabled={isEdit} {...register('override_location')} /><span>Use a different location for this event {!isEdit && '(otherwise it inherits the series venue)'}</span></label>
-        {overrideLocation && <>
-          <label><span>{t('venueName')}<Required /></span><input required {...register('venue_name')} /></label>
-          {errors.venue_name && <p className="form-error" role="alert">{errors.venue_name.message}</p>}
-          <label><span>{t('address')}<Required /></span><input required {...register('address_line1')} /></label>
-          {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
-          <label>Address line 2 <span className="field-hint">{t('optional')}</span><input {...register('address_line2')} /></label>
-          <label>{t('postcode')} <span className="field-hint">{t('optional')}</span><input {...register('postcode')} /></label>
-          <label><span>{t('city')}<Required /></span><input required {...register('city')} /></label>
-          {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
-          <label><span>{t('country')}<Required /></span> <span className="field-hint">Two-letter code, e.g. IE</span><input required maxLength={2} {...register('country')} /></label>
-          {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
+        <section id="event-tab-schedule" role="tabpanel" hidden={activeTab !== 1}>
+          <label><span>{t('timeZone')}<Required /></span><select required {...register('time_zone')}>{TIME_ZONE_OPTIONS.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone)}</option>)}</select></label>
+          {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
+          <p className="field-hint">{t('timeZoneFormHint')}</p>
+          <label>{t('closeAt')}<input type="datetime-local" {...register('registrations_closed_at')} /></label>
+          <p className="field-hint">{t('closeAtHint')}</p>
+          {!isEdit && <label className="checkbox-label"><input type="checkbox" {...register('open_registrations')} /><span>{t('openRegistrationsOnCreate')}</span></label>}
+          <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{watch('registrations_closed_at') ? t('reopenRegistrations') : t('stopRegistrations')}</button>
+        </section>
 
-          <LocationPicker
-            lat={lat}
-            lng={lng}
-            onChange={({ lat: nextLat, lng: nextLng }) => {
-              setValue('lat', nextLat, { shouldDirty: true, shouldValidate: true })
-              setValue('lng', nextLng, { shouldDirty: true, shouldValidate: true })
-            }}
-            addressQuery={[addressLine1, postcode, city, country].filter(Boolean).join(', ')}
-            latInputId="event-lat"
-            lngInputId="event-lng"
-          />
-          {errors.lat && <p className="form-error" role="alert">{errors.lat.message}</p>}
-          {errors.lng && <p className="form-error" role="alert">{errors.lng.message}</p>}
-        </>}
+        <section id="event-tab-location" role="tabpanel" hidden={activeTab !== 2}>
+          {!isEdit && <label className="checkbox-label"><input type="checkbox" {...register('override_location')} /><span>{t('eventOverrideLocationCreate')}</span></label>}
+          {(isEdit || overrideLocation) && <>
+            <label><span>{t('venueName')}<Required /></span><input required {...register('venue_name')} /></label>
+            {errors.venue_name && <p className="form-error" role="alert">{errors.venue_name.message}</p>}
+            <label><span>{t('address')}<Required /></span><input required {...register('address_line1')} /></label>
+            {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
+            <label>{t('addressLine2')}<input {...register('address_line2')} /></label>
+            <label>{t('postcode')}<input {...register('postcode')} /></label>
+            <label><span>{t('city')}<Required /></span><input required {...register('city')} /></label>
+            {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
+            <label><span>{t('country')}<Required /></span><select required {...register('country')}><option value="">{t('selectCountry')}</option>{COUNTRY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.name} ({option.code})</option>)}</select></label>
+            {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
+            <p className="field-hint">{t('locationFieldsHint')}</p>
+            <LocationPicker lat={lat} lng={lng} onChange={({ lat: nextLat, lng: nextLng }) => { setValue('lat', nextLat, { shouldDirty: true, shouldValidate: true }); setValue('lng', nextLng, { shouldDirty: true, shouldValidate: true }) }} addressQuery={[addressLine1, postcode, city, country].filter(Boolean).join(', ')} latInputId="event-lat" lngInputId="event-lng" />
+            {errors.lat && <p className="form-error" role="alert">{errors.lat.message}</p>}
+            {errors.lng && <p className="form-error" role="alert">{errors.lng.message}</p>}
+          </>}
+        </section>
 
-        <fieldset>
-          <legend>{t('activities')}</legend>
-          {ACTIVITIES.map((activity) => (
-            <label className="checkbox-label" key={activity}><input type="checkbox" checked={activities.includes(activity)} onChange={() => toggleActivity(activity)} /><span>{activity}</span></label>
-          ))}
-        </fieldset>
-        <label>{t('tags')} <span className="field-hint">{t('optional')} · separate with commas</span><input {...register('tags')} /></label>
-        <label>{t('notes')} <span className="field-hint">{t('optional')} · shown to the public</span><textarea {...register('notes')} /></label>
-
-        <label>{t('entryFee')} <span className="field-hint">{t('entryFeeHint')}</span><input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
-        {Number(entryFeeAmount) > 0 && <label><span>{t('entryFeeCurrency')}<Required /></span><select required {...register('entry_fee_currency')}><option value="">{t('selectCurrency')}</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
-        {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
-        <label>{t('entryFeeNote')} <span className="field-hint">{t('optional')}</span><input {...register('entry_fee_note')} /></label>
+        <section id="event-tab-registration" role="tabpanel" hidden={activeTab !== 3}>
+          <fieldset><legend>{t('activities')}</legend>{ACTIVITIES.map((activity) => <label className="checkbox-label" key={activity}><input type="checkbox" checked={activities.includes(activity)} onChange={() => toggleActivity(activity)} /><span>{t(ACTIVITY_LABEL_KEYS[activity])}</span></label>)}</fieldset>
+          <label>{t('tags')}<input {...register('tags')} /></label>
+          <p className="field-hint">{t('seriesTagsHint')}</p>
+          <label>{t('notes')}<textarea {...register('notes')} /></label>
+          <p className="field-hint">{t('eventNotesHint')}</p>
+          <label>{t('entryFee')}<input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
+          <p className="field-hint">{t('entryFeeFormHint')}</p>
+          {Number(entryFeeAmount) > 0 && <label><span>{t('entryFeeCurrency')}<Required /></span><select required {...register('entry_fee_currency')}><option value="">{t('selectCurrency')}</option>{CURRENCIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>}
+          {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
+          <label>{t('entryFeeNote')}<input {...register('entry_fee_note')} /></label>
+          <p className="field-hint">{t('entryFeeNoteHint')}</p>
+        </section>
 
         {mutation.isError && <p className="form-error" role="alert">{eventErrorMessage(mutation.error)}</p>}
         {mutation.isSuccess && isEdit && <p className="form-success" role="status">{t('saved')}</p>}
-        <button className="primary-button" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}</button>
+        <div className="form-tab-navigation">
+          <button type="button" className="link-button" onClick={discardChanges}>{t('discardChanges')}</button>
+          <button className="primary-button" type="submit" disabled={mutation.isPending}>{mutation.isPending ? t('saving') : isEdit ? t('saveChanges') : t('createEvent')}</button>
+          <span className="form-tab-navigation-spacer" aria-hidden="true" />
+          <button type="button" className="quiet-button" disabled={activeTab === 0} onClick={() => setActiveTab((tab) => Math.max(0, tab - 1))}>{t('previousTab')}</button>
+          <button type="button" className="quiet-button" disabled={activeTab === EVENT_TABS.length - 1} onClick={() => setActiveTab((tab) => Math.min(EVENT_TABS.length - 1, tab + 1))}>{t('nextTab')}</button>
+        </div>
       </form>
     </section>
   </main>
