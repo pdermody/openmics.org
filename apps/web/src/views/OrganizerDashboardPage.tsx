@@ -18,7 +18,12 @@ function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
   const updateOpenMic = useUpdateOpenMic(openMic.id)
   const deleteOpenMic = useDeleteOpenMic(openMic.id)
   const [confirmation, setConfirmation] = useState<'publish' | 'pause' | 'resume' | 'delete' | null>(null)
-  const upcomingEvents = events.data?.filter((event) => new Date(event.starts_at).getTime() >= Date.now()).slice(0, 3) ?? []
+  const now = Date.now()
+  const currentOrUpcomingEvents = events.data?.filter((event) => (
+    event.running === true
+    || new Date(event.starts_at).getTime() >= now
+    || (event.ends_at ? new Date(event.ends_at).getTime() >= now : false)
+  )).slice(0, 3) ?? []
 
   return <article className="dashboard-series-card dashboard-series-card-expanded">
     <div className="dashboard-series-card-header">
@@ -52,8 +57,8 @@ function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
       <span className="panel-label">{t('upcomingEvents')}</span>
       {events.isPending && <ReadState message={t('loading')} />}
       {events.isError && <ReadState message={t('eventLoadError')} retry={() => void events.refetch()} />}
-      {events.isSuccess && upcomingEvents.length === 0 && <ReadState message={t('noEvents')} />}
-      {upcomingEvents.map((event) => <article className="dashboard-event-card" key={event.id}>
+      {events.isSuccess && currentOrUpcomingEvents.length === 0 && <ReadState message={t('noEvents')} />}
+      {currentOrUpcomingEvents.map((event) => <article className="dashboard-event-card" key={event.id}>
         <div>
           <h3><Link to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId: openMic.id, eventId: event.id }}>{event.title}</Link></h3>
           <p className="event-meta"><Clock3 size={15} /> {new Date(event.starts_at).toLocaleString()}</p>

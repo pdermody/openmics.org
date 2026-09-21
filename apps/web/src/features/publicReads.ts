@@ -7,6 +7,7 @@ export type Event = {
   open_mic_id: string
   title: string
   starts_at: string
+  ends_at?: string | null
   time_zone: string
   venue_name: string
   address_line1?: string

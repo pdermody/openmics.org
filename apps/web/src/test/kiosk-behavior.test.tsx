@@ -13,7 +13,7 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
-function registerOrganizerHandlers() {
+function registerOrganizerHandlers(registrationMode: 'both' | 'on_night_only' = 'both') {
   server.use(
     http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
     http.get('/api/me', () => HttpResponse.json({
@@ -32,6 +32,10 @@ function registerOrganizerHandlers() {
       id: 'event-1', title: 'Friday Stage', starts_at: '2026-10-01T19:00:00.000Z',
       running: false, registrations_closed_at: '2026-09-01T19:00:00.000Z', venue_name: 'The Lantern', city: 'Dublin',
     })),
+    http.get('/api/open-mics/series-1', () => HttpResponse.json({
+      id: 'series-1', public_code: 'STAGE123', current_handle: null, name: 'Friday Stage',
+      registration_mode: registrationMode, status: 'active',
+    })),
     http.get('/api/open-mics/series-1/kiosk-backup-pin', () => HttpResponse.json({ configured: true })),
   )
 }
@@ -43,6 +47,14 @@ describe('KioskPage behavior', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Registration is closed for this event.')
     expect(screen.queryByRole('button', { name: 'Add to roster' })).not.toBeInTheDocument()
+  })
+
+  it('shows the series QR only when pre-registration is allowed', async () => {
+    registerOrganizerHandlers('on_night_only')
+    renderWithProviders(<KioskPage seriesId="series-1" eventId="event-1" theme="venue" mode="light" />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Registration is closed for this event.')
+    expect(screen.queryByRole('heading', { name: 'Register for any event' })).not.toBeInTheDocument()
   })
 
   it('routes Escape through the PIN gate instead of leaving the kiosk', async () => {

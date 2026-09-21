@@ -8,6 +8,9 @@ export type ClaimableRegistration = {
   contact_email: string | null
   song_names: string[]
   created_at: string
+  event_title: string
+  event_starts_at: string
+  open_mic_name: string
 }
 
 export const claimableRegistrationsKeys = {
@@ -26,11 +29,14 @@ export function useClaimableRegistrations(enabled: boolean) {
 export function useClaimRegistration() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { registrationId: string; adoptedProfileId?: string }) => api(`/registrations/${input.registrationId}/claim`, {
+    mutationFn: (input: { registrationId: string; adoptedProfileId: string }) => api(`/registrations/${input.registrationId}/claim`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adopted_profile_id: input.adoptedProfileId ?? null, sync_public_fields: Boolean(input.adoptedProfileId) }),
+      body: JSON.stringify({ adopted_profile_id: input.adoptedProfileId, sync_public_fields: true }),
     }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: claimableRegistrationsKeys.list }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: claimableRegistrationsKeys.list })
+      void queryClient.invalidateQueries({ queryKey: ['me', 'registrations'] })
+    },
   })
 }

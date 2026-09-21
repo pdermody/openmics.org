@@ -54,7 +54,7 @@ export type UpdateRegistrationInput = z.infer<typeof updateRegistrationSchema>;
 
 export const verifyEmailSchema = z.object({ token: z.string().min(1) }).strict();
 export const claimRegistrationSchema = z.object({
-  adopted_profile_id: z.string().uuid().nullable().optional(),
+  adopted_profile_id: z.string().uuid(),
   sync_public_fields: z.boolean().optional(),
   note: z.string().nullable().optional(),
 }).strict();

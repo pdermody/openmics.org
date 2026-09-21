@@ -42,8 +42,8 @@ describe('registration validation', () => {
 
   it('accepts an explicit claim attribution change', () => {
     expect(claimRegistrationSchema.safeParse({
-      adopted_profile_id: null,
-      sync_public_fields: false,
+      adopted_profile_id: '550e8400-e29b-41d4-a716-446655440000',
+      sync_public_fields: true,
     }).success).toBe(true);
   });
 });

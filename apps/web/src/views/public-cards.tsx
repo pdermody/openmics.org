@@ -58,7 +58,10 @@ export function EventCard({ event }: { event: Event }) {
       </div>
       <div className="event-action">
         {isRegistered ? (
-          <span className="profile-context" role="status">{t('registered')}</span>
+          <>
+            <span className="profile-context" role="status">{t('registered')}</span>
+            {!registrationDisabled && <Link className="link-button" to="/events/$eventId/register" params={{ eventId: event.public_code }}>{t('registerAnotherPerformer')}</Link>}
+          </>
         ) : registrationDisabled ? (
           <button className="primary-button" type="button" disabled aria-disabled="true">
             {registrationDisabledLabel}

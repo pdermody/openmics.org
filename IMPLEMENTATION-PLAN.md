@@ -250,7 +250,7 @@ The milestones below are dependency ordered. A later milestone may be explored i
    - add a dedicated claim route/page as well as the dashboard banner;
    - support per-row claim and an atomic or explicitly partial claim-all operation;
    - report each claim-all conflict/failure instead of presenting false aggregate success;
-   - allow explicit performer-profile adoption, no adoption, later replacement, and later removal;
+   - require explicit performer-profile adoption at claim time, with later profile replacement supported;
    - preserve original guest provenance permanently;
    - invalidate claimable, account registration, event roster, and profile attribution queries after success;
    - preserve first-writer-wins `409` behavior for concurrent claims.

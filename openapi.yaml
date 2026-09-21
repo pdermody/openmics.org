@@ -1890,6 +1890,16 @@ components:
           description: Populated only by the organizer roster listing
             (GET /events/{id}/registrations); omitted from every other
             Registration response.
+        event_title:
+          type: string
+          description: Populated only by GET /me/claimable-registrations.
+        event_starts_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          description: Populated only by GET /me/claimable-registrations.
+        open_mic_name:
+          type: string
+          description: Populated only by GET /me/claimable-registrations.
     Performance:
       type: object
       properties:
@@ -2588,14 +2598,14 @@ components:
             attribution after the initial claim.
     RegistrationClaimRequest:
       type: object
+      required:
+        - adopted_profile_id
       properties:
         adopted_profile_id:
           allOf:
             - $ref: "#/components/schemas/Id"
-          nullable: true
           description: An account-owned performer profile to adopt as the public
-            attribution for this registration. Omit or set null to claim without
-            adopting a public profile.
+            attribution for this registration.
         sync_public_fields:
           type: boolean
           description: If true and adopted_profile_id is set, update performer_name and

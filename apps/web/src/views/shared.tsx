@@ -4,7 +4,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Heart, Menu, MessageCircle, Sparkles, X } from 'lucide-react'
-import { consumeSignInError, endSession, getAuthenticatedUser } from '../auth/session'
+import { consumeSignInError, endSession } from '../auth/session'
 import { useDismissableDetails, useDismissOnOutsideOrEscape } from '../hooks/dismissable'
 import { changeLanguage, supportedLanguages } from '../i18n'
 import { useAccountContext } from '../features/account'
@@ -62,19 +62,18 @@ export function SignInButton() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const context = useAccountContext()
   const [message, setMessage] = useState('')
-  const [signedIn, setSignedIn] = useState(false)
+  const signedIn = Boolean(context.account.data)
 
   useEffect(() => {
     const failure = consumeSignInError()
     if (failure) setMessage(failure)
-    void getAuthenticatedUser().then((user) => setSignedIn(Boolean(user)))
   }, [])
 
   if (signedIn) {
     return <div className="auth-slot"><button className="text-button" type="button" onClick={() => {
       void endSession().then(() => {
-        setSignedIn(false)
         queryClient.clear()
         void navigate({ to: '/' })
       })

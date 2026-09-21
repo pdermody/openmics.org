@@ -251,7 +251,12 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
 
   app.get('/me/claimable-registrations', { preHandler: app.authenticate }, async (request, reply) => {
     const email = await accountEmail(pool, request.account!.accountId);
-    reply.send((await findClaimableRegistrations(pool, email)).map(serializeRegistration));
+    reply.send((await findClaimableRegistrations(pool, email)).map((registration) => ({
+      ...serializeRegistration(registration),
+      event_title: registration.event_title,
+      event_starts_at: registration.event_starts_at,
+      open_mic_name: registration.open_mic_name,
+    })));
   });
 
   app.get<{ Querystring: { profile?: string } }>('/me/registrations', { preHandler: app.authenticate }, async (request, reply) => {
@@ -375,21 +380,18 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       if (registration.claimed_by_account_id && registration.claimed_by_account_id !== request.account!.accountId) {
         throw new ConflictError('REGISTRATION_ALREADY_CLAIMED', 'This registration has already been claimed');
       }
-      let adoptedProfileId = parsed.data.adopted_profile_id;
-      if (adoptedProfileId) {
-        const profile = await findProfileById(pool, adoptedProfileId);
-        if (!profile || profile.created_by_account_id !== request.account!.accountId || profile.profile_kind !== 'performer') {
-          throw new ForbiddenError('Adopted profile must be an account-owned performer profile');
-        }
+      const adoptedProfileId = parsed.data.adopted_profile_id;
+      const profile = await findProfileById(pool, adoptedProfileId);
+      if (!profile || profile.created_by_account_id !== request.account!.accountId || profile.profile_kind !== 'performer') {
+        throw new ForbiddenError('Adopted profile must be an account-owned performer profile');
       }
       const changes: Record<string, unknown> = {
         claimed_by_account_id: request.account!.accountId,
         claimed_at: new Date(),
-        adopted_profile_id: adoptedProfileId ?? null,
+        adopted_profile_id: adoptedProfileId,
       };
-      if (parsed.data.sync_public_fields && adoptedProfileId) {
-        const profile = await findProfileById(pool, adoptedProfileId);
-        if (profile) changes.performer_name = profile.profile_name;
+      if (parsed.data.sync_public_fields) {
+        changes.performer_name = profile.profile_name;
       }
       const updated = await updateRegistration(pool, registration.id, changes);
       reply.send(serializeRegistration(updated!));

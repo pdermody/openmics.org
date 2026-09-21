@@ -301,7 +301,7 @@ Registrations
 # INDEX (contact_email) WHERE contact_email IS NOT NULL AND claimed_by_account_id IS NULL
 # "My registrations" for a signed-in account = rows where profile_id IN (my profiles) OR claimed_by_account_id = my account.
 # "Publicly visible / valid" = rows where organizer_supervised OR email_verified_at IS NOT NULL — applies uniformly across every non-kiosk channel (organic browsing, shared link, email reminder, social ad, poster QR); kiosk rows are visible immediately because the organizer's physical presence substitutes for email proof.
-# "Claimable by me" = rows where contact_email = my Cognito-verified email AND claimed_by_account_id IS NULL AND email_verified_at IS NOT NULL — verification is required for claim regardless of channel, including kiosk rows; an unverified kiosk registration is publicly visible but can never be claimed.
+# "Claimable by me" = rows where contact_email = my Cognito-verified email AND claimed_by_account_id IS NULL AND email_verified_at IS NOT NULL — verification is required for claim regardless of channel, including kiosk rows; an unverified kiosk registration is publicly visible but can never be claimed. A claim must adopt one of the account's performer profiles; account ownership and public performer attribution remain separate fields.
 
 Performances
 ├── id (UUID)

@@ -26,14 +26,9 @@ export function ProfileSwitcher() {
     profile_kind: role.kind,
   }))
   const effectiveValue = context.account.data?.current_profile_id ?? localValue
-
-  // Group simulated roles by account so the selector shows which profiles share a login.
-  const accountGroups = new Map<string, { accountDisplayName: string; roles: typeof simulatedRoles }>()
-  for (const role of simulatedRoles) {
-    const group = accountGroups.get(role.accountId)
-    if (group) group.roles.push(role)
-    else accountGroups.set(role.accountId, { accountDisplayName: role.accountDisplayName, roles: [role] })
-  }
+  const attachedProfileIds = new Set(profiles.map((profile) => profile.id))
+  const additionalDevRoles = simulatedRoles.filter((role) => !attachedProfileIds.has(role.profileId))
+  const simulatedSession = Boolean(simulatedRoles.some((role) => role.token === getStoredSimulatedAuthToken()))
 
   useEffect(() => {
     if (effectiveValue === 'public') {
@@ -70,9 +65,7 @@ export function ProfileSwitcher() {
 
     // Same account (real or simulated): switch which profile is current via the API.
     context.currentProfile.mutate(selected)
-  }} aria-label={t('currentProfile')}><option value="public">{t('publicUnauth')}</option>{accountGroups.size > 0
-    ? [...accountGroups.values()].map((group) => <optgroup label={group.accountDisplayName} key={group.roles[0].accountId}>{group.roles.map((role) => <option value={role.profileId} key={role.profileId}>{role.profileName} · {role.kind}</option>)}</optgroup>)
-    : selectableProfiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name} · {profile.profile_kind}</option>)}</select></label></div>
+  }} aria-label={t('currentProfile')}><option value="public">{t('publicUnauth')}</option>{profiles.length > 0 && <optgroup label={t('yourProfiles')}>{profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name} · {profile.profile_kind}{simulatedSession ? ` [${t('developmentProfileShort')}]` : ''}</option>)}</optgroup>}{additionalDevRoles.length > 0 && <optgroup label={t('developmentProfiles')}>{additionalDevRoles.map((role) => <option value={role.profileId} key={role.profileId}>[DEV] {role.profileName} · {role.kind} · {role.accountDisplayName}</option>)}</optgroup>}{profiles.length === 0 && additionalDevRoles.length === 0 && selectableProfiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name} · {profile.profile_kind}</option>)}</select></label></div>
 }
 
 export function DashboardMenuLink() {

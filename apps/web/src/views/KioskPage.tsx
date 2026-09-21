@@ -4,7 +4,7 @@ import { CalendarDays, MapPin, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { RegistrationLinkTools } from '../components/RegistrationLinkTools'
-import { hashKioskPin, useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
+import { hashKioskPin, useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOpenMicDetail, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
 import { isRegistrationClosed } from '../features/publicReads'
 import type { ColorMode, ThemeId } from '../theme'
 import { Modal, ReadState, Required, RequiredFieldsNote } from './shared'
@@ -259,6 +259,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   const { t, i18n } = useTranslation()
   const { context, isOrganizer } = useOrganizerProfile()
   const event = useEventDetail(seriesId, eventId)
+  const openMic = useOpenMicDetail(seriesId)
   const kioskRegistration = useKioskRegistration(eventId)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const emailInputRef = useRef<HTMLInputElement>(null)
@@ -277,6 +278,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   const [emailPromptOpen, setEmailPromptOpen] = useState(false)
 
   const eventClosed = Boolean(event.data) && isRegistrationClosed(event.data!)
+  const seriesPreRegistrationAllowed = openMic.data?.registration_mode === 'pre_only' || openMic.data?.registration_mode === 'both'
 
   function resetForm() {
     setPerformerName('')
@@ -347,20 +349,20 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
 
           {event.data && <details className="kiosk-registration-qr">
             <summary>{t('kioskRegistrationQrTitle')}</summary>
-            <p>{t('kioskRegistrationQrIntro')}</p>
-            <div className="kiosk-registration-qr-grid">
+            <p>{t(seriesPreRegistrationAllowed ? 'kioskRegistrationQrIntro' : 'kioskRegistrationQrEventOnlyIntro')}</p>
+            <div className={`kiosk-registration-qr-grid${seriesPreRegistrationAllowed ? '' : ' kiosk-registration-qr-grid-single'}`}>
               <RegistrationLinkTools
                 url={`${window.location.origin}/events/${event.data.id}/register`}
                 fileName={event.data.public_code}
                 title={t('registerForThisEvent')}
                 showPreview
               />
-              <RegistrationLinkTools
-                url={`${window.location.origin}/open-mics/${seriesId}/register`}
-                fileName={seriesId}
-                title={t('registerForAnyEvent')}
-                showPreview
-              />
+              {seriesPreRegistrationAllowed && <RegistrationLinkTools
+                  url={`${window.location.origin}/open-mics/${seriesId}/register`}
+                  fileName={seriesId}
+                  title={t('registerForAnyEvent')}
+                  showPreview
+                />}
             </div>
           </details>}
 

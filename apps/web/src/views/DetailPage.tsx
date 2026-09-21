@@ -76,7 +76,10 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
             </>}
             {kind === 'event' && (
               isRegisteredForEvent ? (
-                <span className="profile-context" role="status">{t('registeredEvent')}</span>
+                <>
+                  <span className="profile-context" role="status">{t('registeredEvent')}</span>
+                  {!registrationDisabled && <Link className="link-button" to="/events/$eventId/register" params={{ eventId: event.data?.public_code ?? '' }}>{t('registerAnotherPerformer')}</Link>}
+                </>
               ) : registrationDisabled ? (
                 <button className="primary-button" type="button" disabled aria-disabled="true">
                   {registrationDisabledLabel}

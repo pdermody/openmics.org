@@ -120,12 +120,21 @@ export async function findRegistrationsByEventId(client: Queryable, eventId: str
   return result.rows;
 }
 
-export async function findClaimableRegistrations(client: Queryable, email: string): Promise<RegistrationRow[]> {
-  const result = await client.query<RegistrationRow>(
-    `SELECT * FROM registrations
-     WHERE deleted_at IS NULL AND claimed_by_account_id IS NULL
-       AND email_verified_at IS NOT NULL AND lower(contact_email) = lower($1)
-     ORDER BY created_at ASC`,
+export type ClaimableRegistrationRow = RegistrationRow & {
+  event_title: string;
+  event_starts_at: Date;
+  open_mic_name: string;
+};
+
+export async function findClaimableRegistrations(client: Queryable, email: string): Promise<ClaimableRegistrationRow[]> {
+  const result = await client.query<ClaimableRegistrationRow>(
+    `SELECT r.*, e.title AS event_title, e.starts_at AS event_starts_at, om.name AS open_mic_name
+     FROM registrations r
+     JOIN events e ON e.id = r.event_id AND e.deleted_at IS NULL
+     JOIN open_mics om ON om.id = e.open_mic_id AND om.deleted_at IS NULL
+     WHERE r.deleted_at IS NULL AND r.claimed_by_account_id IS NULL
+       AND r.email_verified_at IS NOT NULL AND lower(r.contact_email) = lower($1)
+     ORDER BY e.starts_at ASC, r.created_at ASC`,
     [email],
   );
   return result.rows;
