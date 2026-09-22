@@ -20,6 +20,7 @@ export type AccountProfile = {
   current_handle: string | null
   bio: string | null
   phone: string | null
+  profile_image_url: string | null
   visibility: string
   theme_name: string | null
   color_mode: string | null
@@ -106,10 +107,10 @@ export function useAccountContext(enabled = true) {
   })
 
   const updateProfile = useMutation({
-    mutationFn: (input: { id: string; profile_name: string; bio: string; phone: string; visibility: string }) => api<AccountProfile>(`/profiles/${input.id}`, {
+    mutationFn: (input: { id: string; profile_name: string; bio: string; phone: string; profile_image_url: string; visibility: string; theme_name?: string | null; color_mode?: string | null }) => api<AccountProfile>(`/profiles/${input.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile_name: input.profile_name, bio: input.bio || null, phone: input.phone || null, visibility: input.visibility }),
+      body: JSON.stringify({ profile_name: input.profile_name, bio: input.bio || null, phone: input.phone || null, profile_image_url: input.profile_image_url || null, visibility: input.visibility, theme_name: input.theme_name ?? null, color_mode: input.color_mode ?? null }),
     }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: accountKeys.profiles(account.data?.id) }),
   })
@@ -126,8 +127,17 @@ export function useAccountContext(enabled = true) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: accountKeys.profiles(account.data?.id) }),
   })
 
+  const deleteProfile = useMutation({
+    mutationFn: (profileId: string) => api<AccountProfile>(`/profiles/${profileId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: accountKeys.me })
+      void queryClient.invalidateQueries({ queryKey: accountKeys.profiles(account.data?.id) })
+      void queryClient.invalidateQueries({ queryKey: accountKeys.permissions(undefined) })
+    },
+  })
+
   const createProfile = useMutation({
-    mutationFn: (input: { profile_name: string; profile_kind: 'performer' | 'organizer'; theme_name?: string; color_mode?: string; handle?: string }) => api<AccountProfile>('/profiles', {
+    mutationFn: (input: { profile_name: string; profile_kind: 'performer' | 'organizer'; theme_name?: string; color_mode?: string; handle?: string; visibility?: string }) => api<AccountProfile>('/profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
@@ -172,5 +182,5 @@ export function useAccountContext(enabled = true) {
     error: permissions.error,
   }
 
-  return { account: effectiveAccount, profiles: effectiveProfiles, currentProfile, permissions: effectivePermissions, updateProfile, updatePreferences, createProfile, updateAccount }
+  return { account: effectiveAccount, profiles: effectiveProfiles, currentProfile, permissions: effectivePermissions, updateProfile, updatePreferences, createProfile, deleteProfile, updateAccount }
 }

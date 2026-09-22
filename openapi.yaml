@@ -2202,6 +2202,10 @@ components:
             - performer
         bio:
           type: string
+        profile_image_url:
+          type: string
+          format: uri
+          nullable: true
         phone:
           type: string
           nullable: true
@@ -2232,6 +2236,10 @@ components:
             - performer
         bio:
           type: string
+        profile_image_url:
+          type: string
+          format: uri
+          nullable: true
         phone:
           type: string
           nullable: true

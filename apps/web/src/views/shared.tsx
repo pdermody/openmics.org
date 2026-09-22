@@ -3,11 +3,12 @@ import { createPortal } from 'react-dom'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Heart, Menu, MessageCircle, Sparkles, X } from 'lucide-react'
+import { Heart, MessageCircle, Sparkles, UserRound, X } from 'lucide-react'
 import { consumeSignInError, endSession } from '../auth/session'
-import { useDismissableDetails, useDismissOnOutsideOrEscape } from '../hooks/dismissable'
+import { useDismissOnOutsideOrEscape } from '../hooks/dismissable'
 import { changeLanguage, supportedLanguages } from '../i18n'
 import { useAccountContext } from '../features/account'
+import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from '../components/radix-menu'
 
 export type ThemeProps = { theme: import('../theme').ThemeId; mode: import('../theme').ColorMode }
 
@@ -91,22 +92,18 @@ export function SignInButton() {
 
 export function HeaderMenu() {
   const { t } = useTranslation()
-  const menuRef = useDismissableDetails()
-
-  return <>
-    <nav className="header-actions" aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><Link to="/settings/theme">{t('theme')}</Link></nav>
-    <details className="header-menu" ref={menuRef}><summary aria-label={t('menu')}><Menu size={18} /><span>{t('menu')}</span></summary><nav aria-label={t('menu')}><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><Link to="/settings/theme">{t('theme')}</Link></nav></details>
-  </>
+  return <MenuRoot><MenuTrigger className="profile-menu-trigger" label={t('profileMenu')}><UserRound size={18} /></MenuTrigger><MenuContent className="profile-menu-content" align="end"><div className="profile-menu-panel"><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><ProfileSwitcher /><SignInButton /></div></MenuContent></MenuRoot>
 }
 
 
 const LazyProfileSwitcher = lazy(() => import('./profile-context').then((module) => ({ default: module.ProfileSwitcher })))
+const LazyCurrentProfileLabel = lazy(() => import('./profile-context').then((module) => ({ default: module.CurrentProfileLabel })))
 const LazyDashboardMenuLink = lazy(() => import('./profile-context').then((module) => ({ default: module.DashboardMenuLink })))
 export function ProfileSwitcher() { return <div className="profile-context-slot"><Suspense fallback={null}><LazyProfileSwitcher /></Suspense></div> }
 
 export function SiteHeader() {
   const { t } = useTranslation()
-  return <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('appName')}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    return <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('appName')}</span></Link><div className="profile-menu-root"><Suspense fallback={null}><LazyCurrentProfileLabel /></Suspense><HeaderMenu /></div></header>
 }
 
 export function LanguageSelector() {
@@ -126,12 +123,10 @@ export function LanguageSelector() {
     }
   }
 
-  return <label className="language-selector"><span className="sr-only">{t('language')}</span><select aria-label={t('language')} value={selectedLanguage} onChange={(event) => void selectLanguage(event.target.value as 'en' | 'es')}>
-    {supportedLanguages.map((language) => <option value={language.code} key={language.code}>{language.name}</option>)}
-  </select></label>
+  return <MenuRoot><MenuTrigger className="language-selector-trigger" label={t('language')}>{selectedLanguage.toUpperCase()}</MenuTrigger><MenuContent className="language-menu-content" align="end">{supportedLanguages.map((language) => <MenuItem key={language.code} onSelect={() => void selectLanguage(language.code)}>{language.name}</MenuItem>)}</MenuContent></MenuRoot>
 }
 
 export function SiteFooter({ theme, mode }: ThemeProps) {
   const { t } = useTranslation()
-  return <footer className="footer app" data-theme={theme} data-mode={mode}><div className="footer-content"><span>{t('footerCopy')}</span><LanguageSelector /><Link className="footer-link" to="/settings/theme">{t('appearance')}</Link></div></footer>
+  return <footer className="footer app" data-theme={theme} data-mode={mode}><div className="footer-content"><span>{t('copyrightNotice', { year: new Date().getFullYear() })}</span><LanguageSelector /><Link className="footer-link" to="/settings/theme">{t('appearance')}</Link></div></footer>
 }

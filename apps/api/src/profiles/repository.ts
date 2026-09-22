@@ -30,14 +30,15 @@ export async function insertProfile(
     profileKind: string;
     bio?: string;
     phone?: string | null;
+    profileImageUrl?: string | null;
     visibility?: string;
     themeName?: string;
     colorMode?: string;
   },
 ): Promise<ProfileRow> {
   const result = await client.query<ProfileRow>(
-    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, phone, visibility, theme_name, color_mode)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'public'), $7, $8)
+    `INSERT INTO profiles (created_by_account_id, profile_name, profile_kind, bio, phone, profile_image_url, visibility, theme_name, color_mode)
+     VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'public'), $8, $9)
      RETURNING *`,
     [
       input.createdByAccountId,
@@ -45,6 +46,7 @@ export async function insertProfile(
       input.profileKind,
       input.bio ?? null,
       input.phone ?? null,
+      input.profileImageUrl ?? null,
       input.visibility ?? null,
       input.themeName ?? null,
       input.colorMode ?? null,
@@ -72,7 +74,7 @@ export async function findPublicProfiles(client: Queryable, limit: number, offse
   return { rows: result.rows, total: Number(count.rows[0].count) };
 }
 
-const UPDATABLE_COLUMNS = ['profile_name', 'profile_kind', 'bio', 'phone', 'visibility', 'theme_name', 'color_mode'] as const;
+const UPDATABLE_COLUMNS = ['profile_name', 'profile_kind', 'bio', 'phone', 'profile_image_url', 'visibility', 'theme_name', 'color_mode'] as const;
 
 export async function updateProfile(
   pool: Pool,
@@ -99,6 +101,21 @@ export async function updateProfile(
     values,
   );
   return result.rows[0] ?? null;
+}
+
+export async function softDeleteProfile(pool: Pool, id: string): Promise<ProfileRow | null> {
+  const result = await pool.query<ProfileRow>(
+    `UPDATE profiles
+     SET deleted_at = now(), recovery_deadline = now() + interval '30 days', updated_at = now()
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING *`,
+    [id],
+  );
+  const profile = result.rows[0] ?? null;
+  if (profile) {
+    await pool.query('UPDATE accounts SET current_profile_id = NULL, updated_at = now() WHERE current_profile_id = $1', [id]);
+  }
+  return profile;
 }
 
 export function serializeProfile(row: ProfileRow, includePrivate = false) {

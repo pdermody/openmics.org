@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
-import { CircleAlert, CircleCheck, Sparkles } from 'lucide-react'
+import { CircleAlert, CircleCheck } from 'lucide-react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
@@ -15,7 +15,7 @@ import { useCreateOpenMic, useOpenMicDetail, useOrganizerProfile, useUpdateOpenM
 import { suggestHandle } from '../features/slugify'
 import type { ColorMode, ThemeId } from '../theme'
 import { KioskBackupPinSection } from './KioskBackupPin'
-import { HeaderMenu, ProfileSwitcher, ReadState, Required, RequiredFieldsNote, SignInButton } from './shared'
+import { ReadState, Required, RequiredFieldsNote, SiteHeader } from './shared'
 
 const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
 
@@ -285,7 +285,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   }
   if (!context.account.data || !isOrganizer || (isEdit && existing.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
-      <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+      <SiteHeader />
       <section className="dashboard-page"><ReadState message={t('selectOrganizerSeries')} /></section>
     </main>
   }
@@ -294,7 +294,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   }
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <SiteHeader />
     <section className="dashboard-page">
       {isEdit
         ? <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId: seriesId ?? '' }}>← Back to series</Link>

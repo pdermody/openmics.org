@@ -25,9 +25,10 @@ describe('LanguageSelector', () => {
     server.use(http.get('/api/me', () => HttpResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Not signed in' } }, { status: 401 })))
     renderWithProviders(<LanguageSelector />)
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Language' }), 'es')
+    await user.click(screen.getByRole('button', { name: 'Language' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Español' }))
 
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Idioma' })).toHaveValue('es'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Idioma' })).toHaveTextContent('ES'))
     expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('es')
     expect(document.documentElement.lang).toBe('es')
   })
@@ -49,7 +50,8 @@ describe('LanguageSelector', () => {
     const user = userEvent.setup()
     renderWithProviders(<LanguageSelector />)
 
-    await user.selectOptions(await screen.findByRole('combobox', { name: 'Language' }), 'es')
+    await user.click(await screen.findByRole('button', { name: 'Language' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Español' }))
 
     await waitFor(() => expect(accountPatch).toEqual({ preferred_language: 'es' }))
     expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('es')
@@ -65,7 +67,7 @@ describe('LanguageSelector', () => {
 
     renderWithProviders(<LanguageSelector />)
 
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Idioma' })).toHaveValue('es'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Idioma' })).toHaveTextContent('ES'))
     expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('es')
   })
 })

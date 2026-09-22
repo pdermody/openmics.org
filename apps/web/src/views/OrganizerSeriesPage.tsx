@@ -1,9 +1,9 @@
 import { Link } from '@tanstack/react-router'
-import { MapPin, Sparkles } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useOrganizerOpenMics, useOrganizerProfile } from '../features/organizer'
 import type { ColorMode, ThemeId } from '../theme'
-import { HeaderMenu, ProfileSwitcher, ReadState, SignInButton } from './shared'
+import { ReadState, SiteHeader } from './shared'
 
 export function OrganizerSeriesPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }) {
   const { t } = useTranslation()
@@ -11,7 +11,7 @@ export function OrganizerSeriesPage({ theme, mode }: { theme: ThemeId; mode: Col
   const series = useOrganizerOpenMics(isOrganizer ? selected?.id : undefined, isOrganizer)
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <SiteHeader />
     <section className="dashboard-page">
       <Link className="back-link" to="/dashboard">{t('backToDashboard')}</Link>
       <div className="eyebrow">{t('organizerWorkspace')}</div>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Clock3, Copy, Eye, MapPin, Pause, Pencil, Play, QrCode, Settings2, Sparkles, Trash2, Upload } from 'lucide-react'
+import { Clock3, Copy, Eye, MapPin, Pause, Pencil, Play, QrCode, Settings2, Trash2, Upload } from 'lucide-react'
 import { EventManagementActions } from '../components/EventManagementActions'
 import { ActionMenu } from '../components/ActionMenu'
 import { copyRegistrationLink, downloadRegistrationQr } from '../components/RegistrationLinkTools'
@@ -9,7 +9,7 @@ import { useDeleteOpenMic, useOrganizerOpenMics, useOrganizerProfile, useOrganiz
 import type { OpenMic } from '../features/publicReads'
 import type { ColorMode, ThemeId } from '../theme'
 import { ClaimableRegistrationsBanner } from './ClaimableRegistrationsBanner'
-import { HeaderMenu, Modal, ProfileSwitcher, ReadState, SignInButton } from './shared'
+import { Modal, ReadState, SiteHeader } from './shared'
 
 function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
   const { t } = useTranslation()
@@ -90,7 +90,7 @@ export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: 
   const hasNoOpenMics = isOrganizer && !openMics.isPending && (openMics.data?.length ?? 0) === 0
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <SiteHeader />
     <section className="dashboard-page">
       <div className="eyebrow">{t('dashboard')}</div>
       <h1>{t('dashboardTitle')}</h1>

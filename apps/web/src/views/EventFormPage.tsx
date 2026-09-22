@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
-import { Sparkles } from 'lucide-react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
@@ -12,7 +11,7 @@ import { CURRENCIES } from '../features/currencies'
 import { ACTIVITY_LABEL_KEYS, browserTimeZone, COUNTRY_OPTIONS, formatTimeZoneOption, TIME_ZONE_OPTIONS } from '../features/form-options'
 import { baseLocationFieldsSchema } from '../features/location'
 import type { ColorMode, ThemeId } from '../theme'
-import { HeaderMenu, ProfileSwitcher, ReadState, Required, RequiredFieldsNote, SignInButton } from './shared'
+import { ReadState, Required, RequiredFieldsNote, SiteHeader } from './shared'
 
 const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
 
@@ -289,7 +288,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   const isOwner = !openMic.data || openMic.data.owner_profile_id === activeProfile?.id
   if (!context.account.data || !isOrganizer || (openMic.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
-      <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+      <SiteHeader />
       <section className="dashboard-page"><ReadState message={t('selectOrganizer')} /></section>
     </main>
   }
@@ -298,7 +297,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   }
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <SiteHeader />
     <section className="dashboard-page">
       <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId }}>← Back to {openMic.data?.name ?? 'series'}</Link>
       <div className="eyebrow">{t('organizerWorkspace')}</div>

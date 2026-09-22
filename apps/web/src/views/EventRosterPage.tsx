@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { createPortal } from 'react-dom'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, DoorOpen, Eye, Lock, LockOpen, MapPin, MoreVertical, Pencil, Sparkles } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, DoorOpen, Eye, Lock, LockOpen, MapPin, Pencil } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
+import { ActionMenu } from '../components/ActionMenu'
 import { EventManagementActions } from '../components/EventManagementActions'
 import { copyRegistrationLink, downloadRegistrationQr } from '../components/RegistrationLinkTools'
 import {
@@ -25,8 +25,7 @@ import {
 } from '../features/organizer'
 import { isRegistrationClosed } from '../features/publicReads'
 import type { ColorMode, ThemeId } from '../theme'
-import { HeaderMenu, Modal, ProfileSwitcher, ReadState, Required, RequiredFieldsNote, SignInButton } from './shared'
-import { useDismissOnOutsideOrEscape } from '../hooks/dismissable'
+import { Modal, ReadState, Required, RequiredFieldsNote, SiteHeader } from './shared'
 
 const PROVENANCE_FILTERS = ['all', 'pending'] as const
 type ProvenanceFilter = (typeof PROVENANCE_FILTERS)[number]
@@ -140,58 +139,7 @@ function RegistrationEditModal({ eventId, registration, onClose }: { eventId: st
 // clipped by the roster board's overflow-x:auto scroll container regardless of how tall the
 // menu's contents are or how close to the bottom of the column the triggering card sits.
 function CardMenu({ label, items }: { label: string; items: { label: string; onClick: () => void; disabled?: boolean }[] }) {
-  const [open, setOpen] = useState(false)
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const panelRef = useDismissOnOutsideOrEscape<HTMLDivElement>(open, () => setOpen(false))
-
-  useEffect(() => {
-    if (!open) return
-    const close = () => setOpen(false)
-    window.addEventListener('resize', close)
-    window.addEventListener('scroll', close, true)
-    return () => {
-      window.removeEventListener('resize', close)
-      window.removeEventListener('scroll', close, true)
-    }
-  }, [open])
-
-  // Initial placement is just a guess (below the button) before the panel's real height is known.
-  // Once it's actually rendered, snap it to fit the viewport — flipping above the button instead
-  // of below when there isn't enough room underneath, and clamping so it's never cut off at the
-  // bottom (or either side) regardless of how close to the edge of the screen the card sits.
-  useEffect(() => {
-    if (!open || !buttonRef.current || !panelRef.current) return
-    const margin = 8
-    const buttonRect = buttonRef.current.getBoundingClientRect()
-    const panelRect = panelRef.current.getBoundingClientRect()
-    let top = buttonRect.bottom + 4
-    if (top + panelRect.height > window.innerHeight - margin) top = buttonRect.top - panelRect.height - 4
-    top = Math.max(margin, Math.min(top, window.innerHeight - panelRect.height - margin))
-    let left = Math.max(margin, buttonRect.right - panelRect.width)
-    left = Math.min(left, window.innerWidth - panelRect.width - margin)
-    setPosition((current) => (current && current.top === top && current.left === left ? current : { top, left }))
-  }, [open, items.length])
-
-  const toggle = () => {
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect()
-      setPosition({ top: rect.bottom + 4, left: Math.max(8, rect.right - 200) })
-    }
-    setOpen((value) => !value)
-  }
-
-  return <>
-    <button type="button" ref={buttonRef} className="performer-card-arrow" aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
-      <MoreVertical size={16} />
-    </button>
-    {open && position && createPortal(
-      <div className="performer-card-menu-panel" ref={panelRef} role="menu" style={{ top: position.top, left: position.left }}>
-        {items.map((item) => <button key={item.label} type="button" role="menuitem" onClick={() => { setOpen(false); item.onClick() }} disabled={item.disabled}>{item.label}</button>)}
-      </div>,
-      document.querySelector('.app') ?? document.body,
-    )}
-  </>
+  return <ActionMenu label={label} items={items} />
 }
 
 // A deliberately plain list row (no move controls, no kanban card styling) for registrations
@@ -428,13 +376,12 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   const isFull = Boolean(event.data?.capacity && registrationCount >= event.data.capacity)
   const isRunning = event.data?.running === true
   const wasStopped = event.data?.running === false
-  // "Pending" shows only the simple pending-confirmation list (no kanban); "all" shows the board
-  // plus the pending list too, so organizers still notice who's waiting without switching filters.
+  // Pending registrations stay behind the Pending filter so the main roster remains focused.
   const showBoard = provenanceFilter !== 'pending'
-  const showPendingList = provenanceFilter === 'all' || provenanceFilter === 'pending'
+  const showPendingList = provenanceFilter === 'pending'
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <SiteHeader />
     <section className="dashboard-page">
       <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId }}>← Back to events</Link>
       <div className="eyebrow">{t('eventOperations')}</div>
@@ -471,7 +418,7 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
           aria-pressed={provenanceFilter === option}
           onClick={() => setProvenanceFilter(option)}
         >
-          {option === 'all' ? 'All' : option.charAt(0).toUpperCase() + option.slice(1)}
+          {option === 'all' ? 'All' : <>{option.charAt(0).toUpperCase() + option.slice(1)} <span className="roster-filter-count">{pendingRegistrations.length}</span></>}
         </button>)}
       </div>}
 

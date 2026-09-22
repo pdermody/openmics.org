@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import { withTransaction } from '../db.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { assignHandle } from '../handles/service.js';
-import { findProfileById, findPublicProfiles, insertProfile, serializeProfile, updateProfile } from './repository.js';
+import { findProfileById, findPublicProfiles, insertProfile, serializeProfile, softDeleteProfile, updateProfile } from './repository.js';
 import { createProfileSchema, updateProfileSchema } from './validation.js';
 
 export type ProfilesPluginOptions = { pool: Pool };
@@ -24,6 +24,7 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
         profileKind: input.profile_kind,
         bio: input.bio,
         phone: input.phone,
+        profileImageUrl: input.profile_image_url,
         visibility: input.visibility,
         themeName: input.theme_name,
         colorMode: input.color_mode,
@@ -71,5 +72,17 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
 
     const updated = await updateProfile(pool, request.params.id, parsed.data);
     reply.send(serializeProfile(updated!, true));
+  });
+
+  app.delete<{ Params: { id: string } }>('/profiles/:id', { preHandler: app.authenticate }, async (request, reply) => {
+    const existing = await findProfileById(pool, request.params.id);
+    if (!existing) throw new NotFoundError('Profile not found');
+    const account = request.account!;
+    if (existing.created_by_account_id !== account.accountId && !account.isPlatformAdmin) {
+      throw new ForbiddenError('You do not own this profile');
+    }
+    const deleted = await softDeleteProfile(pool, request.params.id);
+    if (!deleted) throw new NotFoundError('Profile not found');
+    reply.send(serializeProfile(deleted, true));
   });
 };

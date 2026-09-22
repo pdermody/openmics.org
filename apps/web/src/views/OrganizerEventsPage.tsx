@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Clock3, Copy, Eye, MapPin, Pause, Pencil, Play, Plus, QrCode, Settings2, Sparkles, Trash2, Upload } from 'lucide-react'
+import { Clock3, Copy, Eye, MapPin, Pause, Pencil, Play, Plus, QrCode, Settings2, Trash2, Upload } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { friendlyApiErrorMessage } from '../api/client'
 import { copyRegistrationLink, downloadRegistrationQr } from '../components/RegistrationLinkTools'
@@ -9,7 +9,7 @@ import { ActionMenu } from '../components/ActionMenu'
 import { useDeleteOpenMic, useOrganizerOpenMics, useOrganizerProfile, useOrganizerSeriesEvents, useUpdateOpenMic } from '../features/organizer'
 import type { ColorMode, ThemeId } from '../theme'
 import { KioskBackupPinSection } from './KioskBackupPin'
-import { HeaderMenu, Modal, ProfileSwitcher, ReadState, SignInButton } from './shared'
+import { Modal, ReadState, SiteHeader } from './shared'
 
 export function OrganizerEventsPage({ seriesId, theme, mode }: { seriesId: string; theme: ThemeId; mode: ColorMode }) {
   const { t } = useTranslation()
@@ -23,7 +23,7 @@ export function OrganizerEventsPage({ seriesId, theme, mode }: { seriesId: strin
   const [confirmation, setConfirmation] = useState<'publish' | 'pause' | 'resume' | 'delete' | null>(null)
 
   return <main className="app" data-theme={theme} data-mode={mode}>
-    <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t("appName")}</span></Link><HeaderMenu /><ProfileSwitcher /><SignInButton /></header>
+    <SiteHeader />
     <section className="dashboard-page">
       <Link className="back-link" to="/dashboard">{t('backToDashboard')}</Link>
       <div className="eyebrow">{t('organizerWorkspace')}</div>

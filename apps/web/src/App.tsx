@@ -23,6 +23,7 @@ const EventForm = lazyRouteComponent(() => import('./views/EventFormPage'), 'Eve
 const EventRoster = lazyRouteComponent(() => import('./views/EventRosterPage'), 'EventRosterPage')
 const Kiosk = lazyRouteComponent(() => import('./views/KioskPage'), 'KioskPage')
 const ClaimableRegistrations = lazyRouteComponent(() => import('./views/ClaimableRegistrationsPage'), 'ClaimableRegistrationsPage')
+const ProfileManagement = lazyRouteComponent(() => import('./views/ProfileManagementPage'), 'ProfileManagementPage')
 
 const AUTH_MODES = ['sign-in', 'sign-up', 'confirm-sign-up', 'forgot-password', 'reset-password'] as const
 type AuthMode = (typeof AUTH_MODES)[number]
@@ -134,6 +135,15 @@ const claimableRegistrationsRoute = createRoute({
     const { theme, mode } = useThemeMode()
     return <RoutedView theme={theme} mode={mode}><LazyView><ClaimableRegistrations theme={theme} mode={mode} /></LazyView></RoutedView>
   }, ClaimableRegistrations),
+})
+
+const profileManagementRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profiles/manage',
+  component: withPreload(() => {
+    const { theme, mode } = useThemeMode()
+    return <RoutedView theme={theme} mode={mode}><LazyView><ProfileManagement theme={theme} mode={mode} /></LazyView></RoutedView>
+  }, ProfileManagement),
 })
 
 const seriesNewRoute = createRoute({
@@ -286,6 +296,7 @@ const routeTree = rootRoute.addChildren([
   authRoute,
   dashboardRoute,
   claimableRegistrationsRoute,
+  profileManagementRoute,
   seriesNewRoute,
   seriesEditRoute,
   seriesEventsRoute,
