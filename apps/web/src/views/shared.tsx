@@ -3,11 +3,12 @@ import { createPortal } from 'react-dom'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Heart, MessageCircle, Sparkles, UserRound, X } from 'lucide-react'
+import { Heart, LogIn, LogOut, MessageCircle, Sparkles, UserPlus, UserRound, X } from 'lucide-react'
 import { consumeSignInError, endSession } from '../auth/session'
 import { useDismissOnOutsideOrEscape } from '../hooks/dismissable'
 import { changeLanguage, supportedLanguages } from '../i18n'
 import { useAccountContext } from '../features/account'
+import { accountKeys } from '../features/account'
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from '../components/radix-menu'
 
 export type ThemeProps = { theme: import('../theme').ThemeId; mode: import('../theme').ColorMode }
@@ -65,6 +66,7 @@ export function SignInButton() {
   const queryClient = useQueryClient()
   const context = useAccountContext()
   const [message, setMessage] = useState('')
+  const [signingOut, setSigningOut] = useState(false)
   const signedIn = Boolean(context.account.data)
 
   useEffect(() => {
@@ -72,16 +74,24 @@ export function SignInButton() {
     if (failure) setMessage(failure)
   }, [])
 
-  if (signedIn) {
-    return <div className="auth-slot"><button className="text-button" type="button" onClick={() => {
-      void endSession().then(() => {
-        queryClient.clear()
-        void navigate({ to: '/' })
-      })
-    }}>{t('signOut')}</button></div>
+  async function signOut() {
+    setSigningOut(true)
+    try {
+      await endSession()
+    } finally {
+      queryClient.setQueryData(accountKeys.me, undefined)
+      queryClient.removeQueries({ queryKey: ['account'] })
+      queryClient.clear()
+      setSigningOut(false)
+      void navigate({ to: '/' })
+    }
   }
 
-  return <div className="auth-slot"><button className="text-button" type="button" onClick={() => { void navigate({ to: '/auth/$mode', params: { mode: 'sign-in' } }) }}>{t('signIn')}</button>{message && <span className="auth-note" role="status">{message}</span>}</div>
+  if (signedIn) {
+    return <MenuItem disabled={signingOut} onSelect={() => { void signOut() }}><LogOut size={15} aria-hidden="true" />{t('signOut')}</MenuItem>
+  }
+
+  return <>{message && <span className="auth-note" role="status">{message}</span>}<MenuItem onSelect={() => { void navigate({ to: '/auth/$mode', params: { mode: 'sign-in' } }) }}><LogIn size={15} aria-hidden="true" />{t('signIn')}</MenuItem><MenuItem onSelect={() => { void navigate({ to: '/auth/$mode', params: { mode: 'sign-up' } }) }}><UserPlus size={15} aria-hidden="true" />{t('authCreateAccount')}</MenuItem></>
 }
 
 // Shared by any <details>-based popover/menu (the page HeaderMenu, and the roster page's

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronRight } from 'lucide-react'
+import { Check, ChevronRight, LayoutDashboard, Settings } from 'lucide-react'
 import { fetchSimulatedAuthConfig, getAuthenticatedUser, getStoredSimulatedAuthToken, LOCAL_SIMULATED_ROLE_KEY, type SimulatedAuthRole } from '../auth/session'
 import { accountKeys, useAccountContext } from '../features/account'
 import { MenuItem, MenuSeparator, MenuSubContent, MenuSubRoot, MenuSubTrigger } from '../components/radix-menu'
@@ -88,15 +88,14 @@ export function ProfileSwitcher() {
   return <MenuSubRoot>
     <MenuSubTrigger><span>{t('profiles')}</span><ChevronRight size={15} aria-hidden="true" /></MenuSubTrigger>
     <MenuSubContent>
-      <MenuItem onSelect={() => selectProfile('public')}>{effectiveValue === 'public' && <Check size={15} aria-hidden="true" />}{t('publicUnauth')}</MenuItem>
+      {devProfiles.length > 0 && <MenuItem onSelect={() => selectProfile('public')}>{effectiveValue === 'public' && <Check size={15} aria-hidden="true" />}{t('publicUnauth')}</MenuItem>}
       {accountProfiles.map((profile) => <MenuItem key={profile.id} onSelect={() => selectProfile(profile.id)}>{effectiveValue === profile.id && <Check size={15} aria-hidden="true" />}{profile.profile_name} · {profile.profile_kind}</MenuItem>)}
       {devProfiles.length > 0 && <MenuSeparator />}
       {devProfiles.map((role) => <MenuItem key={role.profileId} onSelect={() => selectProfile(role.profileId)}>{effectiveValue === role.profileId && <Check size={15} aria-hidden="true" />}[DEV] {role.profileName} · {role.kind} · {role.accountDisplayName}</MenuItem>)}
       {context.profiles.isPending && <MenuItem disabled onSelect={() => undefined}>{t('loadingProfiles')}</MenuItem>}
       {context.profiles.isError && <MenuItem disabled onSelect={() => undefined}>{t('profilesLoadError')}</MenuItem>}
       {!context.profiles.isPending && !context.profiles.isError && accountProfiles.length === 0 && devProfiles.length === 0 && <MenuItem disabled onSelect={() => undefined}>{t('noProfiles')}</MenuItem>}
-      <MenuSeparator />
-      <MenuItem onSelect={() => void navigate({ to: '/profiles/manage' })}>{t('manageProfiles')}</MenuItem>
+      {context.account.data && <><MenuSeparator /><MenuItem onSelect={() => void navigate({ to: '/profiles/manage' })}><Settings size={15} aria-hidden="true" />{t('manageProfiles')}</MenuItem></>}
     </MenuSubContent>
   </MenuSubRoot>
 }
@@ -104,14 +103,16 @@ export function ProfileSwitcher() {
 export function CurrentProfileLabel() {
   const { t } = useTranslation()
   const context = useAccountContext()
+  if (!context.account.data) return null
   const profile = context.profiles.data?.items.find((item) => item.id === context.account.data?.current_profile_id)
   return <span className="current-profile-label">{profile?.profile_name ?? t('publicUnauth')}</span>
 }
 
 export function DashboardMenuLink() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const context = useAccountContext()
   const activeProfile = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
   const canManageDashboard = activeProfile?.profile_kind === 'organizer' && context.permissions.data?.permissions.includes('profiles:manage')
-  return canManageDashboard ? <Link to="/dashboard">{t('dashboard')}</Link> : null
+  return canManageDashboard ? <MenuItem onSelect={() => void navigate({ to: '/dashboard' })}><LayoutDashboard size={15} aria-hidden="true" />{t('dashboard')}</MenuItem> : null
 }

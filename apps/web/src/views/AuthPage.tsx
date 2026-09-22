@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -25,6 +25,12 @@ export function AuthPage({ mode, theme, colorMode }: { mode: AuthMode; theme: Th
   const [error, setError] = useState('')
   const [currentMode, setCurrentMode] = useState(mode)
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setCurrentMode(mode)
+    setError('')
+    setMessage('')
+  }, [mode])
 
   const title = {
     'sign-in': t('authSignInTitle'), 'sign-up': t('authSignUpTitle'), 'confirm-sign-up': t('authConfirmTitle'),
