@@ -51,7 +51,7 @@ export class EmailStack extends cdk.Stack {
 
     this.emailSenderFunction = new NodejsFunction(this, 'EmailSenderFunction', {
       functionName: `openmic-email-sender-${props.environmentName}`,
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       entry: `${__dirname}/lambda/email-sender/index.ts`,
       handler: 'handler',
       timeout: cdk.Duration.seconds(10),

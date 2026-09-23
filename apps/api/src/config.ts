@@ -4,7 +4,14 @@ const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   HOST: z.string().default('127.0.0.1'),
-  DATABASE_URL: z.string().url().default('postgres://openmic:openmic_local@127.0.0.1:5432/openmic_dev'),
+  DATABASE_URL: z.string().url().optional(),
+  // Split RDS credentials (as injected separately by ECS/Secrets Manager, which can't compose
+  // a single connection-string secret value). Used to build DATABASE_URL when it isn't set directly.
+  PGHOST: z.string().optional(),
+  PGPORT: z.coerce.number().int().min(1).max(65535).default(5432),
+  PGDATABASE: z.string().default('openmic'),
+  PGUSER: z.string().optional(),
+  PGPASSWORD: z.string().optional(),
   SIMULATED_AUTH_MODE: z.preprocess((value) => value === 'true' || value === true, z.boolean()).default(false),
   EMAIL_ADAPTER: z.enum(['ses', 'console', 'memory']).optional(),
   EMAIL_QUEUE_URL: z.string().optional(),
@@ -38,12 +45,25 @@ export type AppConfig = {
   streamTokenSecret: string;
 };
 
+function resolveDatabaseUrl(parsed: z.infer<typeof environmentSchema>): string {
+  if (parsed.DATABASE_URL) {
+    return parsed.DATABASE_URL;
+  }
+  if (parsed.PGHOST && parsed.PGUSER && parsed.PGPASSWORD) {
+    const credentials = `${encodeURIComponent(parsed.PGUSER)}:${encodeURIComponent(parsed.PGPASSWORD)}`;
+    // RDS rejects unencrypted connections; sslmode=no-verify encrypts without needing the
+    // RDS CA bundle mounted (Node's default trust store doesn't include it).
+    return `postgres://${credentials}@${parsed.PGHOST}:${parsed.PGPORT}/${parsed.PGDATABASE}?sslmode=no-verify`;
+  }
+  return 'postgres://openmic:openmic_local@127.0.0.1:5432/openmic_dev';
+}
+
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = environmentSchema.parse(environment);
   const defaultEmailAdapter = parsed.NODE_ENV === 'production' ? 'ses' : parsed.NODE_ENV === 'test' ? 'memory' : 'console';
 
   return {
-    databaseUrl: parsed.DATABASE_URL,
+    databaseUrl: resolveDatabaseUrl(parsed),
     environment: parsed.NODE_ENV,
     host: parsed.HOST,
     port: parsed.PORT,

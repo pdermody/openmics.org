@@ -1,0 +1,8 @@
+node_modules
+dist
+apps/web
+infra
+.git
+.env
+.env.*
+*.md

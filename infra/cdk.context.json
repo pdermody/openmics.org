@@ -1,0 +1,15 @@
+{
+  "availability-zones:account=163742164398:region=eu-west-1": [
+    "eu-west-1a",
+    "eu-west-1b",
+    "eu-west-1c"
+  ],
+  "hosted-zone:account=163742164398:domainName=openmics.org:region=us-east-1": {
+    "Id": "/hostedzone/Z03092941U6NVVD0H6BXI",
+    "Name": "openmics.org."
+  },
+  "hosted-zone:account=163742164398:domainName=openmics.org:region=eu-west-1": {
+    "Id": "/hostedzone/Z03092941U6NVVD0H6BXI",
+    "Name": "openmics.org."
+  }
+}
