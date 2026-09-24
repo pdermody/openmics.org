@@ -5,6 +5,7 @@ import {
   changePassword,
   confirmPasswordReset,
   confirmSignUpCode,
+  markPendingSignInRedirect,
   requestPasswordReset,
   signInWithPassword,
   signUpWithPassword,
@@ -43,7 +44,7 @@ export function AuthPage({ mode, theme, colorMode }: { mode: AuthMode; theme: Th
     try {
       if (currentMode === 'sign-in') {
         const result = await signInWithPassword(username, password)
-        if (result.isSignedIn) void navigate({ to: '/dashboard' })
+        if (result.isSignedIn) { markPendingSignInRedirect(); void navigate({ to: '/' }) }
         else setMessage(t('authContinueMessage'))
       } else if (currentMode === 'sign-up') {
         const result = await signUpWithPassword(username, password)

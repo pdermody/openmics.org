@@ -1,8 +1,9 @@
 import { createContext, Suspense, useContext, useEffect, useState, type ReactNode } from 'react'
-import { createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet, RouterProvider } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet, RouterProvider, useNavigate } from '@tanstack/react-router'
 import './App.css'
 import { HomePage } from './views/HomePage'
 import { ThemePage } from './views/ThemePage'
+import { AccountPage } from './views/AccountPage'
 import { EventPage } from './views/EventPage'
 import { OpenMicPage } from './views/OpenMicPage'
 import { ProfilePage } from './views/ProfilePage'
@@ -11,11 +12,14 @@ import { DurableRegistrationPage } from './views/DurableRegistrationPage'
 import { AuthPage } from './views/AuthPage'
 import { OnboardingPage } from './views/OnboardingPage'
 import { useAccountContext } from './features/account'
+import { useOrganizerProfile } from './features/organizer'
 import { useResolveHandle } from './features/publicReads'
+import { consumePendingSignInRedirect } from './auth/session'
 import { ReadState, SiteFooter } from './views/shared'
 import { i18n } from './i18n'
 import { DEFAULT_THEME, isColorMode, isThemeId, MODE_STORAGE_KEY, systemColorMode, THEME_STORAGE_KEY, type ColorMode, type ThemeId } from './theme'
 
+const AccountSettings = lazyRouteComponent(() => import('./views/AccountPage'), 'AccountPage')
 const ProfileEditor = lazyRouteComponent(() => import('./views/ProfileEditorPage'), 'ProfileEditorPage')
 const OrganizerDashboard = lazyRouteComponent(() => import('./views/OrganizerDashboardPage'), 'OrganizerDashboardPage')
 const OrganizerEvents = lazyRouteComponent(() => import('./views/OrganizerEventsPage'), 'OrganizerEventsPage')
@@ -58,8 +62,24 @@ function useThemeMode(): ThemeModeState {
   return value
 }
 
+// Whether the dashboard should replace Home for an organizer profile right after this browser
+// just completed a sign-in (see `markPendingSignInRedirect` in auth/session.ts) — a later,
+// deliberate visit to '/' (e.g. via the brand link, or an ordinary page reload of an already
+// signed-in session) is never redirected away again.
 function HomeRoute() {
   const { theme, mode } = useThemeMode()
+  const { isOrganizer, isOrganizerPending } = useOrganizerProfile()
+  const navigate = useNavigate()
+  const [isPostSignIn] = useState(() => consumePendingSignInRedirect())
+
+  useEffect(() => {
+    if (!isPostSignIn || isOrganizerPending) return
+    if (isOrganizer) void navigate({ to: '/dashboard', replace: true })
+  }, [isPostSignIn, isOrganizerPending, isOrganizer, navigate])
+
+  if (isPostSignIn && isOrganizerPending) {
+    return <RoutedView theme={theme} mode={mode}><main className="app" data-theme={theme} data-mode={mode}><ReadState message={i18n.t('loading')} /></main></RoutedView>
+  }
   return <RoutedView theme={theme} mode={mode}><HomePage theme={theme} mode={mode} /></RoutedView>
 }
 
@@ -145,6 +165,15 @@ const profileManagementRoute = createRoute({
     const { theme, mode } = useThemeMode()
     return <RoutedView theme={theme} mode={mode}><LazyView><ProfileManagement theme={theme} mode={mode} /></LazyView></RoutedView>
   }, ProfileManagement),
+})
+
+const accountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account',
+  component: withPreload(() => {
+    const { theme, mode } = useThemeMode()
+    return <RoutedView theme={theme} mode={mode}><LazyView><AccountSettings theme={theme} mode={mode} /></LazyView></RoutedView>
+  }, AccountSettings),
 })
 
 const seriesNewRoute = createRoute({
@@ -315,6 +344,7 @@ const routeTree = rootRoute.addChildren([
   dashboardRoute,
   claimableRegistrationsRoute,
   profileManagementRoute,
+  accountRoute,
   seriesNewRoute,
   seriesEditRoute,
   seriesEventsRoute,

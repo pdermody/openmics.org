@@ -100,20 +100,28 @@ export function SignInButton() {
 // than a dedicated popover library. Lives in ../hooks/dismissable so a component file (this
 // one) doesn't also export non-component hooks (keeps fast-refresh lint clean).
 
+export function AccountMenuLink() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const context = useAccountContext()
+  if (!context.account.data) return null
+  return <MenuItem onSelect={() => void navigate({ to: '/account' })}>{t('account')}</MenuItem>
+}
+
 export function HeaderMenu() {
   const { t } = useTranslation()
-  return <MenuRoot><MenuTrigger className="profile-menu-trigger" label={t('profileMenu')}><UserRound size={18} /></MenuTrigger><MenuContent className="profile-menu-content" align="end"><div className="profile-menu-panel"><Suspense fallback={null}><LazyDashboardMenuLink /></Suspense><ProfileSwitcher /><SignInButton /></div></MenuContent></MenuRoot>
+  return <MenuRoot><MenuTrigger className="profile-menu-trigger" label={t('profileMenu')}><UserRound size={18} /></MenuTrigger><MenuContent className="profile-menu-content" align="end"><div className="profile-menu-panel"><ProfileSwitcher /><AccountMenuLink /><SignInButton /></div></MenuContent></MenuRoot>
 }
 
 
 const LazyProfileSwitcher = lazy(() => import('./profile-context').then((module) => ({ default: module.ProfileSwitcher })))
 const LazyCurrentProfileLabel = lazy(() => import('./profile-context').then((module) => ({ default: module.CurrentProfileLabel })))
-const LazyDashboardMenuLink = lazy(() => import('./profile-context').then((module) => ({ default: module.DashboardMenuLink })))
+const LazyDashboardHeaderLink = lazy(() => import('./profile-context').then((module) => ({ default: module.DashboardHeaderLink })))
 export function ProfileSwitcher() { return <div className="profile-context-slot"><Suspense fallback={null}><LazyProfileSwitcher /></Suspense></div> }
 
 export function SiteHeader() {
   const { t } = useTranslation()
-    return <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('appName')}</span></Link><div className="profile-menu-root"><Suspense fallback={null}><LazyCurrentProfileLabel /></Suspense><HeaderMenu /></div></header>
+    return <header className="topbar"><Link className="brand" to="/" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('appName')}</span></Link><Suspense fallback={null}><LazyDashboardHeaderLink /></Suspense><div className="profile-menu-root"><Suspense fallback={null}><LazyCurrentProfileLabel /></Suspense><HeaderMenu /></div></header>
 }
 
 export function LanguageSelector() {

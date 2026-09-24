@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../api/client'
+import { Select } from '../components/radix-select'
 import { useAccountContext, type AccountProfile } from '../features/account'
 import { useClaimableRegistrations, useClaimRegistration, type ClaimableRegistration } from '../features/claimableRegistrations'
 import type { ColorMode, ThemeId } from '../theme'
@@ -31,10 +32,15 @@ function ClaimRow({ registration, performerProfiles }: { registration: Claimable
       {registration.song_names.length > 0 && <p>{registration.song_names.join(', ')}</p>}
     </div>
     <div className="profile-context-controls">
-      <label><span>{t('adoptProfile')}<Required /></span><select required value={adoptedProfileId} onChange={(event) => setAdoptedProfileId(event.target.value)}>
-        <option value="">{t('selectPerformerProfile')}</option>
-        {performerProfiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.profile_name}</option>)}
-      </select></label>
+      <label><span>{t('adoptProfile')}<Required /></span></label>
+      <Select
+        required
+        value={adoptedProfileId}
+        onValueChange={setAdoptedProfileId}
+        ariaLabel={t('adoptProfile')}
+        placeholder={t('selectPerformerProfile')}
+        options={performerProfiles.map((profile) => ({ value: profile.id, label: profile.profile_name }))}
+      />
       <button className="quiet-button" type="button" disabled={claim.isPending || !adoptedProfileId} onClick={() => claim.mutate({ registrationId: registration.id, adoptedProfileId })}>
         {claim.isPending ? 'Claiming…' : 'Claim'}
       </button>
@@ -47,7 +53,6 @@ export function ClaimableRegistrationsPage({ theme, mode }: { theme: ThemeId; mo
   const { t } = useTranslation()
   const context = useAccountContext()
   const claimable = useClaimableRegistrations(Boolean(context.account.data))
-  const claimAll = useClaimRegistration()
   const performerProfiles = context.profiles.data?.items.filter((profile) => profile.profile_kind === 'performer') ?? []
   const [newProfileName, setNewProfileName] = useState('')
 
@@ -77,9 +82,6 @@ export function ClaimableRegistrationsPage({ theme, mode }: { theme: ThemeId; mo
       {claimable.data.length === 0
         ? <ReadState message={t('noClaimableRegistrations')} />
         : <>
-          <button className="quiet-button" type="button" disabled={claimAll.isPending || performerProfiles.length === 0} onClick={() => claimable.data.forEach((registration) => claimAll.mutate({ registrationId: registration.id, adoptedProfileId: performerProfiles[0].id }))}>
-            {claimAll.isPending ? 'Claiming…' : 'Claim all'}
-          </button>
           <div className="dashboard-series-list">
             {claimable.data.map((registration) => <ClaimRow key={registration.id} registration={registration} performerProfiles={performerProfiles} />)}
           </div>

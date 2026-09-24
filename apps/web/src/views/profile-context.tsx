@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronRight, LayoutDashboard, Settings } from 'lucide-react'
 import { fetchSimulatedAuthConfig, getAuthenticatedUser, getStoredSimulatedAuthToken, LOCAL_SIMULATED_ROLE_KEY, type SimulatedAuthRole } from '../auth/session'
 import { accountKeys, useAccountContext } from '../features/account'
+import { useOrganizerProfile } from '../features/organizer'
 import { MenuItem, MenuSeparator } from '../components/radix-menu'
 
 export function ProfileSwitcher() {
@@ -111,11 +112,8 @@ export function CurrentProfileLabel() {
   return <span className="current-profile-label">{profile?.profile_name ?? t('publicUnauth')}</span>
 }
 
-export function DashboardMenuLink() {
+export function DashboardHeaderLink() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
-  const context = useAccountContext()
-  const activeProfile = context.profiles.data?.items.find((profile) => profile.id === context.account.data?.current_profile_id)
-  const canManageDashboard = activeProfile?.profile_kind === 'organizer' && context.permissions.data?.permissions.includes('profiles:manage')
-  return canManageDashboard ? <MenuItem onSelect={() => void navigate({ to: '/dashboard' })}><LayoutDashboard size={15} aria-hidden="true" />{t('dashboard')}</MenuItem> : null
+  const { isOrganizer } = useOrganizerProfile()
+  return isOrganizer ? <Link className="dashboard-header-link" to="/dashboard"><LayoutDashboard size={15} aria-hidden="true" />{t('dashboard')}</Link> : null
 }

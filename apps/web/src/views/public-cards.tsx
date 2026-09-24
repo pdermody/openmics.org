@@ -47,8 +47,8 @@ export function EventCard({ event }: { event: Event }) {
         <p className="event-meta">
           <Clock3 size={15} /> {time}
         </p>
-        <p className="event-meta">
-          <MapPin size={15} /> {event.venue_name}, {event.city}
+        <p className="event-meta event-meta-location">
+          <MapPin size={15} /> <span>{event.venue_name}, {event.city}</span>
         </p>
         <div className="tag-row">
           {(event.activities ?? []).slice(0, 3).map((activity) => (
@@ -102,8 +102,8 @@ export function SeriesCard({ openMic }: { openMic: OpenMic }) {
           </Link>
         </h3>
         <p>{openMic.description ?? 'A welcoming room for singers, poets, and the curious.'}</p>
-        <div className="event-meta">
-          <MapPin size={15} /> {openMic.city} · {openMic.status}
+        <div className="event-meta event-meta-location">
+          <MapPin size={15} /> <span>{openMic.city} · {openMic.status}</span>
         </div>
       </div>
       <div className="series-side">

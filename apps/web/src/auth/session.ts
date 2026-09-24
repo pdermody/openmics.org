@@ -5,6 +5,11 @@ const localAuthToken = import.meta.env.VITE_LOCAL_AUTH_TOKEN
 
 export const LOCAL_SIMULATED_ROLE_KEY = 'openmic-simulated-auth-token'
 const SIGN_IN_ERROR_KEY = 'openmic-sign-in-error'
+const PENDING_SIGN_IN_REDIRECT_KEY = 'openmic-pending-sign-in-redirect'
+// Guards the actual sessionStorage read/clear below so it only ever happens once per page load,
+// no matter how many times React calls consumePendingSignInRedirect() (e.g. StrictMode's
+// double-invoked effects in dev).
+let pendingSignInRedirectConsumed = false
 export type SimulatedAuthRole = {
   id: string
   label: string
@@ -31,6 +36,23 @@ export function consumeSignInError(): string | undefined {
   const message = window.sessionStorage.getItem(SIGN_IN_ERROR_KEY)
   if (message) window.sessionStorage.removeItem(SIGN_IN_ERROR_KEY)
   return message ?? undefined
+}
+
+// Set right before a sign-in action that will land the browser back on '/' (the hosted-UI OAuth
+// redirect, and the local-password sign-in form) so the home route can tell "I'm rendering right
+// after this browser just signed in" apart from an ordinary reload/revisit of an already-signed-in
+// session — see HomeRoute in App.tsx, which only redirects an organizer to /dashboard when this is set.
+export function markPendingSignInRedirect(): void {
+  if (typeof window !== 'undefined') window.sessionStorage.setItem(PENDING_SIGN_IN_REDIRECT_KEY, '1')
+}
+
+export function consumePendingSignInRedirect(): boolean {
+  if (pendingSignInRedirectConsumed) return false
+  pendingSignInRedirectConsumed = true
+  if (typeof window === 'undefined') return false
+  const pending = window.sessionStorage.getItem(PENDING_SIGN_IN_REDIRECT_KEY) === '1'
+  window.sessionStorage.removeItem(PENDING_SIGN_IN_REDIRECT_KEY)
+  return pending
 }
 
 export async function fetchSimulatedAuthConfig(): Promise<{ enabled: boolean; roles: SimulatedAuthRole[] }> {
@@ -170,6 +192,7 @@ export async function getAuthenticatedUser() {
 
 export async function beginSignIn(): Promise<void> {
   if (!isAuthConfigured) throw new Error('Sign-in is not configured in this local environment yet.')
+  markPendingSignInRedirect()
   const { signInWithRedirect } = await authModules()
   await signInWithRedirect()
 }

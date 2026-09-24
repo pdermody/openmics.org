@@ -458,7 +458,7 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
         {mobileSections.map(({ status, label, items }) => <section key={status} className="roster-list-section">
           <h2>{label} <span className="roster-badge">{items.length}</span></h2>
           {items.length === 0
-            ? <p className="roster-list-section-empty">No one here yet.</p>
+            ? <p className="roster-list-section-empty">{t('noOneHereYet')}</p>
             : <div className="roster-list-section-cards">
               {items.map((card, index, column) => <PerformerCard
                 key={card.performance.id}

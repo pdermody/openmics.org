@@ -23,6 +23,21 @@ if (!window.matchMedia) {
 	})
 }
 
+if (!Element.prototype.hasPointerCapture) {
+	Object.defineProperties(Element.prototype, {
+		hasPointerCapture: { value: () => false, configurable: true },
+		setPointerCapture: { value: () => undefined, configurable: true },
+		releasePointerCapture: { value: () => undefined, configurable: true },
+	})
+}
+
+if (!Element.prototype.scrollIntoView) {
+	Object.defineProperty(Element.prototype, 'scrollIntoView', {
+		value: () => undefined,
+		configurable: true,
+	})
+}
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 beforeAll(async () => i18nReady)
 beforeEach(async () => {
