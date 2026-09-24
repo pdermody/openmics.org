@@ -77,6 +77,8 @@ export class ApiStack extends cdk.Stack {
         // bundle mounted (Node's default trust store doesn't include it). Needed by node-pg-migrate
         // (run via one-off task override), which reads raw PG* env vars, not our composed DATABASE_URL.
         PGSSLMODE: 'no-verify',
+        LOCATIONIQ_API_KEY: 'pk.32fb3777da45d8526d15203ac76b8fce',
+        LOCATIONIQ_BASE_URL: 'https://us1.locationiq.com',
       },
       secrets: {
         PGUSER: ecs.Secret.fromSecretsManager(props.databaseSecret, 'username'),

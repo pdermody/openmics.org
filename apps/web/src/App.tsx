@@ -11,7 +11,8 @@ import { DurableRegistrationPage } from './views/DurableRegistrationPage'
 import { AuthPage } from './views/AuthPage'
 import { OnboardingPage } from './views/OnboardingPage'
 import { useAccountContext } from './features/account'
-import { SiteFooter } from './views/shared'
+import { useResolveHandle } from './features/publicReads'
+import { ReadState, SiteFooter } from './views/shared'
 import { i18n } from './i18n'
 import { DEFAULT_THEME, isColorMode, isThemeId, MODE_STORAGE_KEY, systemColorMode, THEME_STORAGE_KEY, type ColorMode, type ThemeId } from './theme'
 
@@ -289,6 +290,23 @@ const vanityRegistrationRoute = createRoute({
   },
 })
 
+// Vanity handle series detail: "/@handle" — open-mics only for now; profiles get their own
+// vanity route once a public profile page exists. Resolves through the handles table (the
+// source of truth for handle -> entity mapping) rather than an entity table's own handle match,
+// so this keeps working once profile handles are wired up too.
+const vanityOpenMicRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/@{$handle}',
+  component: () => {
+    const { theme, mode } = useThemeMode()
+    const { handle } = vanityOpenMicRoute.useParams()
+    const resolved = useResolveHandle(handle)
+    if (resolved.isPending) return <RoutedView theme={theme} mode={mode}><main className="app" data-theme={theme} data-mode={mode}><ReadState message={i18n.t('loading')} /></main></RoutedView>
+    if (resolved.isError || resolved.data?.type !== 'open_mic') return <HomeRoute />
+    return <RoutedView theme={theme} mode={mode}><OpenMicPage id={resolved.data.id} theme={theme} mode={mode} /></RoutedView>
+  },
+})
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   themeRoute,
@@ -311,6 +329,7 @@ const routeTree = rootRoute.addChildren([
   openMicRoute,
   openMicRegistrationRoute,
   vanityRegistrationRoute,
+  vanityOpenMicRoute,
 ])
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' })

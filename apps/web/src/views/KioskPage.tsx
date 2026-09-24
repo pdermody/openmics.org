@@ -246,6 +246,7 @@ function KioskLock({
     <p>{t('serverPinExitIntro')}</p>
     <PinCombinationInput onComplete={(pin) => void submitExitPin(pin)} disabled={verifyBackupPin.isPending} />
     {error && <p className="form-error" role="alert">{error}</p>}
+    <button type="button" className="link-button" onClick={() => { setError(''); setPhase('active') }}>{t('cancel')}</button>
   </div>
 
   // phase === 'active'

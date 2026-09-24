@@ -23,7 +23,7 @@ describe('geocoding routes', () => {
       port: 3000,
     },
     logger: false,
-    handles: { checkAvailability: async () => ({ available: true }) },
+    handles: { checkAvailability: async () => ({ available: true }), resolveHandle: async () => null },
     geocoding: { service: { searchAddress, reverseGeocode } },
     authVerifier,
   });

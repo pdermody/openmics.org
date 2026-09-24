@@ -120,6 +120,7 @@ export function LanguageSelector() {
   const { i18n, t } = useTranslation()
   const context = useAccountContext()
   const selectedLanguage = i18n.language.startsWith('es') ? 'es' : 'en'
+  const selectedLanguageName = supportedLanguages.find((language) => language.code === selectedLanguage)?.name ?? selectedLanguage.toUpperCase()
 
   useEffect(() => {
     const accountLanguage = context.account.data?.preferred_language
@@ -133,7 +134,7 @@ export function LanguageSelector() {
     }
   }
 
-  return <MenuRoot><MenuTrigger className="language-selector-trigger" label={t('language')}>{selectedLanguage.toUpperCase()}</MenuTrigger><MenuContent className="language-menu-content" align="end">{supportedLanguages.map((language) => <MenuItem key={language.code} onSelect={() => void selectLanguage(language.code)}>{language.name}</MenuItem>)}</MenuContent></MenuRoot>
+  return <MenuRoot><MenuTrigger className="language-selector-trigger" label={t('language')}>{selectedLanguageName}</MenuTrigger><MenuContent className="language-menu-content" align="end">{supportedLanguages.map((language) => <MenuItem key={language.code} onSelect={() => void selectLanguage(language.code)}>{language.name}</MenuItem>)}</MenuContent></MenuRoot>
 }
 
 export function SiteFooter({ theme, mode }: ThemeProps) {

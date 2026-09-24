@@ -16,4 +16,11 @@ describe('vanity handle route matching', () => {
     const events = router.matchRoutes('/events/abc123/register', undefined, { throwOnError: true })
     expect(events[events.length - 1].params).toMatchObject({ eventId: 'abc123' })
   })
+
+  it('matches bare "/@handle" to the open-mic vanity route and extracts the handle param', () => {
+    const matches = router.matchRoutes('/@some-handle', undefined, { throwOnError: true })
+    const leaf = matches[matches.length - 1]
+    expect(leaf.routeId).not.toContain('register')
+    expect(leaf.params).toMatchObject({ handle: 'some-handle' })
+  })
 })

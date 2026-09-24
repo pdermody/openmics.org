@@ -8,7 +8,7 @@ describe('performance routes', () => {
   const app = buildApp({
     config: { databaseUrl: 'postgres://unused', environment: 'test', host: '127.0.0.1', port: 3000 },
     logger: false,
-    handles: { checkAvailability: async () => ({ available: true }) },
+    handles: { checkAvailability: async () => ({ available: true }), resolveHandle: async () => null },
     authVerifier: vi.fn(async (token: string) => (token === 'owner-token' ? ACCOUNT : null)),
   });
 

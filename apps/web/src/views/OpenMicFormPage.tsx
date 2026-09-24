@@ -23,7 +23,7 @@ const FORM_TABS = [
   { id: 'basics', labelKey: 'seriesTabBasics', fields: ['name', 'activities'] },
   { id: 'location', labelKey: 'seriesTabLocation', fields: ['venue_name', 'address_line1', 'city', 'country', 'lat', 'lng'] },
   { id: 'schedule', labelKey: 'seriesTabSchedule', fields: ['time_zone', 'website', 'contact_email', 'schedule_summary', 'schedule_details'] },
-  { id: 'registration', labelKey: 'seriesTabRegistration', fields: ['handle', 'tags', 'registration_mode', 'external_registration_url', 'entry_fee_amount', 'entry_fee_currency', 'entry_fee_note'] },
+  { id: 'registration', labelKey: 'seriesTabRegistration', fields: ['handle', 'tags', 'registration_mode', 'external_registration_url', 'entry_fee_amount', 'entry_fee_currency', 'entry_fee_note', 'status'] },
 ] as const
 
 const openMicFormSchema = z
@@ -47,6 +47,7 @@ const openMicFormSchema = z
     entry_fee_amount: z.string().optional(),
     entry_fee_currency: z.string().optional(),
     entry_fee_note: z.string().trim().optional(),
+    status: z.enum(['active', 'paused', 'ended', 'draft']),
   })
   .extend(baseLocationFieldsSchema.shape)
   .superRefine((value, ctx) => {
@@ -91,6 +92,7 @@ const DEFAULT_VALUES: OpenMicFormValues = {
   entry_fee_amount: '',
   entry_fee_currency: '',
   entry_fee_note: '',
+  status: 'draft',
 }
 
 function openMicErrorMessage(error: unknown): string {
@@ -189,6 +191,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
       entry_fee_amount: existing.data.entry_fee_amount ? String(existing.data.entry_fee_amount) : '',
       entry_fee_currency: existing.data.entry_fee_currency ?? '',
       entry_fee_note: existing.data.entry_fee_note ?? '',
+      status: existing.data.status,
     })
   }, [existing.data, reset])
 
@@ -261,6 +264,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
       entry_fee_amount: values.entry_fee_amount ? Number(values.entry_fee_amount) : undefined,
       entry_fee_currency: values.entry_fee_currency || undefined,
       entry_fee_note: values.entry_fee_note || undefined,
+      status: values.status,
       ...(isEdit ? {} : { handle: values.handle || undefined }),
     }
     if (isEdit) {
@@ -368,6 +372,8 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
           {(handleCheck.state === 'unavailable' || handleCheck.state === 'invalid') && <CircleAlert aria-hidden="true" size={16} />}
           {handleCheck.state === 'checking' ? t('checkingAvailability') : handleCheck.message}
         </p>}
+          {isEdit && <label>{t('handleLabel')}<input value={existing.data?.current_handle ? `@${existing.data.current_handle}` : ''} placeholder={t('handleNotSet')} disabled readOnly /></label>}
+          {isEdit && <p className="field-hint">{t('handleRenameUnavailable')}</p>}
           <label>{t('tags')}<input {...register('tags')} /></label>
           <p className="field-hint">{t('seriesTagsHint')}</p>
 
@@ -394,6 +400,13 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
           {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
           <label>{t('entryFeeNote')}<input {...register('entry_fee_note')} /></label>
           <p className="field-hint">{t('entryFeeNoteHint')}</p>
+          <label>{t('seriesStatus')}<select {...register('status')}>
+          <option value="draft">{t('statusDraft')}</option>
+          <option value="active">{t('statusActive')}</option>
+          <option value="paused">{t('statusPaused')}</option>
+          <option value="ended">{t('statusEnded')}</option>
+        </select></label>
+          <p className="field-hint">{t('seriesStatusHint')}</p>
           {isEdit && seriesId && <KioskBackupPinSection seriesId={seriesId} embedded />}
         </section>
 

@@ -9,7 +9,7 @@ import { loadConfig, type AppConfig } from './config.js';
 import { createPool } from './db.js';
 import { createEmailAdapter, type EmailAdapter } from './email/index.js';
 import { registerErrorHandler } from './errors.js';
-import { checkHandleAvailability } from './handles/repository.js';
+import { checkHandleAvailability, resolveCurrentHandle } from './handles/repository.js';
 import { handlesRoutes, type HandlesPluginOptions } from './handles/routes.js';
 import { createGeocodingService } from './geocoding/service.js';
 import { geocodingRoutes, type GeocodingPluginOptions } from './geocoding/routes.js';
@@ -108,7 +108,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   }
 
   const handlesOptions: HandlesPluginOptions =
-    options.handles ?? { checkAvailability: (candidate) => checkHandleAvailability(pool, candidate) };
+    options.handles ?? {
+      checkAvailability: (candidate) => checkHandleAvailability(pool, candidate),
+      resolveHandle: (handle) => resolveCurrentHandle(pool, handle),
+    };
   const geocodingOptions: GeocodingPluginOptions =
     options.geocoding ?? { service: createGeocodingService({ apiKey: config.locationIqApiKey, baseUrl: config.locationIqBaseUrl }) };
 

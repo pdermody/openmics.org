@@ -358,17 +358,15 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   }
 
   // Mobile view groups cards into labeled sections (one per status, in board order) instead of one
-  // unlabeled flat list, so it's always clear which stage a performer is in. There's no
-  // filter here — mobile always shows every non-empty section, same as the desktop board.
+  // unlabeled flat list, so it's always clear which stage a performer is in. Sections stay
+  // visible even when empty, with a placeholder, so the full flow of stages is always visible.
   const mobileSections = useMemo(() => {
     const statusesToShow: PerformanceStatus[] = [...PERFORMANCE_BOARD_STATUSES, 'no_show', 'cancelled']
-    return statusesToShow
-      .map((status) => ({
-        status,
-        label: PERFORMANCE_STATUS_LABELS[status],
-        items: board.columns.get(status) ?? cards.filter((card) => card.performance.status === status),
-      }))
-      .filter((section) => section.items.length > 0)
+    return statusesToShow.map((status) => ({
+      status,
+      label: PERFORMANCE_STATUS_LABELS[status],
+      items: board.columns.get(status) ?? cards.filter((card) => card.performance.status === status),
+    }))
   }, [cards, board])
 
   const registrationCount = roster.data?.length ?? 0
@@ -456,12 +454,12 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
         </details>}
       </div>}
 
-      {isOrganizer && roster.isSuccess && showBoard && cards.length > 0 && !isWide && <>
-        {mobileSections.length === 0 && <ReadState message="No performers in this state." />}
-        <div className="roster-list">
-          {mobileSections.map(({ status, label, items }) => <section key={status} className="roster-list-section">
-            <h2>{label} <span className="roster-badge">{items.length}</span></h2>
-            <div className="roster-list-section-cards">
+      {isOrganizer && roster.isSuccess && showBoard && cards.length > 0 && !isWide && <div className="roster-list">
+        {mobileSections.map(({ status, label, items }) => <section key={status} className="roster-list-section">
+          <h2>{label} <span className="roster-badge">{items.length}</span></h2>
+          {items.length === 0
+            ? <p className="roster-list-section-empty">No one here yet.</p>
+            : <div className="roster-list-section-cards">
               {items.map((card, index, column) => <PerformerCard
                 key={card.performance.id}
                 eventId={eventId}
@@ -470,10 +468,9 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
                 sequenceNeighbor={reorderableNeighbors(card)}
                 columnPosition={{ isFirst: index === 0, isLast: index === column.length - 1 }}
               />)}
-            </div>
-          </section>)}
-        </div>
-      </>}
+            </div>}
+        </section>)}
+      </div>}
     </section>
   </main>
 }

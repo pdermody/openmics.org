@@ -15,7 +15,7 @@ describe('GET /api/handles/check/:candidate', () => {
       port: 3000,
     },
     logger: false,
-    handles: { checkAvailability },
+    handles: { checkAvailability, resolveHandle: async () => null },
   });
 
   beforeAll(async () => app.ready());

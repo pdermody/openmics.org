@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronRight, LayoutDashboard, Settings } from 'lucide-react'
 import { fetchSimulatedAuthConfig, getAuthenticatedUser, getStoredSimulatedAuthToken, LOCAL_SIMULATED_ROLE_KEY, type SimulatedAuthRole } from '../auth/session'
 import { accountKeys, useAccountContext } from '../features/account'
-import { MenuItem, MenuSeparator, MenuSubContent, MenuSubRoot, MenuSubTrigger } from '../components/radix-menu'
+import { MenuItem, MenuSeparator } from '../components/radix-menu'
 
 export function ProfileSwitcher() {
   const { t } = useTranslation()
@@ -19,6 +19,7 @@ export function ProfileSwitcher() {
     if (typeof window === 'undefined') return 'public'
     return window.localStorage.getItem(LOCAL_SIMULATED_ROLE_KEY) ?? 'public'
   })
+  const [expanded, setExpanded] = useState(false)
   const profiles = context.profiles.data?.items ?? []
 
   useEffect(() => {
@@ -63,6 +64,8 @@ export function ProfileSwitcher() {
   }, [authGateReady, effectiveValue, selectableProfiles, simulatedRoles])
 
   if (!authGateReady) return null
+  // Nothing to switch to: not signed in, and no dev/simulated-auth profiles are available either.
+  if (!context.account.data && devProfiles.length === 0) return null
 
   function selectProfile(selected: string) {
     setLocalValue(selected)
@@ -85,19 +88,19 @@ export function ProfileSwitcher() {
     context.currentProfile.mutate(selected)
   }
 
-  return <MenuSubRoot>
-    <MenuSubTrigger><span>{t('profiles')}</span><ChevronRight size={15} aria-hidden="true" /></MenuSubTrigger>
-    <MenuSubContent>
-      {devProfiles.length > 0 && <MenuItem onSelect={() => selectProfile('public')}>{effectiveValue === 'public' && <Check size={15} aria-hidden="true" />}{t('publicUnauth')}</MenuItem>}
-      {accountProfiles.map((profile) => <MenuItem key={profile.id} onSelect={() => selectProfile(profile.id)}>{effectiveValue === profile.id && <Check size={15} aria-hidden="true" />}{profile.profile_name} · {profile.profile_kind}</MenuItem>)}
+  return <>
+    <MenuItem className="radix-menu-sub-trigger" closeOnSelect={false} onSelect={() => setExpanded((value) => !value)}><span>{t('profiles')}</span><ChevronRight size={15} aria-hidden="true" style={{ transform: expanded ? 'rotate(90deg)' : undefined }} /></MenuItem>
+    {expanded && <div className="radix-menu-nested-group">
+      {devProfiles.length > 0 && <MenuItem className="radix-menu-item-nested" onSelect={() => selectProfile('public')}>{effectiveValue === 'public' && <Check size={15} aria-hidden="true" />}{t('publicUnauth')}</MenuItem>}
+      {accountProfiles.map((profile) => <MenuItem key={profile.id} className="radix-menu-item-nested" onSelect={() => selectProfile(profile.id)}>{effectiveValue === profile.id && <Check size={15} aria-hidden="true" />}{profile.profile_name} · {profile.profile_kind}</MenuItem>)}
       {devProfiles.length > 0 && <MenuSeparator />}
-      {devProfiles.map((role) => <MenuItem key={role.profileId} onSelect={() => selectProfile(role.profileId)}>{effectiveValue === role.profileId && <Check size={15} aria-hidden="true" />}[DEV] {role.profileName} · {role.kind} · {role.accountDisplayName}</MenuItem>)}
-      {context.profiles.isPending && <MenuItem disabled onSelect={() => undefined}>{t('loadingProfiles')}</MenuItem>}
-      {context.profiles.isError && <MenuItem disabled onSelect={() => undefined}>{t('profilesLoadError')}</MenuItem>}
-      {!context.profiles.isPending && !context.profiles.isError && accountProfiles.length === 0 && devProfiles.length === 0 && <MenuItem disabled onSelect={() => undefined}>{t('noProfiles')}</MenuItem>}
-      {context.account.data && <><MenuSeparator /><MenuItem onSelect={() => void navigate({ to: '/profiles/manage' })}><Settings size={15} aria-hidden="true" />{t('manageProfiles')}</MenuItem></>}
-    </MenuSubContent>
-  </MenuSubRoot>
+      {devProfiles.map((role) => <MenuItem key={role.profileId} className="radix-menu-item-nested" onSelect={() => selectProfile(role.profileId)}>{effectiveValue === role.profileId && <Check size={15} aria-hidden="true" />}[DEV] {role.profileName} · {role.kind} · {role.accountDisplayName}</MenuItem>)}
+      {context.profiles.isPending && <MenuItem className="radix-menu-item-nested" disabled onSelect={() => undefined}>{t('loadingProfiles')}</MenuItem>}
+      {context.profiles.isError && <MenuItem className="radix-menu-item-nested" disabled onSelect={() => undefined}>{t('profilesLoadError')}</MenuItem>}
+      {!context.profiles.isPending && !context.profiles.isError && accountProfiles.length === 0 && devProfiles.length === 0 && <MenuItem className="radix-menu-item-nested" disabled onSelect={() => undefined}>{t('noProfiles')}</MenuItem>}
+      {context.account.data && <><MenuSeparator /><MenuItem className="radix-menu-item-nested" onSelect={() => void navigate({ to: '/profiles/manage' })}><Settings size={15} aria-hidden="true" />{t('manageProfiles')}</MenuItem></>}
+    </div>}
+  </>
 }
 
 export function CurrentProfileLabel() {

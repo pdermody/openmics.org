@@ -10,11 +10,11 @@ export function MenuTrigger({ children, className, label }: { children: ReactNod
 }
 
 export function MenuContent({ children, className = '', align = 'end' }: { children: ReactNode; className?: string; align?: 'start' | 'center' | 'end' }) {
-  return <DropdownMenuPrimitive.Portal><DropdownMenuPrimitive.Content align={align} className={`radix-menu-content ${className}`}>{children}</DropdownMenuPrimitive.Content></DropdownMenuPrimitive.Portal>
+  return <DropdownMenuPrimitive.Portal><DropdownMenuPrimitive.Content align={align} collisionPadding={12} className={`radix-menu-content ${className}`}>{children}</DropdownMenuPrimitive.Content></DropdownMenuPrimitive.Portal>
 }
 
-export function MenuItem({ children, onSelect, disabled = false, className = '' }: { children: ReactNode; onSelect: () => void; disabled?: boolean; className?: string }) {
-  return <DropdownMenuPrimitive.Item className={`radix-menu-item ${className}`} disabled={disabled} onSelect={onSelect}>{children}</DropdownMenuPrimitive.Item>
+export function MenuItem({ children, onSelect, disabled = false, className = '', closeOnSelect = true }: { children: ReactNode; onSelect: () => void; disabled?: boolean; className?: string; closeOnSelect?: boolean }) {
+  return <DropdownMenuPrimitive.Item className={`radix-menu-item ${className}`} disabled={disabled} onSelect={(event) => { if (!closeOnSelect) event.preventDefault(); onSelect() }}>{children}</DropdownMenuPrimitive.Item>
 }
 
 export function MenuLabel({ children }: { children: ReactNode }) {
@@ -23,16 +23,4 @@ export function MenuLabel({ children }: { children: ReactNode }) {
 
 export function MenuSeparator() {
   return <DropdownMenuPrimitive.Separator className="radix-menu-separator" />
-}
-
-export function MenuSubRoot({ children }: { children: ReactNode }) {
-  return <DropdownMenuPrimitive.Sub>{children}</DropdownMenuPrimitive.Sub>
-}
-
-export function MenuSubTrigger({ children }: { children: ReactNode }) {
-  return <DropdownMenuPrimitive.SubTrigger className="radix-menu-item radix-menu-sub-trigger">{children}</DropdownMenuPrimitive.SubTrigger>
-}
-
-export function MenuSubContent({ children }: { children: ReactNode }) {
-  return <DropdownMenuPrimitive.Portal><DropdownMenuPrimitive.SubContent className="radix-menu-content radix-menu-sub-content">{children}</DropdownMenuPrimitive.SubContent></DropdownMenuPrimitive.Portal>
 }

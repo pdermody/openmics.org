@@ -33,3 +33,22 @@ export async function checkHandleAvailability(pool: Pool, candidate: string): Pr
   const reason = STATUS_TO_REASON[result.rows[0].status];
   return reason ? { available: false, reason } : { available: true };
 }
+
+export type HandleResolution = {
+  entityType: 'profile' | 'open_mic';
+  profileId: string | null;
+  openMicId: string | null;
+};
+
+// The `handles` table is the single source of truth for handle -> entity resolution (per
+// docs/6-open-mic-vanity-urls.md §3/§10) — callers resolving a public /@handle URL should use
+// this instead of matching an entity table's denormalized current_handle column directly.
+export async function resolveCurrentHandle(pool: Pool, handle: string): Promise<HandleResolution | null> {
+  const result = await pool.query<{ entity_type: 'profile' | 'open_mic' | null; profile_id: string | null; open_mic_id: string | null }>(
+    "SELECT entity_type, profile_id, open_mic_id FROM handles WHERE lower(handle) = lower($1) AND status = 'current'",
+    [handle],
+  );
+  const row = result.rows[0];
+  if (!row || !row.entity_type) return null;
+  return { entityType: row.entity_type, profileId: row.profile_id, openMicId: row.open_mic_id };
+}

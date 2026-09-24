@@ -14,7 +14,7 @@ describe('registration routes', () => {
       port: 3000,
     },
     logger: false,
-    handles: { checkAvailability: async () => ({ available: true }) },
+    handles: { checkAvailability: async () => ({ available: true }), resolveHandle: async () => null },
     authVerifier,
   });
 

@@ -140,3 +140,17 @@ export function usePublicProfile(id: string | undefined) {
     enabled: Boolean(id),
   })
 }
+
+export type HandleResolution = { type: 'profile' | 'open_mic'; id: string }
+
+// The `handles` table is the single source of truth for handle -> entity resolution (see
+// docs/6-open-mic-vanity-urls.md); the public /@handle route resolves through this before
+// fetching the entity itself, rather than relying on any entity table's own handle matching.
+export function useResolveHandle(handle: string | undefined) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'handle', handle],
+    queryFn: () => api<HandleResolution>(`/handles/${handle}`),
+    enabled: Boolean(handle),
+    retry: false,
+  })
+}
