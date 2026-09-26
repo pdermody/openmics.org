@@ -20,30 +20,28 @@ function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
   const [confirmation, setConfirmation] = useState<'publish' | 'pause' | 'resume' | 'delete' | null>(null)
   const now = Date.now()
   const currentOrUpcomingEvents = events.data?.filter((event) => (
-    event.running === true
-    || new Date(event.starts_at).getTime() >= now
-    || (event.ends_at ? new Date(event.ends_at).getTime() >= now : false)
+    new Date(event.ends_at ?? event.starts_at).getTime() >= now
   )).slice(0, 3) ?? []
 
   return <article className="dashboard-series-card dashboard-series-card-expanded">
     <div className="dashboard-series-card-header">
       <div>
         <span className="panel-label">{openMic.status}</span>
-        <h2><Link to="/dashboard/series/$seriesId" params={{ seriesId: openMic.id }}>{openMic.name}</Link></h2>
+        <div className="dashboard-card-title-row">
+          <h2><Link to="/dashboard/series/$seriesId" params={{ seriesId: openMic.id }}>{openMic.name}</Link></h2>
+          <ActionMenu label={t('seriesActions')} items={[
+            { label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/open-mics/$openMicId', params: { openMicId: openMic.current_handle ?? openMic.id } }) },
+            { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/edit', params: { seriesId: openMic.id } }) },
+            { label: t('manage'), icon: <Settings2 size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId: openMic.id } }) },
+            { label: t('copyLink'), icon: <Copy size={16} />, onClick: () => void copyRegistrationLink(`${window.location.origin}/${openMic.current_handle ? `@${openMic.current_handle}` : `open-mics/${openMic.id}`}/register`) },
+            { label: t('downloadQr'), icon: <QrCode size={16} />, onClick: () => void downloadRegistrationQr(`${window.location.origin}/${openMic.current_handle ? `@${openMic.current_handle}` : `open-mics/${openMic.id}`}/register`, openMic.current_handle ?? openMic.id) },
+            ...(openMic.status === 'draft' ? [{ label: t('publishSeries'), icon: <Upload size={16} />, onClick: () => setConfirmation('publish') }] : []),
+            ...(openMic.status === 'active' ? [{ label: t('pauseSeries'), icon: <Pause size={16} />, onClick: () => setConfirmation('pause') }] : []),
+            ...(openMic.status === 'paused' ? [{ label: t('resumeSeries'), icon: <Play size={16} />, onClick: () => setConfirmation('resume') }, { label: t('deleteSeries'), icon: <Trash2 size={16} />, onClick: () => setConfirmation('delete') }] : []),
+          ]} />
+        </div>
         <p>{openMic.description ?? t('noDescription')}</p>
         <span className="event-meta"><MapPin size={15} /> {openMic.venue_name}, {openMic.city}</span>
-      </div>
-      <div className="dashboard-series-card-actions">
-        <ActionMenu label={t('seriesActions')} items={[
-          { label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/open-mics/$openMicId', params: { openMicId: openMic.current_handle ?? openMic.id } }) },
-          { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/edit', params: { seriesId: openMic.id } }) },
-          { label: t('manage'), icon: <Settings2 size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId: openMic.id } }) },
-          { label: t('copyLink'), icon: <Copy size={16} />, onClick: () => void copyRegistrationLink(`${window.location.origin}/${openMic.current_handle ? `@${openMic.current_handle}` : `open-mics/${openMic.id}`}/register`) },
-          { label: t('downloadQr'), icon: <QrCode size={16} />, onClick: () => void downloadRegistrationQr(`${window.location.origin}/${openMic.current_handle ? `@${openMic.current_handle}` : `open-mics/${openMic.id}`}/register`, openMic.current_handle ?? openMic.id) },
-          ...(openMic.status === 'draft' ? [{ label: t('publishSeries'), icon: <Upload size={16} />, onClick: () => setConfirmation('publish') }] : []),
-          ...(openMic.status === 'active' ? [{ label: t('pauseSeries'), icon: <Pause size={16} />, onClick: () => setConfirmation('pause') }] : []),
-          ...(openMic.status === 'paused' ? [{ label: t('resumeSeries'), icon: <Play size={16} />, onClick: () => setConfirmation('resume') }, { label: t('deleteSeries'), icon: <Trash2 size={16} />, onClick: () => setConfirmation('delete') }] : []),
-        ]} />
       </div>
     </div>
     {confirmation && <Modal title={t('confirmAction')} onClose={() => setConfirmation(null)}>
@@ -60,23 +58,22 @@ function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
       {events.isSuccess && currentOrUpcomingEvents.length === 0 && <ReadState message={t('noEvents')} />}
       {currentOrUpcomingEvents.map((event) => <article className="dashboard-event-card" key={event.id}>
         <div>
-          <h3><Link to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId: openMic.id, eventId: event.id }}>{event.title}</Link></h3>
+          <div className="dashboard-card-title-row">
+            <h3><Link to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId: openMic.id, eventId: event.id }}>{event.title}</Link></h3>
+            <EventManagementActions
+              openMicId={openMic.id}
+              eventId={event.id}
+              navigationItems={[
+                { label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/events/$eventId', params: { eventId: event.public_code } }) },
+                { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/edit', params: { seriesId: openMic.id, eventId: event.id } }) },
+                { label: t('manage'), icon: <Settings2 size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/roster', params: { seriesId: openMic.id, eventId: event.id } }) },
+                { label: t('copyLink'), icon: <Copy size={16} />, onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${event.id}/register`) },
+                { label: t('downloadQr'), icon: <QrCode size={16} />, onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${event.id}/register`, event.public_code) },
+              ]}
+            />
+          </div>
           <p className="event-meta"><Clock3 size={15} /> {new Date(event.starts_at).toLocaleString()}</p>
           <p className="event-meta"><MapPin size={15} /> {event.venue_name}, {event.city}</p>
-        </div>
-        <div className="dashboard-series-card-actions">
-          <EventManagementActions
-            openMicId={openMic.id}
-            eventId={event.id}
-            running={event.running}
-            navigationItems={[
-              { label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/events/$eventId', params: { eventId: event.public_code } }) },
-              { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/edit', params: { seriesId: openMic.id, eventId: event.id } }) },
-              { label: t('manage'), icon: <Settings2 size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/roster', params: { seriesId: openMic.id, eventId: event.id } }) },
-              { label: t('copyLink'), icon: <Copy size={16} />, onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${event.id}/register`) },
-              { label: t('downloadQr'), icon: <QrCode size={16} />, onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${event.id}/register`, event.public_code) },
-            ]}
-          />
         </div>
       </article>)}
     </div>

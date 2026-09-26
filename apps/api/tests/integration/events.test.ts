@@ -20,6 +20,7 @@ describe('events routes (real database)', () => {
   const validPayload = (overrides: Record<string, unknown> = {}) => ({
     title: 'Test Event',
     starts_at: '2026-12-15T19:00:00Z',
+    ends_at: '2026-12-15T22:00:00Z',
     time_zone: 'Europe/Dublin',
     ...overrides,
   });
@@ -152,14 +153,14 @@ describe('events routes (real database)', () => {
       method: 'POST',
       url: `/api/open-mics/${openMicId}/events`,
       headers: { authorization: 'Bearer events-owner' },
-      payload: validPayload({ title: 'Event 1', starts_at: '2026-12-10T19:00:00Z' }),
+      payload: validPayload({ title: 'Event 1', starts_at: '2026-12-10T19:00:00Z', ends_at: '2026-12-10T22:00:00Z', status: 'published' }),
     });
 
     await instance.inject({
       method: 'POST',
       url: `/api/open-mics/${openMicId}/events`,
       headers: { authorization: 'Bearer events-owner' },
-      payload: validPayload({ title: 'Event 2', starts_at: '2026-12-20T19:00:00Z' }),
+      payload: validPayload({ title: 'Event 2', starts_at: '2026-12-20T19:00:00Z', ends_at: '2026-12-20T22:00:00Z', status: 'published' }),
     });
 
     // List events
@@ -240,7 +241,7 @@ describe('events routes (real database)', () => {
       method: 'POST',
       url: `/api/open-mics/${openMicPublicCode}/events`,
       headers: { authorization: 'Bearer events-owner' },
-      payload: validPayload({ title: 'Created Via Open Mic Public Code' }),
+      payload: validPayload({ title: 'Created Via Open Mic Public Code', status: 'published' }),
     });
     expect(created.statusCode).toBe(201);
     const eventId = created.json().id as string;
@@ -272,7 +273,7 @@ describe('events routes (real database)', () => {
       method: 'POST',
       url: `/api/open-mics/${openMicId}/events`,
       headers: { authorization: 'Bearer events-owner' },
-      payload: validPayload({ title: 'Soft Delete Me' }),
+      payload: validPayload({ title: 'Soft Delete Me', status: 'published' }),
     });
     const eventId = created.json().id as string;
 
@@ -387,14 +388,14 @@ describe('events routes (real database)', () => {
     await instance.close();
   });
 
-  it('stopping an event marks only registered performances as no_show, and restarting does not undo it', async () => {
+  it('closing registrations does not change performance statuses', async () => {
     const instance = app();
 
     const created = await instance.inject({
       method: 'POST',
       url: `/api/open-mics/${openMicId}/events`,
       headers: { authorization: 'Bearer events-owner' },
-      payload: validPayload({ title: 'Stoppable Event' }),
+      payload: validPayload({ title: 'Closable Event' }),
     });
     expect(created.statusCode).toBe(201);
     const eventId = created.json().id as string;
@@ -410,52 +411,20 @@ describe('events routes (real database)', () => {
       `INSERT INTO performances (registration_id, name, status) VALUES ($1, 'Song A', 'registered') RETURNING id`,
       [registrationId],
     );
-    const performedPerformance = await pool.query<{ id: string }>(
-      `INSERT INTO performances (registration_id, name, status) VALUES ($1, 'Song B', 'performed') RETURNING id`,
-      [registrationId],
+    const closed = await instance.inject({
+      method: 'PATCH',
+      url: `/api/events/${eventId}`,
+      headers: { authorization: 'Bearer events-owner' },
+      payload: { registrations_closed_at: '2026-12-15T20:00:00Z' },
+    });
+    expect(closed.statusCode).toBe(200);
+    expect(closed.json().registrations_closed_at).toBe('2026-12-15T20:00:00.000Z');
+
+    const afterClose = await pool.query<{ status: string }>(
+      'SELECT status FROM performances WHERE id = $1',
+      [registeredPerformance.rows[0].id],
     );
-
-    const started = await instance.inject({
-      method: 'PATCH',
-      url: `/api/events/${eventId}`,
-      headers: { authorization: 'Bearer events-owner' },
-      payload: { running: true },
-    });
-    expect(started.statusCode).toBe(200);
-    expect(started.json().running).toBe(true);
-
-    const stopped = await instance.inject({
-      method: 'PATCH',
-      url: `/api/events/${eventId}`,
-      headers: { authorization: 'Bearer events-owner' },
-      payload: { running: false },
-    });
-    expect(stopped.statusCode).toBe(200);
-    expect(stopped.json().running).toBe(false);
-    expect(stopped.json().registrations_closed_at).toBeTruthy();
-
-    const afterStop = await pool.query<{ id: string; status: string }>(
-      'SELECT id, status FROM performances WHERE id = ANY($1)',
-      [[registeredPerformance.rows[0].id, performedPerformance.rows[0].id]],
-    );
-    const statusById = Object.fromEntries(afterStop.rows.map((row) => [row.id, row.status]));
-    expect(statusById[registeredPerformance.rows[0].id]).toBe('no_show');
-    expect(statusById[performedPerformance.rows[0].id]).toBe('performed');
-
-    const restarted = await instance.inject({
-      method: 'PATCH',
-      url: `/api/events/${eventId}`,
-      headers: { authorization: 'Bearer events-owner' },
-      payload: { running: true },
-    });
-    expect(restarted.statusCode).toBe(200);
-    expect(restarted.json().running).toBe(true);
-    expect(restarted.json().registrations_closed_at).toBe(stopped.json().registrations_closed_at);
-
-    const afterRestart = await pool.query<{ status: string }>('SELECT status FROM performances WHERE id = $1', [
-      registeredPerformance.rows[0].id,
-    ]);
-    expect(afterRestart.rows[0].status).toBe('no_show');
+    expect(afterClose.rows[0].status).toBe('registered');
 
     await instance.close();
   });

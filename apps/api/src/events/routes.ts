@@ -6,12 +6,13 @@ import type { AuthenticatedAccount } from '../auth/types.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { parseGeoFilter } from '../geo.js';
 import { findOpenMicByIdOrPublicCode } from '../open-mics/repository.js';
-import { markUnregisteredAsNoShowForEvent, deleteNeverStartedPerformancesForEvent } from '../performances/repository.js';
 import {
   findEventByIdOrPublicCode,
   findEventByIdOrPublicCodeIncludingDeleted,
   findEventsByOpenMicId,
   findNextEventByOpenMicId,
+  findNextRegistrableEventByOpenMicId,
+  findRunningEventByOpenMicId,
   findUpcomingEvents,
   insertEvent,
   restoreEvent,
@@ -42,6 +43,9 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (ownerProfile !== account.accountId && !account.isPlatformAdmin) {
         throw new ForbiddenError('You do not own this open mic');
       }
+      if (input.status === 'published' && openMic.status !== 'active') {
+        throw new ValidationError('A published event requires an active open mic', { field: 'status' });
+      }
 
       const created = await withTransaction(pool, async (client) => {
         return insertEvent(client, {
@@ -50,7 +54,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
           startsAt: input.starts_at,
           endsAt: input.ends_at,
           timeZone: input.time_zone,
-          running: input.running,
+          status: input.status,
           registrationsClosedAt: input.registrations_closed_at,
           // Location snapshot: use provided overrides or inherit from parent open mic
           venueName: input.venue_name ?? openMic.venue_name,
@@ -78,25 +82,39 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
   app.get<{ Params: { id: string } }>('/open-mics/:id/events', { preHandler: app.authenticateOptional }, async (request, reply) => {
     const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic) throw new NotFoundError('Open mic not found');
-    const isDraftOrEnded = openMic.status === 'draft' || openMic.status === 'ended';
-    if (isDraftOrEnded && !(await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account))) {
+    const isPublic = openMic.status === 'active';
+    const canManage = await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account);
+    if (!isPublic && !canManage) {
       throw new NotFoundError('Open mic not found');
     }
 
     const events = await findEventsByOpenMicId(pool, openMic.id);
-    reply.send(events.map(serializeEvent));
+    reply.send((canManage ? events : events.filter((event) => event.status === 'published')).map(serializeEvent));
   });
 
   app.get<{ Params: { id: string } }>('/open-mics/:id/next-event', { preHandler: app.authenticateOptional }, async (request, reply) => {
     const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic) throw new NotFoundError('Open mic not found');
-    const isDraftOrEnded = openMic.status === 'draft' || openMic.status === 'ended';
-    if (isDraftOrEnded && !(await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account))) {
+    const isPublic = openMic.status === 'active';
+    const canManage = await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account);
+    if (!isPublic && !canManage) {
       throw new NotFoundError('Open mic not found');
     }
-    const event = await findNextEventByOpenMicId(pool, openMic.id);
-    if (!event) throw new NotFoundError('No upcoming event found');
-    reply.send(serializeEvent(event));
+    const [currentEvent, nextEvent, nextRegistrableEvent] = await Promise.all([
+      findRunningEventByOpenMicId(pool, openMic.id),
+      findNextEventByOpenMicId(pool, openMic.id),
+      ['pre_only', 'both'].includes(openMic.registration_mode) ? findNextRegistrableEventByOpenMicId(pool, openMic.id) : null,
+    ]);
+    reply.send({
+      current_event: currentEvent ? serializeEvent(currentEvent) : null,
+      current_registration_open: Boolean(
+        currentEvent
+        && ['pre_only', 'both'].includes(openMic.registration_mode)
+        && (!currentEvent.registrations_closed_at || new Date(currentEvent.registrations_closed_at) > new Date()),
+      ),
+      next_event: nextEvent ? serializeEvent(nextEvent) : null,
+      next_registration_event: nextRegistrableEvent ? serializeEvent(nextRegistrableEvent) : null,
+    });
   });
 
   app.get<{ Querystring: { near?: string; radius_km?: string; limit?: string; from?: string; to?: string } }>(
@@ -118,18 +136,19 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     const event = await findEventByIdOrPublicCode(pool, request.params.id);
     if (!event) throw new NotFoundError('Event not found');
     const openMic = await findOpenMicByIdOrPublicCode(pool, event.open_mic_id);
-    const isDraftOrEnded = openMic?.status === 'draft' || openMic?.status === 'ended';
-    if (!openMic || (isDraftOrEnded && !(await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account)))) {
+    const canManage = openMic && await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account);
+    if (!openMic || (!canManage && (openMic.status !== 'active' || event.status !== 'published'))) {
       throw new NotFoundError('Event not found');
     }
     reply.send(serializeEvent(event));
   });
 
-  app.get<{ Params: { id: string; eventId: string } }>('/open-mics/:id/events/:eventId', async (request, reply) => {
+  app.get<{ Params: { id: string; eventId: string } }>('/open-mics/:id/events/:eventId', { preHandler: app.authenticateOptional }, async (request, reply) => {
     const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic) throw new NotFoundError('Event not found');
     const event = await findEventByIdOrPublicCode(pool, request.params.eventId);
-    if (!event || event.open_mic_id !== openMic.id) throw new NotFoundError('Event not found');
+    const canManage = await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account);
+    if (!event || event.open_mic_id !== openMic.id || (!canManage && (openMic.status !== 'active' || event.status !== 'published'))) throw new NotFoundError('Event not found');
     reply.send(serializeEvent(event));
   });
 
@@ -151,13 +170,16 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (ownerProfile !== account.accountId && !account.isPlatformAdmin) {
         throw new ForbiddenError('You do not own the parent open mic');
       }
+      if (parsed.data.status === 'published' && openMic.status !== 'active') {
+        throw new ValidationError('A published event requires an active open mic', { field: 'status' });
+      }
 
       const changes: Record<string, unknown> = {};
       if (parsed.data.title !== undefined) changes.title = parsed.data.title;
       if (parsed.data.starts_at !== undefined) changes.startsAt = parsed.data.starts_at;
       if (parsed.data.ends_at !== undefined) changes.endsAt = parsed.data.ends_at;
       if (parsed.data.time_zone !== undefined) changes.timeZone = parsed.data.time_zone;
-      if (parsed.data.running !== undefined) changes.running = parsed.data.running;
+      if (parsed.data.status !== undefined) changes.status = parsed.data.status;
       if (parsed.data.registrations_closed_at !== undefined)
         changes.registrationsClosedAt = parsed.data.registrations_closed_at;
       if (parsed.data.venue_name !== undefined) changes.venueName = parsed.data.venue_name;
@@ -176,21 +198,13 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (parsed.data.entry_fee_currency !== undefined) changes.entryFeeCurrency = parsed.data.entry_fee_currency;
       if (parsed.data.entry_fee_note !== undefined) changes.entryFeeNote = parsed.data.entry_fee_note;
 
-      // Stopping an event (running: true/null -> false) treats every performer who never checked
-      // in as a no-show, then clears out any performance that never actually reached the stage
-      // (no start time — never "valid" for reporting), in the same transaction as the running
-      // flag flip — see decisions.md. Restarting (false -> true) or any other change does not
-      // touch performances.
-      const isStopping = parsed.data.running === false && existing.running !== false;
-      if (isStopping) changes.registrationsClosedAt = new Date().toISOString();
-      const updated = isStopping
-        ? await withTransaction(pool, async (client) => {
-            const result = await updateEvent(client, existing.id, changes as any);
-            await markUnregisteredAsNoShowForEvent(client, existing.id);
-            await deleteNeverStartedPerformancesForEvent(client, existing.id, openMic.owner_profile_id);
-            return result;
-          })
-        : await updateEvent(pool, existing.id, changes as any);
+      const effectiveStartsAt = parsed.data.starts_at ?? existing.starts_at;
+      const effectiveEndsAt = parsed.data.ends_at ?? existing.ends_at;
+      const effectiveStatus = parsed.data.status ?? existing.status;
+      if (effectiveStatus === 'published' && (!effectiveEndsAt || new Date(effectiveEndsAt) <= new Date(effectiveStartsAt))) {
+        throw new ValidationError('A published event requires an end time after its start time', { field: 'ends_at' });
+      }
+      const updated = await updateEvent(pool, existing.id, changes as any);
       if (!updated) throw new NotFoundError('Event not found after update');
 
       reply.send(serializeEvent(updated));

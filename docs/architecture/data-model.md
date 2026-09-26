@@ -350,9 +350,8 @@ Performances
 # performer would need to register again for a future set. This applies uniformly regardless of
 # which status column the card is in, not just "registered". The organizer always confirms first,
 # and the confirmation copy distinguishes "delete this performance" from "delete the registration".
-# When an event is stopped (Events.running -> false), any Performances row that never reached
-# "performing" (started_at IS NULL) is soft-deleted alongside the existing "mark unregistered as
-# no_show" cleanup, since a valid, reportable performance requires both a start and a finish time.
+# Event phase is derived from the event timestamps. Moving from running to past never changes
+# performance rows automatically; organizers retain explicit control of roster statuses.
 
 Media
 ├── id (UUID)

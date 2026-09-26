@@ -5,7 +5,6 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { RegistrationLinkTools } from '../components/RegistrationLinkTools'
 import { hashKioskPin, useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOpenMicDetail, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
-import { isRegistrationClosed } from '../features/publicReads'
 import type { ColorMode, ThemeId } from '../theme'
 import { Modal, ReadState, Required, RequiredFieldsNote } from './shared'
 
@@ -258,6 +257,7 @@ function KioskLock({
 // resets itself right after each successful entry so the next performer can sign up quickly.
 export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string; eventId: string; theme: ThemeId; mode: ColorMode }) {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const { context, isOrganizer } = useOrganizerProfile()
   const event = useEventDetail(seriesId, eventId)
   const openMic = useOpenMicDetail(seriesId)
@@ -278,8 +278,12 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   const [confirmation, setConfirmation] = useState('')
   const [emailPromptOpen, setEmailPromptOpen] = useState(false)
 
-  const eventClosed = Boolean(event.data) && isRegistrationClosed(event.data!)
   const seriesPreRegistrationAllowed = openMic.data?.registration_mode === 'pre_only' || openMic.data?.registration_mode === 'both'
+  const [confirmedEventId, setConfirmedEventId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setConfirmedEventId(null)
+  }, [event.data?.id])
 
   function resetForm() {
     setPerformerName('')
@@ -326,19 +330,35 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
     performSubmit()
   }
 
-  if (!isOrganizer) return <main className="app kiosk-page" data-theme={theme} data-mode={mode}>
-    <header className="topbar kiosk-topbar"><span className="brand" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></span></header>
+  if (!isOrganizer) return <div className="app kiosk-page" data-theme={theme} data-mode={mode}>
+    <header className="topbar kiosk-topbar"><span className="brand" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('kioskBrand')}</span></span></header>
     <section className="kiosk-body">
       <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>← Back to roster</Link>
       {!context.account.data && <ReadState message={t('signInKiosk')} />}
       {context.account.data && <ReadState message="Select an organizer profile to run the kiosk." />}
     </section>
-  </main>
+  </div>
+
+  if (!event.data || (event.data.phase !== 'running' && confirmedEventId !== event.data.id)) return <div className="app kiosk-page" data-theme={theme} data-mode={mode}>
+    <header className="topbar kiosk-topbar"><span className="brand"><span className="brand-mark"><Sparkles size={17} /></span><span>{t('kioskBrand')}</span></span></header>
+    <section className="kiosk-body">
+      {event.isPending && <ReadState message="Loading event…" />}
+      {event.isError && <ReadState message={friendlyApiErrorMessage(event.error, 'We could not load this event.')} retry={() => void event.refetch()} />}
+      {event.data && <Modal title={t('kioskLaunchConfirmTitle')} onClose={() => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/roster', params: { seriesId, eventId } })}>
+        <p>{t('kioskLaunchConfirmMessage', { title: event.data.title, date: formatEventDateTime(event.data.starts_at, event.data.time_zone, i18n.language) })}</p>
+        <p className="field-hint">{t('kioskLaunchConfirmPhase', { phase: event.data.phase })}</p>
+        <div className="dashboard-series-card-actions">
+          <button type="button" className="quiet-button" onClick={() => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/roster', params: { seriesId, eventId } })}>{t('cancel')}</button>
+          <button type="button" className="primary-button" onClick={() => setConfirmedEventId(event.data!.id)}>{t('openKiosk')}</button>
+        </div>
+      </Modal>}
+    </section>
+  </div>
 
   return <div ref={rootRef} className="app kiosk-page" data-theme={theme} data-mode={mode}>
     <KioskLock seriesId={seriesId} eventId={eventId} rootRef={rootRef}>
       {(requestExit) => <>
-        <header className="topbar kiosk-topbar"><button type="button" className="brand" aria-label={t('exitKiosk')} onClick={requestExit}><span className="brand-mark"><Sparkles size={17} /></span><span>open mic kiosk</span></button></header>
+        <header className="topbar kiosk-topbar"><button type="button" className="brand" aria-label={t('exitKiosk')} onClick={requestExit}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('kioskBrand')}</span></button></header>
         <section className="kiosk-body">
           <div className="eyebrow">{t('kioskPageEyebrow')}</div>
           <h1>{event.data?.title ?? 'Event kiosk'}</h1>
@@ -370,11 +390,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
           {event.isPending && <ReadState message="Loading event…" />}
           {event.isError && <ReadState message={friendlyApiErrorMessage(event.error, 'We could not load this event.')} retry={() => void event.refetch()} />}
 
-          {event.data && eventClosed && <div className="profile-context profile-context-warning" role="alert">
-            Registration is closed for this event.
-          </div>}
-
-          {event.data && !eventClosed && <form className="kiosk-form" noValidate onSubmit={submit}>
+          {event.data && <form className="kiosk-form" noValidate onSubmit={submit}>
             <RequiredFieldsNote />
             <label><span>{t('performerName')}<Required /></span> <span className="field-hint">{t('kioskNameHint')}</span><input ref={nameInputRef} autoFocus required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
             <label>{t('cityLabel')} <span className="field-hint">{t('kioskCityHint')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>

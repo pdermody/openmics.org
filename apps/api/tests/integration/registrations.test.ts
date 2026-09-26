@@ -41,14 +41,14 @@ describe('registration routes (real database)', () => {
     claimantProfileId = claimantProfile.rows[0].id;
 
     const openMic = await pool.query<{ id: string }>(
-      `INSERT INTO open_mics (owner_profile_id, name, venue_name, address_line1, city, country, time_zone, activities, age_policy)
-       VALUES ($1, 'Registration Open Mic', 'Venue', '1 Test Street', 'Dublin', 'IE', 'Europe/Dublin', ARRAY['singing'], 'both')
+      `INSERT INTO open_mics (owner_profile_id, name, venue_name, address_line1, city, country, time_zone, activities, age_policy, registration_mode, status)
+       VALUES ($1, 'Registration Open Mic', 'Venue', '1 Test Street', 'Dublin', 'IE', 'Europe/Dublin', ARRAY['singing'], 'both', 'both', 'active')
        RETURNING id`,
       [ownerProfileId],
     );
     const event = await pool.query<{ id: string }>(
-      `INSERT INTO events (open_mic_id, title, starts_at, time_zone, venue_name, address_line1, city, country)
-       VALUES ($1, 'Registration Event', now() + interval '7 days', 'Europe/Dublin', 'Venue', '1 Test Street', 'Dublin', 'IE')
+      `INSERT INTO events (open_mic_id, title, starts_at, ends_at, status, time_zone, venue_name, address_line1, city, country)
+       VALUES ($1, 'Registration Event', now() + interval '7 days', now() + interval '7 days 3 hours', 'published', 'Europe/Dublin', 'Venue', '1 Test Street', 'Dublin', 'IE')
        RETURNING id`,
       [openMic.rows[0].id],
     );
@@ -93,9 +93,16 @@ describe('registration routes (real database)', () => {
     expect(verified.statusCode).toBe(200);
     expect(verified.json().visibility_state).toBe('valid');
 
+    const editSession = await app.inject({
+      method: 'GET',
+      url: `/api/registrations/edit?token=${confirmUrl.searchParams.get('token')}`,
+    });
+    expect(editSession.statusCode).toBe(200);
+
     const updated = await app.inject({
       method: 'PATCH',
       url: `/api/registrations/${guest.json().id}`,
+      headers: { cookie: editSession.headers['set-cookie'] as string },
       payload: { performer_name: 'Updated Guest Performer' },
     });
     expect(updated.statusCode).toBe(200);
@@ -125,7 +132,7 @@ describe('registration routes (real database)', () => {
     });
     expect(roster.statusCode).toBe(200);
     const rosterRows = roster.json() as Array<{ id: string; performer_name: string; performances: Array<{ status: string }> }>;
-    const guestRow = rosterRows.find((row) => row.performer_name === 'Guest Performer');
+    const guestRow = rosterRows.find((row) => row.performer_name === 'Updated Guest Performer');
     expect(guestRow?.performances).toHaveLength(1);
     expect(guestRow?.performances[0].status).toBe('registered');
     const kioskRow = rosterRows.find((row) => row.performer_name === 'Walk-in Performer');
@@ -228,14 +235,14 @@ describe('registration routes (real database)', () => {
 
   it.each(['on_night_only', 'external'])('rejects standard registrations when the parent open mic uses %s mode', async (registrationMode) => {
     const openMic = await pool.query<{ id: string }>(
-      `INSERT INTO open_mics (owner_profile_id, name, venue_name, address_line1, city, country, time_zone, activities, age_policy, registration_mode, external_registration_url)
-       VALUES ($1, 'Mode Guard Open Mic', 'Venue', '1 Test Street', 'Dublin', 'IE', 'Europe/Dublin', ARRAY['singing'], 'both', $2, $3)
+      `INSERT INTO open_mics (owner_profile_id, name, venue_name, address_line1, city, country, time_zone, activities, age_policy, registration_mode, external_registration_url, status)
+       VALUES ($1, 'Mode Guard Open Mic', 'Venue', '1 Test Street', 'Dublin', 'IE', 'Europe/Dublin', ARRAY['singing'], 'both', $2, $3, 'active')
        RETURNING id`,
       [ownerProfileId, registrationMode, registrationMode === 'external' ? 'https://example.test/register' : null],
     );
     const event = await pool.query<{ id: string }>(
-      `INSERT INTO events (open_mic_id, title, starts_at, time_zone, venue_name, address_line1, city, country)
-       VALUES ($1, 'Mode Guard Event', now() + interval '9 days', 'Europe/Dublin', 'Venue', '1 Test Street', 'Dublin', 'IE')
+      `INSERT INTO events (open_mic_id, title, starts_at, ends_at, status, time_zone, venue_name, address_line1, city, country)
+       VALUES ($1, 'Mode Guard Event', now() + interval '9 days', now() + interval '9 days 3 hours', 'published', 'Europe/Dublin', 'Venue', '1 Test Street', 'Dublin', 'IE')
        RETURNING id`,
       [openMic.rows[0].id],
     );
@@ -321,8 +328,8 @@ describe('registration routes (real database)', () => {
 
   it('enforces event capacity atomically', async () => {
     const capacityEvent = await pool.query<{ id: string }>(
-      `INSERT INTO events (open_mic_id, title, starts_at, time_zone, venue_name, address_line1, city, country, capacity)
-       SELECT open_mic_id, 'Capacity Event', now() + interval '8 days', time_zone, venue_name, address_line1, city, country, 1
+      `INSERT INTO events (open_mic_id, title, starts_at, ends_at, status, time_zone, venue_name, address_line1, city, country, capacity)
+       SELECT open_mic_id, 'Capacity Event', now() + interval '8 days', now() + interval '8 days 3 hours', 'published', time_zone, venue_name, address_line1, city, country, 1
        FROM events WHERE id = $1 RETURNING id`,
       [eventId],
     );

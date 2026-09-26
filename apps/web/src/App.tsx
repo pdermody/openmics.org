@@ -3,7 +3,6 @@ import { createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet,
 import './App.css'
 import { HomePage } from './views/HomePage'
 import { ThemePage } from './views/ThemePage'
-import { AccountPage } from './views/AccountPage'
 import { EventPage } from './views/EventPage'
 import { OpenMicPage } from './views/OpenMicPage'
 import { ProfilePage } from './views/ProfilePage'

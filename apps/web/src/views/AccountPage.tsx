@@ -38,8 +38,8 @@ export function AccountPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const payload = {
-      display_name: form.display_name.trim() || null,
-      city: form.city.trim() || null,
+      display_name: form.display_name.trim() || undefined,
+      city: form.city.trim() || undefined,
       preferred_language: form.preferred_language,
     }
 

@@ -15,15 +15,15 @@ import { useCreateOpenMic, useOpenMicDetail, useOrganizerProfile, useUpdateOpenM
 import { suggestHandle } from '../features/slugify'
 import type { ColorMode, ThemeId } from '../theme'
 import { KioskBackupPinSection } from './KioskBackupPin'
-import { ReadState, Required, RequiredFieldsNote, SiteHeader } from './shared'
+import { Modal, ReadState, Required, RequiredFieldsNote, SiteHeader } from './shared'
 
 const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
 
 const FORM_TABS = [
-  { id: 'basics', labelKey: 'seriesTabBasics', fields: ['name', 'activities'] },
+  { id: 'basics', labelKey: 'seriesTabBasics', fields: ['name', 'handle', 'website', 'contact_email', 'status', 'activities'] },
   { id: 'location', labelKey: 'seriesTabLocation', fields: ['venue_name', 'address_line1', 'city', 'country', 'lat', 'lng'] },
-  { id: 'schedule', labelKey: 'seriesTabSchedule', fields: ['time_zone', 'website', 'contact_email', 'schedule_summary', 'schedule_details'] },
-  { id: 'registration', labelKey: 'seriesTabRegistration', fields: ['handle', 'tags', 'registration_mode', 'external_registration_url', 'entry_fee_amount', 'entry_fee_currency', 'entry_fee_note', 'status'] },
+  { id: 'schedule', labelKey: 'seriesTabSchedule', fields: ['time_zone', 'schedule_summary', 'schedule_details'] },
+  { id: 'registration', labelKey: 'seriesTabRegistration', fields: ['tags', 'registration_mode', 'external_registration_url', 'entry_fee_amount', 'entry_fee_currency', 'entry_fee_note'] },
 ] as const
 
 const openMicFormSchema = z
@@ -128,6 +128,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   })
   const { errors, dirtyFields, isDirty } = formState
   const [activeTab, setActiveTab] = useState(0)
+  const [discardModalOpen, setDiscardModalOpen] = useState(false)
 
   const name = watch('name')
   const handle = watch('handle') ?? ''
@@ -154,6 +155,11 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
     if (isEdit || handleTouchedRef.current) return
     setValue('handle', suggestHandle(name ?? ''))
   }, [name, isEdit, setValue])
+
+  useEffect(() => {
+    if (isEdit || dirtyFields.website) return
+    setValue('website', handle ? `https://openmics.org/@${handle}` : '')
+  }, [dirtyFields.website, handle, isEdit, setValue])
 
   // Default the open mic's contact email to the organizer's account email; they can still
   // override it with a separate address, which we validate the same way as any other email field.
@@ -276,8 +282,8 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
     }
   }
 
-  function discardChanges() {
-    if (isDirty && !window.confirm(t('confirmDiscardChanges'))) return
+  function leaveForm() {
+    if (isDirty) { setDiscardModalOpen(true); return }
     if (isEdit) void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId: seriesId ?? '' } })
     else void navigate({ to: '/dashboard' })
   }
@@ -317,6 +323,27 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
           <label><span>{t('seriesName')}<Required /></span><input required {...register('name')} /></label>
           {errors.name && <p className="form-error" role="alert">{errors.name.message}</p>}
           <p className="field-hint">{t('seriesNameHint')}</p>
+          {!isEdit && <label>{t('handleLabel')}<span className="handle-input"><span aria-hidden="true">@</span><input {...handleFieldProps} onChange={(event) => { handleTouchedRef.current = true; void handleFieldOnChange(event) }} /></span></label>}
+          {!isEdit && <p className="field-hint">{t('seriesHandleFormHint')}</p>}
+          {!isEdit && handle && <p className={`handle-feedback ${handleCheck.state === 'available' ? 'form-success' : handleCheck.state === 'checking' ? 'field-hint' : 'form-error'}`} role={handleCheck.state === 'unavailable' || handleCheck.state === 'invalid' ? 'alert' : 'status'}>
+            {handleCheck.state === 'available' && <CircleCheck aria-hidden="true" size={16} />}
+            {(handleCheck.state === 'unavailable' || handleCheck.state === 'invalid') && <CircleAlert aria-hidden="true" size={16} />}
+            {handleCheck.state === 'checking' ? t('checkingAvailability') : handleCheck.message}
+          </p>}
+          {isEdit && <label>{t('handleLabel')}<input value={existing.data?.current_handle ? `@${existing.data.current_handle}` : ''} placeholder={t('handleNotSet')} disabled readOnly /></label>}
+          {isEdit && <p className="field-hint">{t('handleRenameUnavailable')}</p>}
+          <label>{t('website')}<input type="url" {...register('website')} /></label>
+          {errors.website && <p className="form-error" role="alert">{errors.website.message}</p>}
+          <label>{t('contactEmail')}<input type="email" {...register('contact_email')} /></label>
+          {errors.contact_email && <p className="form-error" role="alert">{errors.contact_email.message}</p>}
+          <p className="field-hint">{t('seriesContactHint')}</p>
+          <label>{t('seriesStatus')}<select {...register('status')}>
+            <option value="draft">{t('statusDraft')}</option>
+            <option value="active">{t('statusActive')}</option>
+            <option value="paused">{t('statusPaused')}</option>
+            <option value="ended">{t('statusEnded')}</option>
+          </select></label>
+          <p className="field-hint">{t('seriesStatusHint')}</p>
           <label>{t('description')}<textarea {...register('description')} /></label>
           <p className="field-hint">{t('seriesDescriptionHint')}</p>
           <fieldset>
@@ -354,26 +381,12 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
           <label><span>{t('timeZone')}<Required /></span><select required {...register('time_zone')}>{TIME_ZONE_OPTIONS.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone)}</option>)}</select></label>
           {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
           <p className="field-hint">{t('timeZoneFormHint')}</p>
-          <label>{t('website')}<input type="url" {...register('website')} /></label>
-          {errors.website && <p className="form-error" role="alert">{errors.website.message}</p>}
-          <label>{t('contactEmail')}<input type="email" {...register('contact_email')} /></label>
-          {errors.contact_email && <p className="form-error" role="alert">{errors.contact_email.message}</p>}
-          <p className="field-hint">{t('seriesContactHint')}</p>
           <label>{t('scheduleSummary')}<input {...register('schedule_summary')} /></label>
           <p className="field-hint">{t('scheduleSummaryFormHint')}</p>
           <label>{t('scheduleDetails')}<textarea {...register('schedule_details')} /></label>
         </section>
 
         <section id="series-tab-registration" role="tabpanel" hidden={activeTab !== 3}>
-          {!isEdit && <label>{t('handleLabel')}<span className="handle-input"><span aria-hidden="true">@</span><input {...handleFieldProps} onChange={(event) => { handleTouchedRef.current = true; void handleFieldOnChange(event) }} /></span></label>}
-          {!isEdit && <p className="field-hint">{t('seriesHandleFormHint')}</p>}
-          {!isEdit && handle && <p className={`handle-feedback ${handleCheck.state === 'available' ? 'form-success' : handleCheck.state === 'checking' ? 'field-hint' : 'form-error'}`} role={handleCheck.state === 'unavailable' || handleCheck.state === 'invalid' ? 'alert' : 'status'}>
-          {handleCheck.state === 'available' && <CircleCheck aria-hidden="true" size={16} />}
-          {(handleCheck.state === 'unavailable' || handleCheck.state === 'invalid') && <CircleAlert aria-hidden="true" size={16} />}
-          {handleCheck.state === 'checking' ? t('checkingAvailability') : handleCheck.message}
-        </p>}
-          {isEdit && <label>{t('handleLabel')}<input value={existing.data?.current_handle ? `@${existing.data.current_handle}` : ''} placeholder={t('handleNotSet')} disabled readOnly /></label>}
-          {isEdit && <p className="field-hint">{t('handleRenameUnavailable')}</p>}
           <label>{t('tags')}<input {...register('tags')} /></label>
           <p className="field-hint">{t('seriesTagsHint')}</p>
 
@@ -400,21 +413,14 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
           {errors.entry_fee_currency && <p className="form-error" role="alert">{errors.entry_fee_currency.message}</p>}
           <label>{t('entryFeeNote')}<input {...register('entry_fee_note')} /></label>
           <p className="field-hint">{t('entryFeeNoteHint')}</p>
-          <label>{t('seriesStatus')}<select {...register('status')}>
-          <option value="draft">{t('statusDraft')}</option>
-          <option value="active">{t('statusActive')}</option>
-          <option value="paused">{t('statusPaused')}</option>
-          <option value="ended">{t('statusEnded')}</option>
-        </select></label>
-          <p className="field-hint">{t('seriesStatusHint')}</p>
           {isEdit && seriesId && <KioskBackupPinSection seriesId={seriesId} embedded />}
         </section>
 
         {mutation.isError && <p className="form-error" role="alert">{openMicErrorMessage(mutation.error)}</p>}
         {mutation.isSuccess && isEdit && <p className="form-success" role="status">{t('saved')}</p>}
         <div className="form-tab-navigation">
-          <button type="button" className="link-button" onClick={discardChanges}>{t('discardChanges')}</button>
-          <button className="primary-button" type="submit" disabled={mutation.isPending || activities.length === 0 || (!isEdit && Boolean(handle) && (handleCheck.state === 'unavailable' || handleCheck.state === 'invalid'))}>
+          <button type="button" className="link-button" onClick={leaveForm} disabled={!isDirty || mutation.isPending}>{t('cancel')}</button>
+          <button className="primary-button" type="submit" disabled={mutation.isPending || (isEdit && !isDirty) || activities.length === 0 || (!isEdit && Boolean(handle) && (handleCheck.state === 'unavailable' || handleCheck.state === 'invalid'))}>
             {mutation.isPending ? t('saving') : isEdit ? t('saveChanges') : t('createSeries')}
           </button>
           <span className="form-tab-navigation-spacer" aria-hidden="true" />
@@ -423,6 +429,13 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
         </div>
         {activities.length === 0 && <p className="field-hint">{t('selectActivity')}</p>}
       </form>
+      {discardModalOpen && <Modal title={t('confirmAction')} onClose={() => setDiscardModalOpen(false)}>
+        <p>{t('confirmDiscardChanges')}</p>
+        <div className="dashboard-series-card-actions">
+          <button type="button" className="quiet-button" onClick={() => { setDiscardModalOpen(false); if (isEdit) void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId: seriesId ?? '' } }); else void navigate({ to: '/dashboard' }) }}>{t('discardChanges')}</button>
+          <button type="button" className="link-button" onClick={() => setDiscardModalOpen(false)}>{t('cancel')}</button>
+        </div>
+      </Modal>}
     </section>
   </main>
 }

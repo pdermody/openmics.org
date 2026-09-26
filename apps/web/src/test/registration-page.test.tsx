@@ -3,15 +3,17 @@ import { userEvent } from '@testing-library/user-event'
 import { waitFor, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { RegistrationPage } from '../views/RegistrationPage'
+import type { Event } from '../features/publicReads'
 import { renderWithProviders } from './render'
 import { server } from './server'
 
-const event = {
+const event: Event = {
   id: 'event-1',
   public_code: 'LIVE1',
   open_mic_id: 'open-mic-1',
   title: 'Friday Stage',
   starts_at: '2026-10-01T19:00:00.000Z',
+  ends_at: '2026-10-01T22:00:00.000Z',
   time_zone: 'Europe/Dublin',
   venue_name: 'The Lantern',
   city: 'Dublin',
@@ -20,6 +22,8 @@ const event = {
   tags: [],
   capacity: null,
   registrations_closed_at: null as string | null,
+  status: 'published' as const,
+  phase: 'future' as const,
   notes: null,
 }
 
@@ -79,5 +83,13 @@ describe('RegistrationPage', () => {
       organizer_supervised: false,
       submission_channel: 'organic',
     }))
+  })
+
+  it('shows an unavailable state without a guest form after the event has ended', async () => {
+    registerReadHandlers({ ...event, phase: 'past' })
+    renderWithProviders(<RegistrationPage eventCode="LIVE1" theme="venue" mode="light" />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Registration is no longer available for this event.')
+    expect(screen.queryByRole('button', { name: /submit registration/i })).not.toBeInTheDocument()
   })
 })

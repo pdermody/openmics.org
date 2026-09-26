@@ -19,7 +19,8 @@ export type Event = {
   tags: string[]
   capacity: number | null
   registrations_closed_at: string | null
-  running?: boolean | null
+  status: 'draft' | 'published'
+  phase: 'future' | 'running' | 'past'
   notes: string | null
 }
 
@@ -37,7 +38,7 @@ export type OpenMic = {
   tags: string[]
   registration_mode: 'pre_only' | 'on_night_only' | 'both' | 'external'
   external_registration_url: string | null
-  status: string
+  status: 'active' | 'paused' | 'ended' | 'draft'
 }
 
 export type Profile = {
@@ -127,7 +128,7 @@ export function usePublicOpenMic(id: string | undefined) {
 export function useNextEvent(openMicId: string | undefined) {
   return useQuery({
     queryKey: [...publicReadKeys.all, 'next-event', openMicId],
-    queryFn: () => api<Event>(`/open-mics/${openMicId}/next-event`),
+    queryFn: () => api<{ current_event: Event | null; current_registration_open: boolean; next_event: Event | null; next_registration_event: Event | null }>(`/open-mics/${openMicId}/next-event`),
     enabled: Boolean(openMicId),
     retry: false,
   })

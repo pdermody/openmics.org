@@ -2,6 +2,9 @@ import type { Pool, PoolClient } from 'pg';
 
 type Queryable = Pool | PoolClient;
 
+export type EventStatus = 'draft' | 'published';
+export type EventPhase = 'future' | 'running' | 'past';
+
 export interface EventRow {
   id: string;
   public_code: string;
@@ -10,7 +13,7 @@ export interface EventRow {
   starts_at: string;
   ends_at: string | null;
   time_zone: string;
-  running: boolean | null;
+  status: EventStatus;
   registrations_closed_at: string | null;
   venue_name: string;
   address_line1: string;
@@ -40,7 +43,7 @@ export interface InsertEventInput {
   startsAt: string;
   endsAt?: string | null;
   timeZone: string;
-  running?: boolean | null;
+  status?: EventStatus;
   registrationsClosedAt?: string | null;
   venueName?: string;
   addressLine1?: string;
@@ -62,7 +65,7 @@ export interface InsertEventInput {
 export async function insertEvent(client: PoolClient, input: InsertEventInput): Promise<EventRow> {
   const result = await client.query<EventRow>(
     `INSERT INTO events (
-      open_mic_id, title, starts_at, ends_at, time_zone, running, registrations_closed_at,
+      open_mic_id, title, starts_at, ends_at, time_zone, status, registrations_closed_at,
       venue_name, address_line1, address_line2, postcode, city, country, lat, lng,
       activities, tags, capacity, notes, entry_fee_amount, entry_fee_currency, entry_fee_note
     ) VALUES (
@@ -76,7 +79,7 @@ export async function insertEvent(client: PoolClient, input: InsertEventInput): 
       input.startsAt,
       input.endsAt ?? null,
       input.timeZone,
-      input.running ?? null,
+      input.status ?? 'draft',
       input.registrationsClosedAt ?? null,
       input.venueName ?? null,
       input.addressLine1 ?? null,
@@ -125,7 +128,7 @@ export async function findUpcomingEvents(
   options: { from?: string; to?: string; limit: number; geo?: { lat: number; lng: number; radiusKm: number } },
 ): Promise<EventRow[]> {
   const values: unknown[] = [];
-  const conditions = ['e.deleted_at IS NULL', "o.deleted_at IS NULL", "o.status NOT IN ('draft', 'ended')", 'e.starts_at >= now()'];
+  const conditions = ['e.deleted_at IS NULL', "o.deleted_at IS NULL", "o.status = 'active'", "e.status = 'published'", 'e.starts_at >= now()'];
   if (options.from) {
     values.push(options.from);
     conditions.push(`e.starts_at >= $${values.length}`);
@@ -150,9 +153,30 @@ export async function findUpcomingEvents(
 export async function findNextEventByOpenMicId(client: Queryable, openMicId: string): Promise<EventRow | null> {
   const result = await client.query<EventRow>(
     `SELECT * FROM events
-     WHERE open_mic_id = $1 AND deleted_at IS NULL AND starts_at >= now()
-       AND (registrations_closed_at IS NULL OR registrations_closed_at > now())
+     WHERE open_mic_id = $1 AND deleted_at IS NULL AND status = 'published' AND starts_at >= now()
      ORDER BY starts_at ASC LIMIT 1`,
+    [openMicId],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function findNextRegistrableEventByOpenMicId(client: Queryable, openMicId: string): Promise<EventRow | null> {
+  const result = await client.query<EventRow>(
+    `SELECT * FROM events
+     WHERE open_mic_id = $1 AND deleted_at IS NULL AND status = 'published' AND starts_at >= now()
+       AND ends_at > now() AND (registrations_closed_at IS NULL OR registrations_closed_at > now())
+     ORDER BY starts_at ASC LIMIT 1`,
+    [openMicId],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function findRunningEventByOpenMicId(client: Queryable, openMicId: string): Promise<EventRow | null> {
+  const result = await client.query<EventRow>(
+    `SELECT * FROM events
+     WHERE open_mic_id = $1 AND deleted_at IS NULL AND status = 'published'
+       AND starts_at <= now() AND ends_at > now()
+     ORDER BY starts_at DESC LIMIT 1`,
     [openMicId],
   );
   return result.rows[0] ?? null;
@@ -200,7 +224,7 @@ export async function updateEvent(pool: Queryable, id: string, changes: Partial<
     startsAt: 'starts_at',
     endsAt: 'ends_at',
     timeZone: 'time_zone',
-    running: 'running',
+    status: 'status',
     registrationsClosedAt: 'registrations_closed_at',
     venueName: 'venue_name',
     addressLine1: 'address_line1',
@@ -258,7 +282,8 @@ export function serializeEvent(row: EventRow): Record<string, unknown> {
     starts_at: row.starts_at,
     ends_at: row.ends_at,
     time_zone: row.time_zone,
-    running: row.running,
+    status: row.status,
+    phase: eventPhase(row),
     registrations_closed_at: row.registrations_closed_at,
     venue_name: row.venue_name,
     address_line1: row.address_line1,
@@ -278,4 +303,12 @@ export function serializeEvent(row: EventRow): Record<string, unknown> {
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+}
+
+export function eventPhase(event: Pick<EventRow, 'starts_at' | 'ends_at'>, now = new Date()): EventPhase {
+  const startsAt = new Date(event.starts_at).getTime();
+  const endsAt = event.ends_at ? new Date(event.ends_at).getTime() : Number.NaN;
+  if (now.getTime() < startsAt) return 'future';
+  if (!Number.isNaN(endsAt) && now.getTime() < endsAt) return 'running';
+  return 'past';
 }

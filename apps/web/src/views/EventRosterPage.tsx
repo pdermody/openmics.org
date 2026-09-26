@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, DoorOpen, Eye, Lock, LockOpen, MapPin, Pencil } from 'lucide-react'
@@ -92,9 +92,10 @@ function RegistrationDetailsModal({ registration, onClose }: { registration: Ros
 
 // Lets an organizer correct what a performer supplied at registration (e.g. a mistyped name or
 // contact info). Mirrors the server's updateRegistrationSchema field set exactly.
-function RegistrationEditModal({ eventId, registration, onClose }: { eventId: string; registration: RosterRegistration; onClose: () => void }) {
+export function RegistrationEditModal({ eventId, registration, onClose }: { eventId: string; registration: RosterRegistration; onClose: () => void }) {
   const { t } = useTranslation()
   const updateRegistration = useUpdateRegistration(eventId)
+  const [discardModalOpen, setDiscardModalOpen] = useState(false)
   const [form, setForm] = useState({
     performer_name: registration.performer_name,
     performer_city: registration.performer_city ?? '',
@@ -103,6 +104,13 @@ function RegistrationEditModal({ eventId, registration, onClose }: { eventId: st
     song_names: registration.song_names.join(', '),
     media_consent: registration.media_consent,
   })
+  const isDirty = form.performer_name !== registration.performer_name
+    || form.performer_city !== (registration.performer_city ?? '')
+    || form.contact_email !== (registration.contact_email ?? '')
+    || form.contact_phone !== (registration.contact_phone ?? '')
+    || form.song_names !== registration.song_names.join(', ')
+    || form.media_consent !== registration.media_consent
+  const requestClose = () => { if (isDirty) setDiscardModalOpen(true); else onClose() }
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -117,9 +125,9 @@ function RegistrationEditModal({ eventId, registration, onClose }: { eventId: st
     updateRegistration.mutate({ id: registration.id, ...input }, { onSuccess: onClose })
   }
 
-  return <Modal title={`Edit registration for ${registration.performer_name}`} onClose={onClose}>
+  return <><Modal title={`Edit registration for ${registration.performer_name}`} onClose={requestClose}>
     <form className="registration-form" onSubmit={submit}>
-      <label>{t('performerName')}<Required /><input required value={form.performer_name} onChange={(event) => setForm({ ...form, performer_name: event.target.value })} /></label>
+      <label><span>{t('performerName')}<Required /></span><input required value={form.performer_name} onChange={(event) => setForm({ ...form, performer_name: event.target.value })} /></label>
       <label>{t('city')}<input value={form.performer_city} onChange={(event) => setForm({ ...form, performer_city: event.target.value })} /></label>
       <label>{t('email')}<input type="email" value={form.contact_email} onChange={(event) => setForm({ ...form, contact_email: event.target.value })} /></label>
       <label>{t('phone')}<input type="tel" value={form.contact_phone} onChange={(event) => setForm({ ...form, contact_phone: event.target.value })} /></label>
@@ -128,11 +136,19 @@ function RegistrationEditModal({ eventId, registration, onClose }: { eventId: st
       <RequiredFieldsNote />
       {updateRegistration.isError && <p className="form-error">{friendlyApiErrorMessage(updateRegistration.error, 'Could not save those changes.')}</p>}
       <div className="dashboard-series-card-actions">
-        <button type="submit" className="quiet-button" disabled={updateRegistration.isPending}>{t('save')}</button>
-        <button type="button" className="link-button" onClick={onClose}>{t('cancel')}</button>
+        <button type="submit" className="quiet-button" disabled={!isDirty || updateRegistration.isPending}>{t('save')}</button>
+        <button type="button" className="link-button" onClick={requestClose}>{t('cancel')}</button>
       </div>
     </form>
   </Modal>
+    {discardModalOpen && <Modal title={t('confirmAction')} onClose={() => setDiscardModalOpen(false)}>
+      <p>{t('confirmDiscardChanges')}</p>
+      <div className="dashboard-series-card-actions">
+        <button type="button" className="quiet-button" onClick={onClose}>{t('discardChanges')}</button>
+        <button type="button" className="link-button" onClick={() => setDiscardModalOpen(false)}>{t('cancel')}</button>
+      </div>
+    </Modal>}
+  </>
 }
 
 // A dropdown menu portal-rendered to document.body (not a native <details>), so it's never
@@ -163,7 +179,7 @@ function PendingRegistrationRow({ eventId, registration }: { eventId: string; re
 
 // The card shows only the performer's name plus move/hamburger controls — no other info on the
 // card face (registration details live behind the "Details" modal instead).
-function PerformerCard({
+export function PerformerCard({
   eventId,
   data,
   isWide,
@@ -241,8 +257,18 @@ function PerformerCard({
     { label: 'Delete', onClick: () => setDeleteConfirmOpen(true) },
   ]
 
+  const openCardDetails = (event: MouseEvent<HTMLElement>) => {
+    if (!event.currentTarget.contains(event.target as Node) || (event.target as HTMLElement).closest('button, a, input, select, textarea')) return
+    setDetailsOpen(true)
+  }
 
-  return <article className="performer-card">
+  const openCardDetailsWithKeyboard = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+    event.preventDefault()
+    setDetailsOpen(true)
+  }
+
+  return <article className="performer-card" role="group" aria-label={`${registration.performer_name} — view registration details`} tabIndex={0} onClick={openCardDetails} onKeyDown={openCardDetailsWithKeyboard}>
     {canMoveBack && <button
       type="button"
       className="performer-card-arrow"
@@ -372,8 +398,6 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   const registrationCount = roster.data?.length ?? 0
   const isClosed = Boolean(event.data) && isRegistrationClosed(event.data!)
   const isFull = Boolean(event.data?.capacity && registrationCount >= event.data.capacity)
-  const isRunning = event.data?.running === true
-  const wasStopped = event.data?.running === false
   // Pending registrations stay behind the Pending filter so the main roster remains focused.
   const showBoard = provenanceFilter !== 'pending'
   const showPendingList = provenanceFilter === 'pending'
@@ -393,14 +417,14 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
       {event.data && isOrganizer && <div className="dashboard-series-card-actions">
         <Link className="quiet-button" to="/dashboard/series/$seriesId/events/$eventId/kiosk" params={{ seriesId, eventId }}><DoorOpen size={17} /> {t('openKiosk')}</Link>
         <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? <LockOpen size={17} /> : <Lock size={17} />} {isClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
-        <EventManagementActions openMicId={seriesId} eventId={eventId} running={event.data?.running} onDeleted={() => void navigate({ to: '/dashboard' })} navigationItems={[{ label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/events/$eventId', params: { eventId: event.data?.public_code ?? eventId } }) }, { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/edit', params: { seriesId, eventId } }) }, { label: t('copyLink'), onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${eventId}/register`) }, { label: t('downloadQr'), onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${eventId}/register`, event.data?.public_code ?? eventId) }]} />
+        <EventManagementActions openMicId={seriesId} eventId={eventId} onDeleted={() => void navigate({ to: '/dashboard' })} navigationItems={[{ label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/events/$eventId', params: { eventId: event.data?.public_code ?? eventId } }) }, { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/edit', params: { seriesId, eventId } }) }, { label: t('copyLink'), onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${eventId}/register`) }, { label: t('downloadQr'), onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${eventId}/register`, event.data?.public_code ?? eventId) }]} />
       </div>}
       {setRegistrationsClosed.isError && <p className="form-error">{friendlyApiErrorMessage(setRegistrationsClosed.error, 'Could not update registration availability.')}</p>}
       {event.data && <div className="roster-summary">
         <span className="roster-badge">{registrationCount} registration{registrationCount === 1 ? '' : 's'}</span>
         {event.data.capacity && <span className={isFull ? 'roster-badge roster-badge-warning' : 'roster-badge'}>{isFull ? 'Full' : `Capacity ${event.data.capacity}`}</span>}
         <span className={isClosed ? 'roster-badge roster-badge-warning' : 'roster-badge'}>{isClosed ? 'Registrations closed' : 'Registrations open'}</span>
-        <span className={wasStopped ? 'roster-badge roster-badge-warning' : 'roster-badge'}>{isRunning ? 'Event running' : wasStopped ? 'Event stopped' : 'Not started'}</span>
+        <span className="roster-badge">{event.data.status} · {event.data.phase}</span>
       </div>}
 
       {!context.account.data && <ReadState message={t('signInRoster')} />}

@@ -184,7 +184,6 @@ export function useOrganizerSeriesEvents(seriesId: string | undefined, enabled =
 
 export type EventDetail = Event & {
   ends_at: string | null
-  running: boolean
   registrations_closed_at: string | null
   address_line1: string
   address_line2: string | null
@@ -201,8 +200,9 @@ export type EventDetail = Event & {
 export type EventFormInput = {
   title: string
   starts_at: string
-  ends_at?: string
+  ends_at: string
   time_zone: string
+  status?: 'draft' | 'published'
   registrations_closed_at?: string | null
   capacity?: number
   venue_name?: string
@@ -282,31 +282,6 @@ export function useSetRegistrationsClosed(openMicId: string | undefined, eventId
   })
 }
 
-// Dedicated start/stop/restart control (Milestone 2 roster redesign). Setting running: false
-// (having been true or unset) makes the server auto-mark every still-"registered" performance
-// as no_show in the same transaction; setting it back to true never reverses that. See
-// docs/decisions.md "Milestone 2 event lifecycle" for the full rule.
-export function useSetEventRunning(openMicId: string | undefined, eventId: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (running: boolean) => api<EventDetail>(`/events/${eventId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ running }),
-    }),
-    onMutate: () => {
-      if (!eventId) return
-      markSelfCausedChange(`roster:${eventId}`)
-      markSelfCausedChange(`event:${eventId}`)
-    },
-    onSuccess: (updated) => {
-      queryClient.setQueryData([...organizerKeys.openMics(openMicId), 'event', eventId], updated)
-      // Unlike the other roster mutations, this genuinely needs a refetch: the server's bulk
-      // no_show side effect touches rows this response doesn't include.
-      queryClient.invalidateQueries({ queryKey: rosterKey(eventId) })
-    },
-  })
-}
 
 // --- Event roster (Milestone 2: organizer event operations) ---
 
@@ -404,10 +379,8 @@ const rosterKey = (eventId: string | undefined) => ['organizer', 'event-roster',
 // Every roster mutation already returns the exact row it just changed, so there is no need to ever
 // re-GET the roster for a change this tab itself made — the mutations below patch the cached
 // roster array directly from the mutation response instead of invalidating. A GET is still needed
-// when *someone else* (another organizer, the kiosk, another tab) changes something: that arrives
-// as a roster SSE notification and triggers a real refetch there. The one exception is
-// useSetEventRunning, whose server-side effect (bulk-marking unregistered performers as no_show)
-// touches rows the mutation response doesn't include, so it still refetches.
+// when someone else (another organizer, the kiosk, another tab) changes something: that arrives
+// as a roster SSE notification and triggers a real refetch there.
 //
 // The one wrinkle: Postgres NOTIFY is broadcast to every listener, including the tab that made the
 // change, so this tab's own SSE connection will also receive a notification for its own edit a
@@ -415,7 +388,8 @@ const rosterKey = (eventId: string | undefined) => ['organizer', 'event-roster',
 // target key as "self-caused" in `onMutate` (before the request round-trip, since the NOTIFY can
 // race ahead of the HTTP response), and the SSE handler consumes (one-shot) that mark instead of
 // invalidating when it sees the matching event — leaving genuinely-external changes to refetch as
-// normal.
+// normal. Manual event stop/restart effects no longer exist; registration closure never bulk
+// changes the roster.
 const selfCausedInvalidateUntil = new Map<string, number>()
 const SELF_CAUSED_SUPPRESS_MS = 5000
 

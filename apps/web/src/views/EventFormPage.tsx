@@ -10,8 +10,9 @@ import { useCreateEvent, useEventDetail, useOpenMicDetail, useOrganizerProfile, 
 import { CURRENCIES } from '../features/currencies'
 import { ACTIVITY_LABEL_KEYS, browserTimeZone, COUNTRY_OPTIONS, formatTimeZoneOption, TIME_ZONE_OPTIONS } from '../features/form-options'
 import { baseLocationFieldsSchema } from '../features/location'
+import { isRegistrationClosed } from '../features/publicReads'
 import type { ColorMode, ThemeId } from '../theme'
-import { ReadState, Required, RequiredFieldsNote, SiteHeader } from './shared'
+import { Modal, ReadState, Required, RequiredFieldsNote, SiteHeader } from './shared'
 
 const ACTIVITIES = ['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other'] as const
 
@@ -40,8 +41,9 @@ const eventFormSchema = z
   .object({
     title: z.string().trim().min(1, 'Event title is required'),
     starts_at: z.string().min(1, 'Start time is required'),
-    ends_at: z.string().optional(),
+    ends_at: z.string().min(1, 'End time is required'),
     time_zone: z.string().trim().min(1, 'Time zone is required'),
+    status: z.enum(['draft', 'published']),
     registrations_closed_at: z.string().optional(),
     open_registrations: z.boolean(),
     capacity: z.string().optional(),
@@ -87,6 +89,7 @@ const DEFAULT_VALUES: EventFormValues = {
   starts_at: '',
   ends_at: '',
   time_zone: browserTimeZone(),
+  status: 'draft',
   registrations_closed_at: '',
   open_registrations: true,
   capacity: '',
@@ -140,6 +143,9 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   })
   const { errors, isDirty } = formState
   const [activeTab, setActiveTab] = useState(0)
+  const [savedModalOpen, setSavedModalOpen] = useState(false)
+  const [discardModalOpen, setDiscardModalOpen] = useState(false)
+  const [registrationTogglePending, setRegistrationTogglePending] = useState(false)
 
   const overrideLocation = watch('override_location')
   const lat = watch('lat')
@@ -150,6 +156,11 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   const postcode = watch('postcode')
   const activities = watch('activities') ?? []
   const entryFeeAmount = watch('entry_fee_amount')
+  const registrationsClosedAt = watch('registrations_closed_at') ?? ''
+  const existingEvent = existing.data
+  const onlineRegistrationMode = openMic.data?.registration_mode === 'pre_only' || openMic.data?.registration_mode === 'both'
+  const registrationsClosed = Boolean(registrationsClosedAt) && new Date(registrationsClosedAt).getTime() <= Date.now()
+  const eventPhase = existingEvent?.phase
 
   // Prefill sensible defaults from the parent series when creating a new event. The event
   // always stores its own location snapshot; these values are copied so it saves correctly
@@ -170,13 +181,15 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
 
   useEffect(() => {
     if (!existing.data) return
+    setRegistrationTogglePending(false)
     reset({
       title: existing.data.title,
       starts_at: toDatetimeLocalValue(existing.data.starts_at),
       ends_at: toDatetimeLocalValue(existing.data.ends_at),
       time_zone: existing.data.time_zone,
+      status: existing.data.status,
       registrations_closed_at: toDatetimeLocalValue(existing.data.registrations_closed_at),
-      open_registrations: !existing.data.registrations_closed_at,
+      open_registrations: !isRegistrationClosed(existing.data),
       capacity: existing.data.capacity ? String(existing.data.capacity) : '',
       override_location: true,
       venue_name: existing.data.venue_name,
@@ -239,13 +252,16 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
     const input: EventFormInput = {
       title: values.title,
       starts_at: fromDatetimeLocalValue(values.starts_at)!,
-      ends_at: fromDatetimeLocalValue(values.ends_at ?? ''),
+      ends_at: fromDatetimeLocalValue(values.ends_at)!,
       time_zone: values.time_zone,
-      registrations_closed_at: values.open_registrations
-        ? (isEdit ? null : undefined)
-        : values.registrations_closed_at
-          ? fromDatetimeLocalValue(values.registrations_closed_at)
-          : new Date().toISOString(),
+      status: values.status,
+      registrations_closed_at: isEdit
+        ? (values.registrations_closed_at ? fromDatetimeLocalValue(values.registrations_closed_at) : null)
+        : values.open_registrations
+          ? undefined
+          : values.registrations_closed_at
+            ? fromDatetimeLocalValue(values.registrations_closed_at)
+            : new Date().toISOString(),
       capacity: values.capacity ? Number(values.capacity) : undefined,
       activities: values.activities && values.activities.length > 0 ? values.activities : undefined,
       tags: (values.tags ?? '').split(',').map((tag) => tag.trim()).filter(Boolean),
@@ -265,7 +281,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
       } : {}),
     }
     if (isEdit) {
-      updateEvent.mutate(input, { onSuccess: () => reset(values) })
+      updateEvent.mutate(input, { onSuccess: () => { reset(values); setRegistrationTogglePending(false); setSavedModalOpen(true) } })
     } else {
       createEvent.mutate(input, {
         onSuccess: (created) => { reset(values); void navigate({ to: '/events/$eventId', params: { eventId: created.public_code } }) },
@@ -274,11 +290,12 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   }
 
   function toggleRegistrationAvailability() {
-    setValue('registrations_closed_at', watch('registrations_closed_at') ? '' : toDatetimeLocalValue(new Date().toISOString()), { shouldDirty: true })
+    setValue('registrations_closed_at', registrationsClosed ? '' : toDatetimeLocalValue(new Date().toISOString()), { shouldDirty: true })
+    setRegistrationTogglePending(true)
   }
 
   function discardChanges() {
-    if (isDirty && !window.confirm(t('confirmDiscardChanges'))) return
+    if (isDirty) { setDiscardModalOpen(true); return }
     void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId } })
   }
 
@@ -315,7 +332,10 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
           {errors.title && <p className="form-error" role="alert">{errors.title.message}</p>}
           <label><span>{t('startsAt')}<Required /></span><input required type="datetime-local" {...register('starts_at')} /></label>
           {errors.starts_at && <p className="form-error" role="alert">{errors.starts_at.message}</p>}
-          <label>{t('endsAt')}<input type="datetime-local" {...register('ends_at')} /></label>
+          <label><span>{t('endsAt')}<Required /></span><input required type="datetime-local" {...register('ends_at')} /></label>
+          {errors.ends_at && <p className="form-error" role="alert">{errors.ends_at.message}</p>}
+          <label>{t('eventPublication')}<select {...register('status')}><option value="draft">{t('statusDraft')}</option><option value="published">{t('statusPublished')}</option></select></label>
+          {isEdit && eventPhase && <p className="field-hint">{t('eventPhaseLabel')}: {t(`eventPhase${eventPhase[0].toUpperCase()}${eventPhase.slice(1)}`)}</p>}
           <label>{t('capacity')}<input type="number" min="1" {...register('capacity')} /></label>
           <p className="field-hint">{t('eventCapacityHint')}</p>
         </section>
@@ -326,8 +346,11 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
           <p className="field-hint">{t('timeZoneFormHint')}</p>
           <label>{t('closeAt')}<input type="datetime-local" {...register('registrations_closed_at')} /></label>
           <p className="field-hint">{t('closeAtHint')}</p>
+          <p className="field-hint">{onlineRegistrationMode ? t('eventOnlineRegistrationEnabled') : t('eventOnlineRegistrationDisabled')}</p>
+          {isEdit && eventPhase === 'past' && <p className="field-hint">{t('eventRegistrationEnded')}</p>}
           {!isEdit && <label className="checkbox-label"><input type="checkbox" {...register('open_registrations')} /><span>{t('openRegistrationsOnCreate')}</span></label>}
-          <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{watch('registrations_closed_at') ? t('reopenRegistrations') : t('stopRegistrations')}</button>
+          <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{registrationsClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
+          {registrationTogglePending && isDirty && <p className="field-hint" role="status">{t('saveRegistrationChangeHint')}</p>}
         </section>
 
         <section id="event-tab-location" role="tabpanel" hidden={activeTab !== 2}>
@@ -365,15 +388,27 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
         </section>
 
         {mutation.isError && <p className="form-error" role="alert">{eventErrorMessage(mutation.error)}</p>}
-        {mutation.isSuccess && isEdit && <p className="form-success" role="status">{t('saved')}</p>}
         <div className="form-tab-navigation">
-          <button type="button" className="link-button" onClick={discardChanges}>{t('discardChanges')}</button>
-          <button className="primary-button" type="submit" disabled={mutation.isPending}>{mutation.isPending ? t('saving') : isEdit ? t('saveChanges') : t('createEvent')}</button>
+          <button type="button" className="link-button" onClick={discardChanges}>{t('cancel')}</button>
+          <button className="primary-button" type="submit" disabled={mutation.isPending || (isEdit && !isDirty)}>{mutation.isPending ? t('saving') : isEdit ? t('saveChanges') : t('createEvent')}</button>
           <span className="form-tab-navigation-spacer" aria-hidden="true" />
           <button type="button" className="quiet-button" disabled={activeTab === 0} onClick={() => setActiveTab((tab) => Math.max(0, tab - 1))}>{t('previousTab')}</button>
           <button type="button" className="quiet-button" disabled={activeTab === EVENT_TABS.length - 1} onClick={() => setActiveTab((tab) => Math.min(EVENT_TABS.length - 1, tab + 1))}>{t('nextTab')}</button>
         </div>
       </form>
+      {savedModalOpen && <Modal title={t('eventSavedTitle')} onClose={() => setSavedModalOpen(false)}>
+        <p>{t('eventSavedMessage')}</p>
+        <div className="dashboard-series-card-actions">
+          <button type="button" className="quiet-button" onClick={() => setSavedModalOpen(false)}>{t('close')}</button>
+        </div>
+      </Modal>}
+      {discardModalOpen && <Modal title={t('confirmAction')} onClose={() => setDiscardModalOpen(false)}>
+        <p>{t('confirmDiscardChanges')}</p>
+        <div className="dashboard-series-card-actions">
+          <button type="button" className="quiet-button" onClick={() => { setDiscardModalOpen(false); void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId } }) }}>{t('discardChanges')}</button>
+          <button type="button" className="link-button" onClick={() => setDiscardModalOpen(false)}>{t('cancel')}</button>
+        </div>
+      </Modal>}
     </section>
   </main>
 }

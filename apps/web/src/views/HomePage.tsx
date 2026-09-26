@@ -26,7 +26,7 @@ export function HomePage({ theme, mode }: ThemeProps) {
   return (
     <main className="app" data-theme={theme} data-mode={mode}>
       <SiteHeader />
-      <ClaimableRegistrationsBanner />
+      <div className="home-claimable-banner"><ClaimableRegistrationsBanner /></div>
 
       <section className="review-hero" id="discover">
         <div className="eyebrow"><Sparkles size={14} /> {t('openMicDiscovery')}</div>

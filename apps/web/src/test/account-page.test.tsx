@@ -57,7 +57,7 @@ describe('AccountPage', () => {
       }),
     )
 
-    renderWithProviders(<AccountPage theme="light" mode="light" />)
+    renderWithProviders(<AccountPage theme="venue" mode="light" />)
 
     expect(await screen.findByDisplayValue('Organizer')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Dublin')).toBeInTheDocument()
@@ -96,7 +96,7 @@ describe('AccountPage', () => {
       http.get('/api/accounts/account-1/profiles', () => HttpResponse.json({ items: [] })),
     )
 
-    renderWithProviders(<AccountPage theme="light" mode="light" />)
+    renderWithProviders(<AccountPage theme="venue" mode="light" />)
 
     expect(await screen.findByText('Blocked')).toBeInTheDocument()
     expect(screen.getByText(/location access is blocked in your browser or device settings/i)).toBeInTheDocument()

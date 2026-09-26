@@ -11,6 +11,7 @@ const event = {
   open_mic_id: 'open-mic-1',
   title: 'Friday Stage',
   starts_at: '2026-10-01T19:00:00.000Z',
+  ends_at: '2026-10-01T22:00:00.000Z',
   time_zone: 'Europe/Dublin',
   venue_name: 'The Lantern',
   city: 'Dublin',
@@ -20,6 +21,8 @@ const event = {
   capacity: null,
   registrations_closed_at: null as string | null,
   notes: 'A welcoming night for new voices.',
+  status: 'published' as const,
+  phase: 'future' as const,
 }
 
 const openMic = {
@@ -53,7 +56,7 @@ describe('DetailPage event registration action', () => {
     renderWithProviders(<DetailPage kind="event" id="LIVE1" theme="venue" mode="light" />)
 
     expect(await screen.findByRole('heading', { name: 'Friday Stage' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Register for this event' })).toHaveAttribute('href', '/events/LIVE1/register')
+    expect(await screen.findByRole('link', { name: 'Register for this event' })).toHaveAttribute('href', '/events/LIVE1/register')
   })
 
   it('disables registration when the event is closed', async () => {

@@ -8,7 +8,7 @@ const baseFields = {
   starts_at: z.string().datetime().optional(),
   ends_at: z.string().datetime().optional(),
   time_zone: z.string().min(1).optional(),
-  running: z.boolean().optional(),
+  status: z.enum(['draft', 'published']).optional(),
   registrations_closed_at: z.string().datetime().nullable().optional(),
   capacity: z.number().min(1).optional(),
   // Location snapshot fields — must all be provided together or all omitted
@@ -97,6 +97,7 @@ export const createEventSchema = refineCrossFieldRules(
     .required({
       title: true,
       starts_at: true,
+      ends_at: true,
       time_zone: true,
     })
     .strict(),

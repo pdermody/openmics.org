@@ -12,7 +12,7 @@ describe('EventRosterPage access state', () => {
       http.get('/api/me', () => HttpResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Not signed in' } }, { status: 401 })),
       http.get('/api/open-mics/series-1/events/event-1', () => HttpResponse.json({
         id: 'event-1', title: 'Friday Stage', starts_at: '2026-10-01T19:00:00.000Z',
-        running: false, registrations_closed_at: null, venue_name: 'The Lantern', city: 'Dublin',
+        ends_at: '2026-10-01T22:00:00.000Z', status: 'published', phase: 'running', registrations_closed_at: null, venue_name: 'The Lantern', city: 'Dublin',
       })),
     )
 

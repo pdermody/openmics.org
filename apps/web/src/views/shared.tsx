@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -36,11 +36,13 @@ export function SocialButton({ label, icon }: { label: string; icon: 'heart' | '
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const { t } = useTranslation()
   const panelRef = useDismissOnOutsideOrEscape<HTMLDivElement>(true, onClose)
-  // Portal into the themed `.app` root (not document.body): it's still an ancestor of any
-  // scrolling container we need to escape for clipping purposes, but staying inside `.app`
-  // keeps the theme's CSS custom properties (--surface, --ink, etc., scoped to `.app[data-theme]`
-  // selectors) in scope, so the modal isn't rendered with a transparent background/black text.
-  const portalTarget = document.querySelector('.app') ?? document.body
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null)
+  // A route's Suspense fallback can still be in the DOM during render; pick the themed root
+  // after commit so the portal is not attached to a fallback that React then removes.
+  useLayoutEffect(() => {
+    setPortalTarget(document.querySelector('.app') ?? document.body)
+  }, [])
+  if (!portalTarget) return null
   return createPortal(
     <div className="modal-backdrop">
       <div className="modal-panel" ref={panelRef} role="dialog" aria-modal="true" aria-label={title}>

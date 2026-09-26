@@ -28,7 +28,7 @@ describe('LanguageSelector', () => {
     await user.click(screen.getByRole('button', { name: 'Language' }))
     await user.click(screen.getByRole('menuitem', { name: 'Español' }))
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Idioma' })).toHaveTextContent('ES'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Idioma' })).toHaveTextContent('Español'))
     expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('es')
     expect(document.documentElement.lang).toBe('es')
   })
@@ -67,7 +67,7 @@ describe('LanguageSelector', () => {
 
     renderWithProviders(<LanguageSelector />)
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Idioma' })).toHaveTextContent('ES'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Idioma' })).toHaveTextContent('Español'))
     expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('es')
   })
 })

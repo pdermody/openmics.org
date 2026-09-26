@@ -26,6 +26,7 @@ function registrationErrorMessage(error: unknown): string {
   if (fieldErrors?.contact_email?.length) return 'Please enter a valid email address, such as you@example.com.'
   if (fieldErrors?.performer_name?.length) return 'Please enter the name you would like the organizer to call.'
   if (error.code === 'REGISTRATIONS_CLOSED') return 'Registration is closed for this event.'
+  if (error.code === 'REGISTRATION_UNAVAILABLE') return 'Registration is not available for this event.'
   if (error.code === 'CAPACITY_EXCEEDED') return 'This event is full, but you can check back for cancellations.'
   if (error.code === 'DUPLICATE_REGISTRATION') return 'This email already has a registration for this event.'
   return 'Please check your details and try again.'
@@ -65,7 +66,20 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
   const needsPerformerProfile = Boolean(accountContext.account.data) && !performerProfile
   const registrationMode = parentOpenMic.data?.registration_mode
   const eventRegistrationClosed = Boolean(event.data) && isRegistrationClosed(event.data!)
-  const standardRegistrationDisabled = eventRegistrationClosed || registrationMode === 'on_night_only' || registrationMode === 'external'
+  const standardRegistrationDisabled = eventRegistrationClosed
+    || parentOpenMic.data?.status !== 'active'
+    || event.data?.status !== 'published'
+    || event.data?.phase === 'past'
+    || !['pre_only', 'both'].includes(registrationMode ?? '')
+  const registrationUnavailableMessage = eventRegistrationClosed
+    ? 'Registration is closed for this event.'
+    : event.data?.phase === 'past'
+      ? 'Registration is no longer available for this event.'
+      : parentOpenMic.data?.status !== 'active' || event.data?.status !== 'published'
+        ? 'Registration is not available for this event.'
+        : registrationMode === 'external'
+          ? 'This open mic is using an external registration link, so self-serve signups are disabled here.'
+          : 'Online registration is not available for this open mic.'
   const [performerName, setPerformerName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [performerCity, setPerformerCity] = useState('')
@@ -142,9 +156,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
     eventObject.preventDefault()
     if (standardRegistrationDisabled) {
       setState('error')
-      setMessage(eventRegistrationClosed
-        ? 'Registration is closed for this event.'
-        : registrationMode === 'external' ? 'This open mic uses an external registration link.' : 'Registration for this open mic is only available on the night.')
+      setMessage(registrationUnavailableMessage)
       return
     }
     if (!performerProfile && !performerName.trim()) {
@@ -222,11 +234,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
           {verifyState === 'error' && <div className="profile-context profile-context-warning" role="alert">{t('emailConfirmFailed')}</div>}
           {standardRegistrationDisabled && !editRegistration && (
             <div className="profile-context profile-context-warning" role="alert">
-              {eventRegistrationClosed
-                ? 'Registration is closed for this event.'
-                : registrationMode === 'external'
-                  ? 'This open mic is using an external registration link, so self-serve signups are disabled here.'
-                  : 'This open mic only accepts registrations on the night, so self-serve signups are disabled here.'}
+              {registrationUnavailableMessage}
             </div>
           )}
           {needsPerformerProfile && !editRegistration && <div className="profile-context profile-context-warning" role="alert">{t('switchPerformerWarning')}</div>}

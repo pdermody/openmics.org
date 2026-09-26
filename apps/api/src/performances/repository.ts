@@ -189,23 +189,6 @@ export async function updatePerformance(
   return result.rows[0] ?? null;
 }
 
-// Called when an organizer stops an event (Events.running -> false): anyone who never checked in
-// is treated as a no-show automatically, since the event is over and they didn't show up. Only
-// 'registered' rows are affected — performers already present/scheduled/performing/performed (or
-// already no_show/cancelled) are left untouched. Returns the affected performance rows so callers
-// can publish roster notifications for them.
-export async function markUnregisteredAsNoShowForEvent(pool: Queryable, eventId: string): Promise<PerformanceRow[]> {
-  const result = await pool.query<PerformanceRow>(
-    `UPDATE performances p
-     SET status = 'no_show', updated_at = now()
-     FROM registrations r
-     WHERE p.registration_id = r.id AND r.event_id = $1 AND p.status = 'registered' AND p.deleted_at IS NULL
-     RETURNING p.*`,
-    [eventId],
-  );
-  return result.rows;
-}
-
 export async function softDeletePerformance(pool: Pool, id: string, deletedByProfileId: string): Promise<boolean> {
   const result = await pool.query(
     `UPDATE performances
@@ -214,22 +197,6 @@ export async function softDeletePerformance(pool: Pool, id: string, deletedByPro
     [deletedByProfileId, id],
   );
   return result.rowCount === 1;
-}
-
-// Called (after markUnregisteredAsNoShowForEvent) when an organizer stops an event: a valid,
-// reportable performance requires both a start and finish time (i.e. the performer actually got
-// on stage), so any row that never reached "performing" — still registered/present/scheduled, or
-// bulk-marked no_show/cancelled — is cleared out once the night is over rather than left cluttering
-// history and reports with sets that never happened.
-export async function deleteNeverStartedPerformancesForEvent(pool: Queryable, eventId: string, deletedByProfileId: string): Promise<number> {
-  const result = await pool.query(
-    `UPDATE performances p
-     SET deleted_at = now(), deleted_by_profile_id = $1, recovery_deadline = now() + interval '30 days', updated_at = now()
-     FROM registrations r
-     WHERE p.registration_id = r.id AND r.event_id = $2 AND p.started_at IS NULL AND p.deleted_at IS NULL`,
-    [deletedByProfileId, eventId],
-  );
-  return result.rowCount ?? 0;
 }
 
 export function serializePerformance(row: PerformanceRow, includeNotes = false) {

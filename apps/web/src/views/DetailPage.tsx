@@ -29,7 +29,8 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   const needsPerformerProfile = Boolean(accountContext.account.data) && activeProfile?.profile_kind !== 'performer'
   const registeredEventIds = useMyRegisteredEventIds()
   const isRegisteredForEvent = kind === 'event' && Boolean(event.data) && registeredEventIds.has(event.data!.id)
-  const isRegisteredForNextEvent = kind === 'open-mic' && Boolean(nextEvent.data) && registeredEventIds.has(nextEvent.data!.id)
+  const nextRegistrableEvent = nextEvent.data?.next_registration_event
+  const isRegisteredForNextEvent = kind === 'open-mic' && Boolean(nextRegistrableEvent) && registeredEventIds.has(nextRegistrableEvent!.id)
   const loading = kind === 'event' ? event.isPending : kind === 'open-mic' ? openMic.isPending : profile.isPending
   const error = kind === 'event' ? event.isError : kind === 'open-mic' ? openMic.isError : profile.isError
   const title = event.data?.title ?? openMic.data?.name ?? profile.data?.profile_name
@@ -37,15 +38,17 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   const retry = () => void (kind === 'event' ? event.refetch() : kind === 'open-mic' ? openMic.refetch() : profile.refetch())
   const registrationMode = kind === 'event' ? parentOpenMic.data?.registration_mode : openMic.data?.registration_mode
   const eventRegistrationClosed = kind === 'event' && Boolean(event.data) && isRegistrationClosed(event.data!)
-  const nextEventRegistrationClosed = kind === 'open-mic' && Boolean(nextEvent.data) && isRegistrationClosed(nextEvent.data!)
-  const registrationDisabled = eventRegistrationClosed || nextEventRegistrationClosed || registrationMode === 'on_night_only' || registrationMode === 'external'
-  const registrationDisabledLabel = (eventRegistrationClosed || nextEventRegistrationClosed)
+  const eventRegistrationAvailable = parentOpenMic.data?.status === 'active'
+    && event.data?.status === 'published'
+    && event.data?.phase !== 'past'
+    && ['pre_only', 'both'].includes(registrationMode ?? '')
+    && !eventRegistrationClosed
+  const registrationDisabled = kind === 'event' && !eventRegistrationAvailable
+  const registrationDisabledLabel = eventRegistrationClosed
     ? 'Registration closed'
     : registrationMode === 'external'
       ? 'External registration'
-      : registrationMode === 'on_night_only'
-        ? 'In-person registration only'
-        : 'Registration unavailable'
+      : 'Registration unavailable'
 
   return (
     <main className="app" data-theme={theme} data-mode={mode}>
@@ -95,8 +98,6 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
             {kind === 'open-mic' && (
               isRegisteredForNextEvent ? (
                 <span className="profile-context" role="status">{t('registeredNext')}</span>
-              ) : nextEvent.data ? (
-                <Link className="primary-button" to="/events/$eventId" params={{ eventId: nextEvent.data.public_code }}>{t('seeNextEvent')}</Link>
               ) : needsPerformerProfile ? (
                 <button className="primary-button" type="button" onClick={focusProfileSwitcher}>
                   Switch to a performer profile to register
