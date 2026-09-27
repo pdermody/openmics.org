@@ -14,6 +14,7 @@ import {
   useDeletePerformance,
   useEventDetail,
   useEventRoster,
+  useOpenMicDetail,
   useOrganizerProfile,
   useRosterLiveUpdates,
   useUpdatePerformance,
@@ -325,6 +326,7 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   const navigate = useNavigate()
   const { context, isOrganizer } = useOrganizerProfile()
   const event = useEventDetail(seriesId, eventId)
+  const openMic = useOpenMicDetail(seriesId)
   const roster = useEventRoster(eventId, isOrganizer)
   const [provenanceFilter, setProvenanceFilter] = useState<ProvenanceFilter>('all')
   useRosterLiveUpdates(seriesId, eventId, isOrganizer)
@@ -398,6 +400,7 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   const registrationCount = roster.data?.length ?? 0
   const isClosed = Boolean(event.data) && isRegistrationClosed(event.data!)
   const isFull = Boolean(event.data?.capacity && registrationCount >= event.data.capacity)
+  const supportsOnlineRegistration = ['pre_only', 'both'].includes(openMic.data?.registration_mode ?? '')
   // Pending registrations stay behind the Pending filter so the main roster remains focused.
   const showBoard = provenanceFilter !== 'pending'
   const showPendingList = provenanceFilter === 'pending'
@@ -416,14 +419,14 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
       </p>}
       {event.data && isOrganizer && <div className="dashboard-series-card-actions">
         <Link className="quiet-button" to="/dashboard/series/$seriesId/events/$eventId/kiosk" params={{ seriesId, eventId }}><DoorOpen size={17} /> {t('openKiosk')}</Link>
-        <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? <LockOpen size={17} /> : <Lock size={17} />} {isClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
+        {supportsOnlineRegistration && <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? <LockOpen size={17} /> : <Lock size={17} />} {isClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>}
         <EventManagementActions openMicId={seriesId} eventId={eventId} onDeleted={() => void navigate({ to: '/dashboard' })} navigationItems={[{ label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/events/$eventId', params: { eventId: event.data?.public_code ?? eventId } }) }, { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/edit', params: { seriesId, eventId } }) }, { label: t('copyLink'), onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${eventId}/register`) }, { label: t('downloadQr'), onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${eventId}/register`, event.data?.public_code ?? eventId) }]} />
       </div>}
       {setRegistrationsClosed.isError && <p className="form-error">{friendlyApiErrorMessage(setRegistrationsClosed.error, 'Could not update registration availability.')}</p>}
       {event.data && <div className="roster-summary">
         <span className="roster-badge">{registrationCount} registration{registrationCount === 1 ? '' : 's'}</span>
         {event.data.capacity && <span className={isFull ? 'roster-badge roster-badge-warning' : 'roster-badge'}>{isFull ? 'Full' : `Capacity ${event.data.capacity}`}</span>}
-        <span className={isClosed ? 'roster-badge roster-badge-warning' : 'roster-badge'}>{isClosed ? 'Registrations closed' : 'Registrations open'}</span>
+        {supportsOnlineRegistration && <span className={isClosed ? 'roster-badge roster-badge-warning' : 'roster-badge'}>{isClosed ? 'Registrations closed' : 'Registrations open'}</span>}
         <span className="roster-badge">{event.data.status} · {event.data.phase}</span>
       </div>}
 

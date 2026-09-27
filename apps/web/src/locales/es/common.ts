@@ -114,6 +114,7 @@ const spanish = {
   currentTheme: 'Tema actual',
   dark: 'Oscuro',
   dashboard: 'Panel',
+  dashboardCreateSeries: 'Crear una serie de open mic',
   dashboardTitle: 'Prepara la sala.',
   deleteEvent: 'Eliminar evento',
   deleteProfile: 'Eliminar perfil',

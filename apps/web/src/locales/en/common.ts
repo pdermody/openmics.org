@@ -115,6 +115,7 @@ const english = {
   currentTheme: 'Current theme',
   dark: 'Dark',
   dashboard: 'Dashboard',
+  dashboardCreateSeries: 'Create open mic series',
   dashboardTitle: 'Make the room ready.',
   deleteEvent: 'Delete event',
   deleteProfile: 'Delete profile',

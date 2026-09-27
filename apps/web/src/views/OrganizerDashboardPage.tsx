@@ -97,7 +97,8 @@ export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: 
       {!isOrganizerPending && context.account.data && !isOrganizer && <ReadState message={t('selectOrganizer')} />}
       {isOrganizer && selected && <>
         <p className="detail-lede">{t('workingAs', { name: selected.profile_name })}</p>
-        {hasNoOpenMics && <div className="dashboard-card"><span className="panel-label">{t('getStarted')}</span><h2>{t('setupFirst')}</h2><p>{t('noSeriesYet')}</p><Link className="quiet-button" to="/dashboard/series/new">{t('setupFirstLink')}</Link></div>}
+        <div className="dashboard-series-card-actions"><Link className="quiet-button" to="/dashboard/series/new">{t('dashboardCreateSeries')}</Link></div>
+        {hasNoOpenMics && <div className="dashboard-card"><span className="panel-label">{t('getStarted')}</span><h2>{t('setupFirst')}</h2><p>{t('noSeriesYet')}</p></div>}
         <div className="dashboard-series-list">
           {openMics.isPending && <ReadState message={t('loading')} />}
           {openMics.isError && <ReadState message={t('seriesLoadError')} retry={() => void openMics.refetch()} />}
