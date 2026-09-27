@@ -373,7 +373,7 @@ const spanish = {
   selectCurrency: 'Selecciona moneda',
   selectOrganizer: 'Selecciona un perfil de organizador para gestionar series y eventos.',
   selectOrganizerSeries: 'Cambia a un perfil de organizador para gestionar series de open mic.',
-  selectPerformerProfile: 'Selecciona un perfil de intérprete',
+  selectPerformerProfile: 'Selecciona un perfil',
   sending: 'Enviando…',
   seriesActions: 'Acciones de la serie',
   seriesContactHint: 'Usa una dirección donde los artistas puedan contactar con la organización.',

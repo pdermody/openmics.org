@@ -344,13 +344,14 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
           <label><span>{t('timeZone')}<Required /></span><select required {...register('time_zone')}>{TIME_ZONE_OPTIONS.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone)}</option>)}</select></label>
           {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
           <p className="field-hint">{t('timeZoneFormHint')}</p>
-          <label>{t('closeAt')}<input type="datetime-local" {...register('registrations_closed_at')} /></label>
-          <p className="field-hint">{t('closeAtHint')}</p>
           <p className="field-hint">{onlineRegistrationMode ? t('eventOnlineRegistrationEnabled') : t('eventOnlineRegistrationDisabled')}</p>
           {isEdit && eventPhase === 'past' && <p className="field-hint">{t('eventRegistrationEnded')}</p>}
-          {!isEdit && <label className="checkbox-label"><input type="checkbox" {...register('open_registrations')} /><span>{t('openRegistrationsOnCreate')}</span></label>}
-          <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{registrationsClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
-          {registrationTogglePending && isDirty && <p className="field-hint" role="status">{t('saveRegistrationChangeHint')}</p>}
+          {isEdit && onlineRegistrationMode && <>
+            <label>{t('closeAt')}<input type="datetime-local" {...register('registrations_closed_at')} /></label>
+            <p className="field-hint">{t('closeAtHint')}</p>
+            <button className="quiet-button" type="button" onClick={toggleRegistrationAvailability}>{registrationsClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>
+            {registrationTogglePending && isDirty && <p className="field-hint" role="status">{t('saveRegistrationChangeHint')}</p>}
+          </>}
         </section>
 
         <section id="event-tab-location" role="tabpanel" hidden={activeTab !== 2}>

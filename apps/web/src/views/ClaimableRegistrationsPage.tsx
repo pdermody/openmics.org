@@ -6,7 +6,7 @@ import { Select } from '../components/radix-select'
 import { useAccountContext, type AccountProfile } from '../features/account'
 import { useClaimableRegistrations, useClaimRegistration, type ClaimableRegistration } from '../features/claimableRegistrations'
 import type { ColorMode, ThemeId } from '../theme'
-import { ReadState, Required, SiteHeader } from './shared'
+import { ReadState, SiteHeader } from './shared'
 
 function formatRegistrationDate(value: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value))
@@ -31,8 +31,7 @@ function ClaimRow({ registration, performerProfiles }: { registration: Claimable
       <p className="event-meta">{formatRegistrationDate(registration.event_starts_at, i18n.language)}</p>
       {registration.song_names.length > 0 && <p>{registration.song_names.join(', ')}</p>}
     </div>
-    <div className="profile-context-controls">
-      <label><span>{t('adoptProfile')}<Required /></span></label>
+    <div className="profile-context-controls claim-registration-controls">
       <Select
         required
         value={adoptedProfileId}

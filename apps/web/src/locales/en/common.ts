@@ -374,7 +374,7 @@ const english = {
   selectCurrency: 'Select currency',
   selectOrganizer: 'Select an organizer profile to manage open mic series and events.',
   selectOrganizerSeries: 'Switch to an organizer profile to manage open mic series.',
-  selectPerformerProfile: 'Select a performer profile',
+  selectPerformerProfile: 'Select profile',
   sending: 'Sending…',
   seriesActions: 'Series actions',
   seriesContactHint: 'Use an address where performers can reach the organizer about this series.',
