@@ -1,5 +1,5 @@
 import { userEvent } from '@testing-library/user-event'
-import { waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { PinCombinationInput } from '../views/KioskPage'
@@ -14,6 +14,11 @@ describe('PinCombinationInput', () => {
     const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input'))
     expect(inputs).toHaveLength(4)
     expect(inputs[0]).toHaveAttribute('type', 'password')
+    const reveal = screen.getByRole('button', { name: 'Show Exit PIN' })
+    await user.click(reveal)
+    expect(inputs.every((input) => input.type === 'text')).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Hide Exit PIN' }))
+    expect(inputs.every((input) => input.type === 'password')).toBe(true)
 
     await user.type(inputs[0], '12')
     await user.keyboard('{Backspace}')

@@ -2,12 +2,12 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
-import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { parseGeoFilter } from '../geo.js';
 import { assignHandle } from '../handles/service.js';
 import { requireOwnedProfile } from '../profiles/current-profile.js';
 import { findProfileById } from '../profiles/repository.js';
-import { findOpenMicById, findOpenMicByIdOrPublicCode, findOwnedOpenMics, findPublicOpenMics, getKioskBackupPinHash, insertOpenMic, serializeOpenMic, setKioskBackupPinHash, softDeleteOpenMic, updateOpenMic } from './repository.js';
+import { findOpenMicById, findOpenMicByIdOrPublicCode, findOwnedOpenMics, findPublicOpenMics, getKioskBackupPin, insertOpenMic, serializeOpenMic, setKioskBackupPin, softDeleteOpenMic, updateOpenMic } from './repository.js';
 import { createOpenMicSchema, kioskBackupPinSchema, updateOpenMicSchema } from './validation.js';
 
 export type OpenMicsPluginOptions = { pool: Pool };
@@ -129,18 +129,25 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
 
   // Kiosk backup PIN: configured server-side per series (not per-device), so it's the organizer's
   // fallback if they forget the fresh one-time PIN they choose each time they open the kiosk (see
-  // KioskPage.tsx). The client hashes the PIN before sending it; this table only stores/compares
-  // hashes and the hash is never returned to the client (kept out of serializeOpenMic entirely).
+  // KioskPage.tsx). Routine status/public reads omit the stored PIN; only the separate
+  // owner-authenticated reveal route returns it after an explicit request.
   app.get<{ Params: { id: string } }>('/open-mics/:id/kiosk-backup-pin', { preHandler: app.authenticate }, async (request, reply) => {
     const openMic = await requireOwnedOpenMic(request);
-    reply.send({ configured: Boolean(await getKioskBackupPinHash(pool, openMic.id)) });
+    reply.send({ configured: Boolean(await getKioskBackupPin(pool, openMic.id)) });
+  });
+
+  app.post<{ Params: { id: string } }>('/open-mics/:id/kiosk-backup-pin/reveal', { preHandler: app.authenticate }, async (request, reply) => {
+    const openMic = await requireOwnedOpenMic(request);
+    const pin = await getKioskBackupPin(pool, openMic.id);
+    if (pin === null) throw new ConflictError('KIOSK_BACKUP_PIN_NOT_CONFIGURED', 'No backup PIN is configured for this series');
+    reply.header('Cache-Control', 'no-store').send({ pin });
   });
 
   app.put<{ Params: { id: string } }>('/open-mics/:id/kiosk-backup-pin', { preHandler: app.authenticate }, async (request, reply) => {
     const openMic = await requireOwnedOpenMic(request);
     const parsed = kioskBackupPinSchema.safeParse(request.body);
     if (!parsed.success) throw new ValidationError('Invalid PIN payload', parsed.error.flatten());
-    await setKioskBackupPinHash(pool, openMic.id, parsed.data.pin_hash);
+    await setKioskBackupPin(pool, openMic.id, parsed.data.pin);
     reply.send({ configured: true });
   });
 
@@ -148,8 +155,8 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     const openMic = await requireOwnedOpenMic(request);
     const parsed = kioskBackupPinSchema.safeParse(request.body);
     if (!parsed.success) throw new ValidationError('Invalid PIN payload', parsed.error.flatten());
-    const stored = await getKioskBackupPinHash(pool, openMic.id);
-    reply.send({ valid: stored !== null && stored === parsed.data.pin_hash });
+    const stored = await getKioskBackupPin(pool, openMic.id);
+    reply.send({ valid: stored !== null && stored === parsed.data.pin });
   });
 
   async function requireOwnedOpenMic(request: FastifyRequest<{ Params: { id: string } }>) {

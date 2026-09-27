@@ -19,9 +19,9 @@ export function Required() {
   return <span className="required-mark" aria-hidden="true"> *</span>
 }
 
-export function RequiredFieldsNote() {
+export function RequiredFieldsNote({ className = '' }: { className?: string }) {
   const { t } = useTranslation()
-  return <p className="field-hint required-fields-note"><span className="required-mark" aria-hidden="true">*</span> {t('requiredFields')}</p>
+  return <p className={`field-hint required-fields-note ${className}`.trim()}><span className="required-mark" aria-hidden="true">*</span> {t('requiredFields')}</p>
 }
 
 export function SocialButton({ label, icon }: { label: string; icon: 'heart' | 'message' }) {

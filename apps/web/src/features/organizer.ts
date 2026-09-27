@@ -134,14 +134,7 @@ export function useDeleteOpenMic(openMicId: string | undefined) {
 }
 
 // Kiosk backup PIN: per-series (not per-device), so it works from any device running this
-// series' kiosk. The API only ever stores/compares a client-hashed PIN (SHA-256, hex) — see
-// hashKioskPin below and docs/decisions.md.
-export async function hashKioskPin(pin: string): Promise<string> {
-  const bytes = new TextEncoder().encode(pin)
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
+// series' kiosk. The server stores the value in plaintext by explicit product decision.
 export function useKioskBackupPinStatus(openMicId: string | undefined) {
   return useQuery({
     queryKey: [...organizerKeys.openMic(openMicId), 'kiosk-backup-pin'],
@@ -154,21 +147,32 @@ export function useKioskBackupPinStatus(openMicId: string | undefined) {
 export function useSetKioskBackupPin(openMicId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (pinHash: string) => api<{ configured: boolean }>(`/open-mics/${openMicId}/kiosk-backup-pin`, {
+    mutationFn: (pin: string) => api<{ configured: boolean }>(`/open-mics/${openMicId}/kiosk-backup-pin`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin_hash: pinHash }),
+      body: JSON.stringify({ pin }),
     }),
     onSuccess: (result) => queryClient.setQueryData([...organizerKeys.openMic(openMicId), 'kiosk-backup-pin'], result),
   })
 }
 
-export function useVerifyKioskBackupPin(openMicId: string | undefined) {
+export function useRevealKioskBackupPin(openMicId: string | undefined) {
   return useMutation({
-    mutationFn: (pinHash: string) => api<{ valid: boolean }>(`/open-mics/${openMicId}/kiosk-backup-pin/verify`, {
+    gcTime: 0,
+    mutationFn: () => api<{ pin: string }>(`/open-mics/${openMicId}/kiosk-backup-pin/reveal`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin_hash: pinHash }),
+      body: JSON.stringify({}),
+    }),
+  })
+}
+
+export function useVerifyKioskBackupPin(openMicId: string | undefined) {
+  return useMutation({
+    mutationFn: (pin: string) => api<{ valid: boolean }>(`/open-mics/${openMicId}/kiosk-backup-pin/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin }),
     }),
   })
 }

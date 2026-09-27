@@ -236,7 +236,7 @@ describe('open-mics routes (real database)', () => {
     await instance.close();
   });
 
-  it('kiosk backup PIN: defaults to unconfigured, only the owner can set/verify it, and verify only matches the hash that was set', async () => {
+  it('kiosk backup PIN: defaults to unconfigured, only the owner can set/verify it, and never exposes the stored PIN', async () => {
     const instance = app();
     const auth = { authorization: 'Bearer open-mics-owner', 'x-current-profile': organizerProfileId };
     const otherAuth = { authorization: 'Bearer open-mics-other' };
@@ -257,6 +257,14 @@ describe('open-mics routes (real database)', () => {
     expect(initialStatus.statusCode).toBe(200);
     expect(initialStatus.json().configured).toBe(false);
 
+    const unconfiguredReveal = await instance.inject({
+      method: 'POST',
+      url: `/api/open-mics/${openMicId}/kiosk-backup-pin/reveal`,
+      headers: auth,
+    });
+    expect(unconfiguredReveal.statusCode).toBe(409);
+    expect(unconfiguredReveal.json().error.code).toBe('KIOSK_BACKUP_PIN_NOT_CONFIGURED');
+
     const otherForbiddenGet = await instance.inject({
       method: 'GET',
       url: `/api/open-mics/${openMicId}/kiosk-backup-pin`,
@@ -264,12 +272,12 @@ describe('open-mics routes (real database)', () => {
     });
     expect(otherForbiddenGet.statusCode).toBe(403);
 
-    const pinHash = 'a'.repeat(64);
+    const pin = '2468';
     const otherForbiddenSet = await instance.inject({
       method: 'PUT',
       url: `/api/open-mics/${openMicId}/kiosk-backup-pin`,
       headers: otherAuth,
-      payload: { pin_hash: pinHash },
+      payload: { pin },
     });
     expect(otherForbiddenSet.statusCode).toBe(403);
 
@@ -277,10 +285,35 @@ describe('open-mics routes (real database)', () => {
       method: 'PUT',
       url: `/api/open-mics/${openMicId}/kiosk-backup-pin`,
       headers: auth,
-      payload: { pin_hash: pinHash },
+      payload: { pin },
     });
     expect(set.statusCode).toBe(200);
     expect(set.json().configured).toBe(true);
+    expect(set.json().pin).toBeUndefined();
+
+    const revealed = await instance.inject({
+      method: 'POST',
+      url: `/api/open-mics/${openMicId}/kiosk-backup-pin/reveal`,
+      headers: auth,
+    });
+    expect(revealed.statusCode).toBe(200);
+    expect(revealed.json().pin).toBe(pin);
+    expect(revealed.headers['cache-control']).toBe('no-store');
+
+    const otherForbiddenReveal = await instance.inject({
+      method: 'POST',
+      url: `/api/open-mics/${openMicId}/kiosk-backup-pin/reveal`,
+      headers: otherAuth,
+    });
+    expect(otherForbiddenReveal.statusCode).toBe(403);
+
+    const invalidPin = await instance.inject({
+      method: 'PUT',
+      url: `/api/open-mics/${openMicId}/kiosk-backup-pin`,
+      headers: auth,
+      payload: { pin: '123' },
+    });
+    expect(invalidPin.statusCode).toBe(400);
 
     const nowConfigured = await instance.inject({
       method: 'GET',
@@ -289,26 +322,27 @@ describe('open-mics routes (real database)', () => {
     });
     expect(nowConfigured.json().configured).toBe(true);
 
-    const wrongHash = await instance.inject({
+    const wrongPin = await instance.inject({
       method: 'POST',
       url: `/api/open-mics/${openMicId}/kiosk-backup-pin/verify`,
       headers: auth,
-      payload: { pin_hash: 'b'.repeat(64) },
+      payload: { pin: '1357' },
     });
-    expect(wrongHash.statusCode).toBe(200);
-    expect(wrongHash.json().valid).toBe(false);
+    expect(wrongPin.statusCode).toBe(200);
+    expect(wrongPin.json().valid).toBe(false);
 
-    const rightHash = await instance.inject({
+    const rightPin = await instance.inject({
       method: 'POST',
       url: `/api/open-mics/${openMicId}/kiosk-backup-pin/verify`,
       headers: auth,
-      payload: { pin_hash: pinHash },
+      payload: { pin },
     });
-    expect(rightHash.json().valid).toBe(true);
+    expect(rightPin.json().valid).toBe(true);
 
-    // The stored hash is never exposed via the ordinary open-mic read.
+    // The stored PIN is never exposed via status or ordinary open-mic reads.
+    expect(nowConfigured.json().pin).toBeUndefined();
     const publicRead = await instance.inject({ method: 'GET', url: `/api/open-mics/${openMicId}` });
-    expect(publicRead.json().kiosk_backup_pin_hash).toBeUndefined();
+    expect(publicRead.json().kiosk_backup_pin).toBeUndefined();
 
     await instance.close();
   });

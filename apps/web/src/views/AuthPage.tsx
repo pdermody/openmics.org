@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
+import { PasswordInput } from '../components/forms/PasswordInput'
 import {
   changePassword,
   confirmPasswordReset,
@@ -85,8 +86,8 @@ export function AuthPage({ mode, theme, colorMode }: { mode: AuthMode; theme: Th
         <RequiredFieldsNote />
         {currentMode !== 'change-password' && <label><span>{t('email')}<Required /></span><input required type="email" autoComplete="email" value={username} onChange={(event) => setUsername(event.target.value)} /></label>}
         {needsCode && <label><span>{t('authCode')}<Required /></span><input required inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} /></label>}
-        {needsPassword && <label><span>{currentMode === 'change-password' ? t('authCurrentPassword') : t('password')}<Required /></span><input required type="password" autoComplete={currentMode === 'sign-in' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}
-        {needsNewPassword && <label><span>{t('authNewPassword')}<Required /></span><input required type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>}
+        {needsPassword && <label><span>{currentMode === 'change-password' ? t('authCurrentPassword') : t('password')}<Required /></span><PasswordInput fieldLabel={currentMode === 'change-password' ? t('authCurrentPassword') : t('password')} required autoComplete={currentMode === 'sign-in' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}
+        {needsNewPassword && <label><span>{t('authNewPassword')}<Required /></span><PasswordInput fieldLabel={t('authNewPassword')} required autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>}
         {error && <p className="form-error" role="alert">{error}</p>}
         {message && <p className="form-success" role="status">{message}</p>}
         <button className="primary-button" type="submit" disabled={busy}>{busy ? t('loading') : t('continue')}</button>

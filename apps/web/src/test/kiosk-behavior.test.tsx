@@ -64,6 +64,38 @@ describe('KioskPage behavior', () => {
     expect(await screen.findByRole('button', { name: 'Add to roster' })).toBeInTheDocument()
   })
 
+  it('shows or masks both PIN fields and saves the plaintext PIN during first-time setup', async () => {
+    registerOrganizerHandlers()
+    let savedPayload: unknown
+    server.use(
+      http.get('/api/open-mics/series-1/kiosk-backup-pin', () => HttpResponse.json({ configured: false })),
+      http.put('/api/open-mics/series-1/kiosk-backup-pin', async ({ request }) => {
+        savedPayload = await request.json()
+        return HttpResponse.json({ configured: true })
+      }),
+    )
+    renderWithProviders(<KioskPage seriesId="series-1" eventId="event-1" theme="venue" mode="light" />)
+
+    await screen.findByRole('button', { name: 'Show Kiosk backup PIN' })
+    const pinInputs = Array.from(document.querySelectorAll<HTMLInputElement>('.kiosk-form input[type="password"]'))
+    expect(pinInputs).toHaveLength(2)
+    expect(pinInputs[0]).toHaveAttribute('type', 'password')
+    fireEvent.click(screen.getByRole('button', { name: 'Show Kiosk backup PIN' }))
+    expect(pinInputs[0]).toHaveAttribute('type', 'text')
+    expect(pinInputs[1]).toHaveAttribute('type', 'password')
+    fireEvent.click(screen.getByRole('button', { name: 'Show Confirm backup PIN' }))
+    expect(pinInputs[1]).toHaveAttribute('type', 'text')
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Kiosk backup PIN' }))
+    expect(pinInputs[0]).toHaveAttribute('type', 'password')
+
+    fireEvent.change(pinInputs[0], { target: { value: '2468' } })
+    fireEvent.change(pinInputs[1], { target: { value: '2468' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save backup PIN' }))
+
+    expect(await screen.findByRole('button', { name: 'Add to roster' })).toBeInTheDocument()
+    expect(savedPayload).toEqual({ pin: '2468' })
+  })
+
   it('shows the series QR only when pre-registration is allowed', async () => {
     registerOrganizerHandlers('on_night_only')
     renderWithProviders(<KioskPage seriesId="series-1" eventId="event-1" theme="venue" mode="light" />)

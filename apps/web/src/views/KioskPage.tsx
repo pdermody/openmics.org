@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CalendarDays, MapPin, Sparkles } from 'lucide-react'
+import { CalendarDays, Eye, EyeOff, MapPin, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { RegistrationLinkTools } from '../components/RegistrationLinkTools'
-import { hashKioskPin, useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOpenMicDetail, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
+import { PasswordInput } from '../components/forms/PasswordInput'
+import { useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOpenMicDetail, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
 import type { ColorMode, ThemeId } from '../theme'
 import { Modal, ReadState, Required, RequiredFieldsNote } from './shared'
 
@@ -38,7 +39,9 @@ function kioskErrorMessage(error: unknown): string {
 type KioskLockPhase = 'loading' | 'setup-backup' | 'active' | 'exit-gate'
 
 export function PinCombinationInput({ onComplete, disabled = false }: { onComplete: (pin: string) => void; disabled?: boolean }) {
+  const { t } = useTranslation()
   const [digits, setDigits] = useState(['', '', '', ''])
+  const [visible, setVisible] = useState(false)
   const inputs = useRef<Array<HTMLInputElement | null>>([])
 
   useEffect(() => {
@@ -95,11 +98,14 @@ export function PinCombinationInput({ onComplete, disabled = false }: { onComple
     else inputs.current[lastIndex + 1]?.focus()
   }
 
-  return <div className="pin-combination" role="group" aria-label="4 digit PIN">
+  const visibilityLabel = t(visible ? 'hidePasswordField' : 'showPasswordField', { field: t('exitPin') })
+
+  return <div className="pin-combination-control">
+    <div className="pin-combination" role="group" aria-label={t('exitPin')}>
     {digits.map((digit, index) => <input
       key={index}
       ref={(input) => { inputs.current[index] = input }}
-      type="password"
+      type={visible ? 'text' : 'password'}
       inputMode="numeric"
       pattern="[0-9]"
       maxLength={1}
@@ -112,6 +118,10 @@ export function PinCombinationInput({ onComplete, disabled = false }: { onComple
       onKeyDown={(event) => handleKeyDown(index, event)}
       onPaste={handlePaste}
     />)}
+    </div>
+    <button type="button" className="password-input-toggle pin-combination-toggle" aria-label={visibilityLabel} title={visibilityLabel} aria-pressed={visible} disabled={disabled} onClick={() => setVisible((current) => !current)}>
+      {visible ? <EyeOff aria-hidden="true" size={18} /> : <Eye aria-hidden="true" size={18} />}
+    </button>
   </div>
 }
 
@@ -197,8 +207,7 @@ function KioskLock({
     if (backupPinDraft.trim().length < 4) { setError('Backup PIN must be at least 4 digits.'); return }
     if (backupPinDraft !== backupPinConfirm) { setError('Backup PINs do not match.'); return }
     try {
-      const hash = await hashKioskPin(backupPinDraft.trim())
-      await setBackupPin.mutateAsync(hash)
+      await setBackupPin.mutateAsync(backupPinDraft.trim())
       setBackupPinDraft('')
       setBackupPinConfirm('')
       setPhase('active')
@@ -210,8 +219,7 @@ function KioskLock({
   async function submitExitPin(entered: string) {
     setError('')
     try {
-      const hash = await hashKioskPin(entered)
-      const result = await verifyBackupPin.mutateAsync(hash)
+      const result = await verifyBackupPin.mutateAsync(entered)
       if (!result.valid) { setError('Incorrect PIN.'); return }
       if (document.fullscreenElement) { try { await document.exitFullscreen() } catch { /* already released */ } }
       void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/roster', params: { seriesId, eventId } })
@@ -232,8 +240,8 @@ function KioskLock({
     <p>{t('kioskBackupIntro')}</p>
     <form className="kiosk-form" noValidate onSubmit={(formEvent) => void saveBackupPin(formEvent)}>
       <RequiredFieldsNote />
-      <label><span>{t('backupPin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={backupPinDraft} onChange={(input) => setBackupPinDraft(input.target.value)} /></label>
-      <label><span>{t('confirmBackupPin')}<Required /></span><input type="password" inputMode="numeric" minLength={4} required value={backupPinConfirm} onChange={(input) => setBackupPinConfirm(input.target.value)} /></label>
+      <label><span>{t('backupPin')}<Required /></span><PasswordInput fieldLabel={t('backupPin')} inputMode="numeric" minLength={4} required value={backupPinDraft} onChange={(input) => setBackupPinDraft(input.target.value)} /></label>
+      <label><span>{t('confirmBackupPin')}<Required /></span><PasswordInput fieldLabel={t('confirmBackupPin')} inputMode="numeric" minLength={4} required value={backupPinConfirm} onChange={(input) => setBackupPinConfirm(input.target.value)} /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="primary-button kiosk-submit" type="submit" disabled={setBackupPin.isPending}>{t('saveBackupPin')}</button>
     </form>

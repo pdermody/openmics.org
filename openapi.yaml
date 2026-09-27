@@ -432,6 +432,26 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/KioskBackupPinStatusResponse"
+  /open-mics/{id}/kiosk-backup-pin/reveal:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags:
+        - Open Mics
+      operationId: revealKioskBackupPin
+      summary: Explicitly reveal this series' configured kiosk backup PIN
+      description: Owner-authenticated. Returns the stored PIN only on explicit request and disables caching.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/KioskBackupPinRevealResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/KioskBackupPinNotConfigured"
   /open-mics/{id}/kiosk-backup-pin/verify:
     post:
       tags:
@@ -1167,6 +1187,25 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/KioskBackupPinStatus"
+    KioskBackupPinRevealResponse:
+      description: Explicitly requested configured PIN. This response must not be cached.
+      headers:
+        Cache-Control:
+          description: Prevents storage of the revealed PIN in caches.
+          schema:
+            type: string
+            enum:
+              - no-store
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/KioskBackupPinReveal"
+    KioskBackupPinNotConfigured:
+      description: No kiosk backup PIN is configured for this series
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
     KioskBackupPinVerifyResponse:
       description: Whether the submitted PIN matches this series' configured kiosk backup PIN
       content:
@@ -2654,14 +2693,13 @@ components:
           type: string
     KioskBackupPinRequest:
       type: object
-      description: The organizer's kiosk backup PIN, already hashed client-side (SHA-256, hex)
-        before it is sent — the server never sees or stores a plaintext PIN.
+      description: The organizer's kiosk backup PIN in plaintext. Routine and public reads omit it; it is returned only by the explicit owner-authenticated reveal operation.
       required:
-        - pin_hash
+        - pin
       properties:
-        pin_hash:
+        pin:
           type: string
-          pattern: "^[0-9a-f]{64}$"
+          minLength: 4
     KioskBackupPinStatus:
       type: object
       required:
@@ -2669,6 +2707,13 @@ components:
       properties:
         configured:
           type: boolean
+    KioskBackupPinReveal:
+      type: object
+      required:
+        - pin
+      properties:
+        pin:
+          type: string
     KioskBackupPinVerifyResult:
       type: object
       required:

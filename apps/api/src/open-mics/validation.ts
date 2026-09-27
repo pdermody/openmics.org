@@ -89,7 +89,5 @@ const { handle: _handle, ...updatableFields } = baseFields;
 export const updateOpenMicSchema = refineCrossFieldRules(z.object(updatableFields).strict());
 export type UpdateOpenMicInput = z.infer<typeof updateOpenMicSchema>;
 
-// The client hashes the PIN (SHA-256, hex-encoded) before it's ever sent — the server never
-// sees or stores a plaintext PIN. 64 hex chars is exactly a SHA-256 digest's length.
-export const kioskBackupPinSchema = z.object({ pin_hash: z.string().regex(/^[0-9a-f]{64}$/, 'pin_hash must be a 64-character hex SHA-256 digest') }).strict();
+export const kioskBackupPinSchema = z.object({ pin: z.string().min(4, 'PIN must be at least 4 characters') }).strict();
 export type KioskBackupPinInput = z.infer<typeof kioskBackupPinSchema>;
