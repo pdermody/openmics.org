@@ -18,5 +18,7 @@ export default defineConfig({
     fileParallelism: false,
     maxWorkers: 1,
     exclude: ['e2e/**', 'node_modules/**'],
+    // Must exceed asyncUtilTimeout (5000ms, see src/test/setup.ts) so slow findBy*/waitFor calls fail with their real assertion.
+    testTimeout: 15000,
   },
 })

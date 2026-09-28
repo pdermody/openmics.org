@@ -296,7 +296,10 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   if (!context.account.data || !isOrganizer || (isEdit && existing.data && !isOwner)) {
     return <main className="app" data-theme={theme} data-mode={mode}>
       <SiteHeader />
-      <section className="dashboard-page"><ReadState message={t('selectOrganizerSeries')} /></section>
+      <section className="dashboard-page">
+        <ReadState message={t('selectOrganizerSeries')} />
+        {context.account.data && !isOrganizer && <Link className="primary-button" to="/profiles/manage">{t('createOrSwitchOrganizer')}</Link>}
+      </section>
     </main>
   }
   if (isEdit && existing.isError) {

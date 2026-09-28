@@ -19,7 +19,7 @@
     "test:web": "npm run test --prefix apps/web",
     "typecheck:api": "tsc -p tsconfig.json --noEmit",
     "test:unit": "vitest run apps/api/tests/unit",
-    "test:api": "vitest run apps/api/tests/api",
+    "test:api": "vitest run apps/api/tests/api --exclude 'infra/**'",
     "test:integration": "vitest run apps/api/tests/integration",
     "test": "npm run typecheck:api && npm run test:unit && npm run test:api && npm run test:integration && npm run test:web",
     "validate:openapi": "node scripts/validate-openapi.mjs",

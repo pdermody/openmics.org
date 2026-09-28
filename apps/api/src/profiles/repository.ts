@@ -74,7 +74,7 @@ export async function findPublicProfiles(client: Queryable, limit: number, offse
   return { rows: result.rows, total: Number(count.rows[0].count) };
 }
 
-const UPDATABLE_COLUMNS = ['profile_name', 'profile_kind', 'bio', 'phone', 'profile_image_url', 'visibility', 'theme_name', 'color_mode'] as const;
+const UPDATABLE_COLUMNS = ['profile_name', 'bio', 'phone', 'profile_image_url', 'visibility', 'theme_name', 'color_mode'] as const;
 
 export async function updateProfile(
   pool: Pool,
@@ -103,8 +103,16 @@ export async function updateProfile(
   return result.rows[0] ?? null;
 }
 
-export async function softDeleteProfile(pool: Pool, id: string): Promise<ProfileRow | null> {
-  const result = await pool.query<ProfileRow>(
+export async function countActiveProfiles(client: Queryable, accountId: string): Promise<number> {
+  const result = await client.query<{ count: string }>(
+    'SELECT count(*)::text AS count FROM profiles WHERE created_by_account_id = $1 AND deleted_at IS NULL',
+    [accountId],
+  );
+  return Number(result.rows[0].count);
+}
+
+export async function softDeleteProfile(client: Queryable, id: string): Promise<ProfileRow | null> {
+  const result = await client.query<ProfileRow>(
     `UPDATE profiles
      SET deleted_at = now(), recovery_deadline = now() + interval '30 days', updated_at = now()
      WHERE id = $1 AND deleted_at IS NULL
@@ -113,7 +121,7 @@ export async function softDeleteProfile(pool: Pool, id: string): Promise<Profile
   );
   const profile = result.rows[0] ?? null;
   if (profile) {
-    await pool.query('UPDATE accounts SET current_profile_id = NULL, updated_at = now() WHERE current_profile_id = $1', [id]);
+    await client.query('UPDATE accounts SET current_profile_id = NULL, updated_at = now() WHERE current_profile_id = $1', [id]);
   }
   return profile;
 }

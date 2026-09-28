@@ -137,7 +137,7 @@ Public / auth:
 
 Open-mic series:
 - `/open-mics/:id` — Series details
-- `/open-mics/new` — Create series (requires `open_mics:create`; creates an organizer profile if the current profile isn't one)
+- `/open-mics/new` — Create series (requires `open_mics:create` and an active organizer profile; non-organizers are directed to create or switch to an organizer profile — the page never creates one implicitly)
 - `/open-mics/:id/edit` — Edit series (requires `open_mics:edit` on the owning organizer profile)
 
 Events:
@@ -151,7 +151,7 @@ Events:
 Profiles:
 - `/accounts/:id/profiles` — All profiles for current user
 - `/profiles/new` — Create profile (choose type: performer or organizer)
-- `/profiles/:id` — Profile details page (performer or organizer)
+- `/profiles/:id` — Profile details page. Performer profiles 301 to their `@handle`; organizer profiles have no handle, stay on the UUID URL, and list the series they own
 - `/profiles/:id/edit` — Edit profile (requires `profiles:edit`)
 
 Media:

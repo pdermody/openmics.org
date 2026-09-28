@@ -2,9 +2,9 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
-import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
 import { assignHandle } from '../handles/service.js';
-import { findProfileById, findPublicProfiles, insertProfile, serializeProfile, softDeleteProfile, updateProfile } from './repository.js';
+import { countActiveProfiles, findProfileById, findPublicProfiles, insertProfile, serializeProfile, softDeleteProfile, updateProfile } from './repository.js';
 import { createProfileSchema, updateProfileSchema } from './validation.js';
 
 export type ProfilesPluginOptions = { pool: Pool };
@@ -16,6 +16,9 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
 
     const account = request.account!;
     const input = parsed.data;
+    if (input.profile_kind === 'organizer' && input.handle !== undefined) {
+      throw new ValidationError('Organizer profiles do not have handles', { field: 'handle' });
+    }
 
     const withHandle = await withTransaction(pool, async (client) => {
       const profile = await insertProfile(client, {
@@ -29,11 +32,13 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
         themeName: input.theme_name,
         colorMode: input.color_mode,
       });
-      await assignHandle(
-        client,
-        { entityType: 'profile', profileId: profile.id },
-        { displayName: input.profile_name, requestedHandle: input.handle },
-      );
+      if (input.profile_kind === 'performer') {
+        await assignHandle(
+          client,
+          { entityType: 'profile', profileId: profile.id },
+          { displayName: input.profile_name, requestedHandle: input.handle },
+        );
+      }
       return findProfileById(client, profile.id);
     });
 
@@ -75,13 +80,27 @@ export const profilesRoutes: FastifyPluginAsync<ProfilesPluginOptions> = async (
   });
 
   app.delete<{ Params: { id: string } }>('/profiles/:id', { preHandler: app.authenticate }, async (request, reply) => {
-    const existing = await findProfileById(pool, request.params.id);
-    if (!existing) throw new NotFoundError('Profile not found');
     const account = request.account!;
-    if (existing.created_by_account_id !== account.accountId && !account.isPlatformAdmin) {
-      throw new ForbiddenError('You do not own this profile');
-    }
-    const deleted = await softDeleteProfile(pool, request.params.id);
+    const deleted = await withTransaction(pool, async (client) => {
+      const existing = await findProfileById(client, request.params.id);
+      if (!existing) throw new NotFoundError('Profile not found');
+      const isOwner = existing.created_by_account_id === account.accountId;
+      if (!isOwner && !account.isPlatformAdmin) {
+        throw new ForbiddenError('You do not own this profile');
+      }
+      // Row lock serializes concurrent deletes and profile switches for the owning account.
+      const owner = await client.query<{ current_profile_id: string | null }>(
+        'SELECT current_profile_id FROM accounts WHERE id = $1 FOR UPDATE',
+        [existing.created_by_account_id],
+      );
+      if (isOwner && owner.rows[0]?.current_profile_id === existing.id) {
+        throw new ConflictError('CURRENT_PROFILE', 'Switch to another profile before deleting this one');
+      }
+      if ((await countActiveProfiles(client, existing.created_by_account_id)) <= 1) {
+        throw new ConflictError('LAST_PROFILE', 'An account must keep at least one profile');
+      }
+      return softDeleteProfile(client, existing.id);
+    });
     if (!deleted) throw new NotFoundError('Profile not found');
     reply.send(serializeProfile(deleted, true));
   });

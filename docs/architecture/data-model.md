@@ -28,7 +28,7 @@ Profiles (unified performer & organizer identities)
 ├── created_by_account_id (FK — account that created this profile)
 ├── slug (text — UNIQUE; used for public URLs like `/profiles/alice-band`)
 ├── profile_name (e.g., "Solo", "Jazz Band", or open mic series name)
-├── profile_kind ("organizer" | "performer" — organizer profiles own open-mic series; performer profiles are the identities selected on registrations)
+├── profile_kind ("organizer" | "performer" — organizer profiles own open-mic series; performer profiles are the identities selected on registrations; immutable after creation; only performer profiles hold handles, so `current_handle` is always NULL for organizers)
 ├── bio
 ├── profile_image_url (S3 URL or NULL)
 ├── theme_name (named theme for UI customization; themes defined separately)

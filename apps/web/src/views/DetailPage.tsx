@@ -4,7 +4,8 @@ import { friendlyApiErrorMessage } from '../api/client'
 import { useTranslation } from 'react-i18next'
 import { useAccountContext } from '../features/account'
 import { useMyRegisteredEventIds } from '../features/myRegistrations'
-import { isRegistrationClosed, useNextEvent, usePublicEvent, usePublicOpenMic, usePublicProfile } from '../features/publicReads'
+import { isRegistrationClosed, useNextEvent, usePublicEvent, usePublicOpenMic, usePublicOwnerOpenMics, usePublicProfile } from '../features/publicReads'
+import { profileKindMeta } from '../features/profileKinds'
 import type { ThemeProps } from './shared'
 import { ReadState, SiteHeader, SocialButton } from './shared'
 
@@ -21,6 +22,9 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   const openMic = usePublicOpenMic(kind === 'open-mic' ? id : undefined)
   const nextEvent = useNextEvent(kind === 'open-mic' ? id : undefined)
   const profile = usePublicProfile(kind === 'profile' ? id : undefined)
+  const profileKind = profileKindMeta(profile.data?.profile_kind)
+  const isOrganizerProfile = kind === 'profile' && profile.data?.profile_kind === 'organizer'
+  const organizerOpenMics = usePublicOwnerOpenMics(isOrganizerProfile ? profile.data?.id : undefined)
   const parentOpenMic = usePublicOpenMic(kind === 'event' ? event.data?.open_mic_id : undefined)
   const accountContext = useAccountContext()
   const activeProfile = accountContext.profiles.data?.items.find((profileItem) => profileItem.id === accountContext.account.data?.current_profile_id)
@@ -58,13 +62,13 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
           {loading && <ReadState message={t('loading')} />}
         {error && <ReadState message={friendlyApiErrorMessage(errorObject, 'This page could not be loaded. Please try again.')} retry={retry} />}
         {!loading && !error && title && <>
-          <div className="eyebrow">{kind === 'event' ? t('eventDetail') : kind === 'open-mic' ? t('seriesDetail') : t('publicProfile')}</div>
+          <div className="eyebrow">{kind === 'event' ? t('eventDetail') : kind === 'open-mic' ? t('seriesDetail') : t(profileKind?.titleKey ?? 'publicProfile')}</div>
           <h1>{title}</h1>
           <p className="detail-lede">{event.data?.notes ?? openMic.data?.description ?? profile.data?.bio ?? 'A welcoming room for new voices.'}</p>
           <div className="detail-facts">
             {(event.data || openMic.data) && <span><MapPin size={16} /> {event.data?.venue_name ?? openMic.data?.venue_name}, {event.data?.city ?? openMic.data?.city}</span>}
             {event.data?.starts_at && <span><Clock3 size={16} /> {new Date(event.data.starts_at).toLocaleString()}</span>}
-            {profile.data?.profile_kind && <span>{profile.data.profile_kind}</span>}
+            {profileKind && <span><profileKind.icon size={16} aria-hidden="true" /> {t(profileKind.labelKey)}</span>}
           </div>
           <div className="detail-actions">
             {kind === 'open-mic' && ownsOpenMic && <>
@@ -106,9 +110,20 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
                 <Link className="primary-button" to="/open-mics/$openMicId/register" params={{ openMicId: openMic.data?.public_code ?? id }}>{t('viewRegistration')}</Link>
               )
             )}
-            {kind === 'profile' && <button className="primary-button" type="button">{t('followProfile')}</button>}
-            <SocialButton label="React" icon="heart" /><SocialButton label="Comment" icon="message" />
+            {kind === 'profile' && !isOrganizerProfile && <button className="primary-button" type="button">{t('followProfile')}</button>}
+            {!isOrganizerProfile && <><SocialButton label="React" icon="heart" /><SocialButton label="Comment" icon="message" /></>}
           </div>
+          {isOrganizerProfile && <section aria-labelledby="organizer-series-heading">
+            <h2 id="organizer-series-heading">{t('organizerSeries')}</h2>
+            {organizerOpenMics.isPending && <ReadState message={t('loading')} />}
+            {organizerOpenMics.data?.length === 0 && <p className="field-hint">{t('noOrganizerSeries')}</p>}
+            {organizerOpenMics.data && organizerOpenMics.data.length > 0 && <ul className="organizer-series-list">
+              {organizerOpenMics.data.map((openMic) => <li key={openMic.id}>
+                <Link to="/open-mics/$openMicId" params={{ openMicId: openMic.current_handle ?? openMic.id }}>{openMic.name}</Link>
+                <span className="field-hint"> · {openMic.venue_name}, {openMic.city}</span>
+              </li>)}
+            </ul>}
+          </section>}
           {kind === 'event' && !registrationDisabled && needsPerformerProfile && (
             <p className="field-hint">{t('organizerCannotPerform')}</p>
           )}

@@ -6,7 +6,9 @@ import { Check, ChevronRight, LayoutDashboard, Settings } from 'lucide-react'
 import { fetchSimulatedAuthConfig, getAuthenticatedUser, getStoredSimulatedAuthToken, LOCAL_SIMULATED_ROLE_KEY, type SimulatedAuthRole } from '../auth/session'
 import { accountKeys, useAccountContext } from '../features/account'
 import { useOrganizerProfile } from '../features/organizer'
-import { MenuItem, MenuSeparator } from '../components/radix-menu'
+import { MenuItem, MenuLabel, MenuSeparator } from '../components/radix-menu'
+import { ProfileIdentity } from '../components/ProfileIdentity'
+import { PROFILE_KIND_ORDER, PROFILE_KINDS } from '../features/profileKinds'
 
 export function ProfileSwitcher() {
   const { t } = useTranslation()
@@ -93,7 +95,14 @@ export function ProfileSwitcher() {
     <MenuItem className="radix-menu-sub-trigger" closeOnSelect={false} onSelect={() => setExpanded((value) => !value)}><span>{t('profiles')}</span><ChevronRight size={15} aria-hidden="true" style={{ transform: expanded ? 'rotate(90deg)' : undefined }} /></MenuItem>
     {expanded && <div className="radix-menu-nested-group">
       {devProfiles.length > 0 && <MenuItem className="radix-menu-item-nested" onSelect={() => selectProfile('public')}>{effectiveValue === 'public' && <Check size={15} aria-hidden="true" />}{t('publicUnauth')}</MenuItem>}
-      {accountProfiles.map((profile) => <MenuItem key={profile.id} className="radix-menu-item-nested" onSelect={() => selectProfile(profile.id)}>{effectiveValue === profile.id && <Check size={15} aria-hidden="true" />}{profile.profile_name} · {profile.profile_kind}</MenuItem>)}
+      {PROFILE_KIND_ORDER.map((kind) => {
+        const group = accountProfiles.filter((profile) => profile.profile_kind === kind)
+        if (group.length === 0) return null
+        return <div key={kind} role="group" aria-label={t(PROFILE_KINDS[kind].labelKey)}>
+          <MenuLabel>{t(PROFILE_KINDS[kind].labelKey)}</MenuLabel>
+          {group.map((profile) => <MenuItem key={profile.id} className="radix-menu-item-nested" onSelect={() => selectProfile(profile.id)}>{effectiveValue === profile.id && <Check size={15} aria-hidden="true" />}<ProfileIdentity profile={profile} /></MenuItem>)}
+        </div>
+      })}
       {devProfiles.length > 0 && <MenuSeparator />}
       {devProfiles.map((role) => <MenuItem key={role.profileId} className="radix-menu-item-nested" onSelect={() => selectProfile(role.profileId)}>{effectiveValue === role.profileId && <Check size={15} aria-hidden="true" />}[DEV] {role.profileName} · {role.kind} · {role.accountDisplayName}</MenuItem>)}
       {context.profiles.isPending && <MenuItem className="radix-menu-item-nested" disabled onSelect={() => undefined}>{t('loadingProfiles')}</MenuItem>}
@@ -109,7 +118,7 @@ export function CurrentProfileLabel() {
   const context = useAccountContext()
   if (!context.account.data) return null
   const profile = context.profiles.data?.items.find((item) => item.id === context.account.data?.current_profile_id)
-  return <span className="current-profile-label">{profile?.profile_name ?? t('publicUnauth')}</span>
+  return <span className="current-profile-label">{profile ? <ProfileIdentity profile={profile} /> : t('publicUnauth')}</span>
 }
 
 export function DashboardHeaderLink() {

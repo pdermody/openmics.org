@@ -62,8 +62,10 @@ export function ProfileEditorPage({ profileId, theme, mode }: { profileId: strin
         <RequiredFieldsNote />
         <label><span>{t('profileName')}<Required /></span><input required {...register('profile_name')} /></label>
         {errors.profile_name && <p className="form-error" role="alert">{errors.profile_name.message}</p>}
-        <label>{t('handleLabel')}<input value={profile.current_handle ? `@${profile.current_handle}` : ''} placeholder={t('handleNotSet')} disabled readOnly /></label>
-        <p className="field-hint">{t('handleRenameUnavailable')}</p>
+        {profile.profile_kind === 'performer' && <>
+          <label>{t('handleLabel')}<input value={profile.current_handle ? `@${profile.current_handle}` : ''} placeholder={t('handleNotSet')} disabled readOnly /></label>
+          <p className="field-hint">{t('handleRenameUnavailable')}</p>
+        </>}
         <label>{t('profileImageUrl')}<input type="url" {...register('profile_image_url')} /></label>
         {errors.profile_image_url && <p className="form-error" role="alert">{errors.profile_image_url.message}</p>}
         <label>{t('bio')}<textarea {...register('bio')} /></label>

@@ -17,6 +17,16 @@ This file records settled decisions that affect more than one planning document.
 - Changes to any non-case character use the normal rename restrictions: 30-day redirect, 30-day quarantine, and auto-reclaim afterward.
 - Owners retain the original guest registration provenance when a registration is claimed or later attributed to a profile.
 
+## Profile kinds and handles
+
+- Only performer profiles have handles. Organizer profiles never receive a handle; an organizer's public presence is its open-mic series, each of which has its own handle. This keeps a person's name (e.g. `@paul-dermody`) free for the performer profile they are likely to create later.
+- Organizer profile pages (`/profiles/:id`) are reached by UUID only and list the series the organizer owns.
+- Handles held by organizer profiles before this decision were hard-deleted by migration `017_remove_organizer_handles`, as a one-time exception to the redirect/quarantine policy, so they are immediately available.
+- `profile_kind` is immutable after creation; `PATCH /profiles/{id}` does not accept it.
+- An account cannot delete its currently selected profile (`409 CURRENT_PROFILE`) or its last remaining profile (`409 LAST_PROFILE`). Platform admins deleting another account's profile are exempt from the current-profile rule.
+- Creating an open-mic series requires an active organizer profile. The create-series page does not create one implicitly; non-organizers are directed to create or switch to an organizer profile.
+- The UI distinguishes profile kinds with a shared kind registry (icon + translated label) and a common profile identity component; kind is always shown as icon plus text, never color alone.
+
 ## Guest Registrations
 
 - Guest registrations may be claimed at any time during or after the event.

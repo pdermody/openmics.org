@@ -142,6 +142,14 @@ export function usePublicProfile(id: string | undefined) {
   })
 }
 
+export function usePublicOwnerOpenMics(ownerProfileId: string | undefined) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'owner-open-mics', ownerProfileId],
+    queryFn: async () => (await api<OpenMicPage>(`/open-mics?owner_profile_id=${encodeURIComponent(ownerProfileId!)}&page_size=100`)).items,
+    enabled: Boolean(ownerProfileId),
+  })
+}
+
 export type HandleResolution = { type: 'profile' | 'open_mic'; id: string }
 
 // The `handles` table is the single source of truth for handle -> entity resolution (see

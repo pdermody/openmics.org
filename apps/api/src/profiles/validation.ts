@@ -17,13 +17,12 @@ export const createProfileSchema = z.object({
 
 export type CreateProfileInput = z.infer<typeof createProfileSchema>;
 
-// `handle` is intentionally omitted (not just optional): renaming is a
-// separate, not-yet-implemented flow with its own redirect/quarantine policy.
-// .strict() rejects the field outright rather than silently ignoring it.
+// `handle` and `profile_kind` are intentionally omitted (not just optional):
+// renaming is a separate, not-yet-implemented flow, and kind is immutable.
+// .strict() rejects the fields outright rather than silently ignoring them.
 export const updateProfileSchema = z
   .object({
     profile_name: z.string().min(1).optional(),
-    profile_kind: profileKindSchema.optional(),
     bio: z.string().nullable().optional(),
     phone: z.string().trim().min(7).max(32).nullable().optional(),
     profile_image_url: z.string().url().nullable().optional(),

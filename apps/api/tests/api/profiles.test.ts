@@ -57,4 +57,28 @@ describe('profiles routes', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe('VALIDATION_ERROR');
   });
+
+  it('rejects profile_kind on update because kind is immutable', async () => {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/profiles/00000000-0000-0000-0000-000000000000',
+      headers: { authorization: 'Bearer token-a' },
+      payload: { profile_kind: 'organizer' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a handle on organizer profile creation', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/profiles',
+      headers: { authorization: 'Bearer token-a' },
+      payload: { profile_name: 'Paul Dermody', profile_kind: 'organizer', handle: 'paul-dermody' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+  });
 });

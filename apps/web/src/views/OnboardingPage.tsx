@@ -31,7 +31,7 @@ export function OnboardingPage({ theme, mode, setTheme, setMode }: OnboardingPag
   const [handleDirty, setHandleDirty] = useState(false)
   const activeTheme = themes.find((item) => item.id === theme) ?? themes[0]
   const themeText = (id: ThemeId, field: 'name' | 'source' | 'note') => t(`themes.${id}.${field}`)
-  const handleCheck = useHandleAvailability(handle, true)
+  const handleCheck = useHandleAvailability(handle, kind === 'performer')
 
   // Suggest a starting name from the account once it loads, but let the user override it —
   // account display_name/email are not guaranteed to be a good profile name (e.g. a Cognito
@@ -54,7 +54,7 @@ export function OnboardingPage({ theme, mode, setTheme, setMode }: OnboardingPag
   // check hasn't resolved yet (idle/checking, e.g. a slow network or a request hiccup), let the
   // submission proceed and rely on the server's authoritative check — a perpetually-disabled
   // button with no visible error is worse than an occasional server-side HANDLE_UNAVAILABLE.
-  const canSubmit = Boolean(handle) && handleCheck.state !== 'unavailable' && handleCheck.state !== 'invalid'
+  const canSubmit = kind === 'organizer' || (Boolean(handle) && handleCheck.state !== 'unavailable' && handleCheck.state !== 'invalid')
 
   function handleSubmit() {
     if (!canSubmit) return
@@ -63,7 +63,7 @@ export function OnboardingPage({ theme, mode, setTheme, setMode }: OnboardingPag
       profile_kind: kind,
       theme_name: theme,
       color_mode: mode,
-      handle,
+      ...(kind === 'performer' ? { handle } : {}),
     })
   }
 
@@ -78,12 +78,14 @@ export function OnboardingPage({ theme, mode, setTheme, setMode }: OnboardingPag
         <RequiredFieldsNote />
         <label className="onboarding-name-field"><span>{t('profileName')}<Required /></span><input required type="text" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. your stage name or open mic series name" /></label>
 
-        <label className="onboarding-name-field"><span>{t('handle')}<Required /></span> <span className="field-hint">{t('handleHintOnboarding')}</span><span className="handle-input"><span aria-hidden="true">@</span><input required type="text" value={handle} onChange={(event) => { setHandleDirty(true); setHandle(event.target.value) }} /></span></label>
-        {handle && <p className={`handle-feedback ${handleCheck.state === 'available' ? 'form-success' : handleCheck.state === 'checking' ? 'field-hint' : 'form-error'}`} role={handleCheck.state === 'unavailable' || handleCheck.state === 'invalid' ? 'alert' : 'status'}>
-          {handleCheck.state === 'available' && <CircleCheck aria-hidden="true" size={16} />}
-          {(handleCheck.state === 'unavailable' || handleCheck.state === 'invalid') && <CircleAlert aria-hidden="true" size={16} />}
-          {handleCheck.state === 'checking' ? t('checkingAvailability') : handleCheck.message}
-        </p>}
+        {kind === 'performer' ? <>
+          <label className="onboarding-name-field"><span>{t('handle')}<Required /></span> <span className="field-hint">{t('handleHintOnboarding')}</span><span className="handle-input"><span aria-hidden="true">@</span><input required type="text" value={handle} onChange={(event) => { setHandleDirty(true); setHandle(event.target.value) }} /></span></label>
+          {handle && <p className={`handle-feedback ${handleCheck.state === 'available' ? 'form-success' : handleCheck.state === 'checking' ? 'field-hint' : 'form-error'}`} role={handleCheck.state === 'unavailable' || handleCheck.state === 'invalid' ? 'alert' : 'status'}>
+            {handleCheck.state === 'available' && <CircleCheck aria-hidden="true" size={16} />}
+            {(handleCheck.state === 'unavailable' || handleCheck.state === 'invalid') && <CircleAlert aria-hidden="true" size={16} />}
+            {handleCheck.state === 'checking' ? t('checkingAvailability') : handleCheck.message}
+          </p>}
+        </> : <p className="field-hint">{t('organizerNoHandleHint')}</p>}
 
         <div className="mode-switch" role="group" aria-label={t('profileKindLabel')}>
           <button className={kind === 'performer' ? 'selected' : ''} type="button" onClick={() => setKind('performer')}>{t('iPerform')}</button>

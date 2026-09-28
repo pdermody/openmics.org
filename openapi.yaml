@@ -155,6 +155,7 @@ paths:
       tags:
         - Profiles
       operationId: createProfile
+      description: Performer profiles receive a handle (requested or auto-generated). Organizer profiles never receive a handle; sending `handle` with `profile_kind=organizer` is rejected with 400.
       security:
         - bearerAuth: []
       requestBody:
@@ -182,6 +183,7 @@ paths:
       tags:
         - Profiles
       operationId: deleteProfile
+      description: An account cannot delete its currently selected profile (`CURRENT_PROFILE`) or its last remaining profile (`LAST_PROFILE`). Platform admins deleting another account's profile are exempt from the current-profile rule.
       security:
         - bearerAuth: []
       responses:
@@ -189,6 +191,8 @@ paths:
           description: Profile soft-deleted
         "403":
           $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ProfileDeleteConflict"
     patch:
       tags:
         - Profiles
@@ -1372,6 +1376,14 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/HandleConflictError"
+    ProfileDeleteConflict:
+      description: The profile cannot be deleted. `error.code` is `CURRENT_PROFILE`
+        when it is the account's currently selected profile, or `LAST_PROFILE`
+        when it is the account's only remaining profile.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
     CapacityError:
       description: Capacity exceeded
       content:
@@ -1560,6 +1572,8 @@ components:
           $ref: "#/components/schemas/Id"
         current_handle:
           type: string
+          nullable: true
+          description: Always null for organizer profiles; organizers are represented publicly by their open-mic series handles.
         profile_name:
           type: string
         profile_kind:
@@ -2240,6 +2254,7 @@ components:
       properties:
         handle:
           type: string
+          description: Performer profiles only. Rejected for organizer profiles.
         profile_name:
           type: string
         profile_kind:
@@ -2271,16 +2286,12 @@ components:
             $ref: "#/components/schemas/ProfileLink"
     ProfileUpdateRequest:
       type: object
+      description: "`profile_kind` is immutable after creation and is not accepted here."
       properties:
         handle:
           type: string
         profile_name:
           type: string
-        profile_kind:
-          type: string
-          enum:
-            - organizer
-            - performer
         bio:
           type: string
         profile_image_url:

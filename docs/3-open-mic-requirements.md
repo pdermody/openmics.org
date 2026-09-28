@@ -99,6 +99,15 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 - The registration owner may change or remove the adopted public attribution later.
 - Public roster views distinguish the original guest registration from the optional adopted profile link.
 
+### D2) Profile management
+
+- An account can own multiple profiles of different kinds (performer, organizer); a profile's kind is fixed at creation.
+- Only performer profiles have a public handle; organizer profiles are represented publicly by their open-mic series.
+- Creating an open-mic series requires an active organizer profile.
+- An account cannot delete its currently selected profile; it must switch to another profile first.
+- An account cannot delete its last remaining profile.
+- Wherever profiles of different kinds can appear together, the UI identifies each profile's kind with an icon and a text label.
+
 ### E) Organizer-owned content
 
 - Organizers can add photos and video links to their profile, open-mic series, and events.
@@ -117,7 +126,8 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 
 #### Profile page
 
-- Shows the public profile name, profile kind, description, links, canonical handle, and permitted organizer-owned content.
+- Shows the public profile name, profile kind, description, links, canonical handle (performer profiles only), and permitted organizer-owned content.
+- Organizer profile pages list the open-mic series the organizer owns.
 - Shows public attribution where a registration has explicitly adopted the profile.
 - Does not expose private fields, contact email, moderation notes, or hidden/blacklisted profile details.
 

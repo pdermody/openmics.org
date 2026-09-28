@@ -141,15 +141,13 @@ try {
     [organizer.rows[0].id],
   );
 
+  // Organizer profiles never hold handles (docs/decisions.md "Profile kinds and handles").
   await pool.query(
     `INSERT INTO handles (handle, entity_type, profile_id, status) VALUES
-      ('Mara-Quinn', 'profile', $1, 'current'),
-      ('Rosa-Byrne', 'profile', $2, 'current'),
-      ('Mara-on-Stage', 'profile', $3, 'current'),
-      ('Noah-Reed', 'profile', $4, 'current'),
-      ('Iona-Park', 'profile', $5, 'current'),
-      ('Camille-Laurent', 'profile', $6, 'current')`,
-    [organizer.rows[0].id, organizerTwoProfile.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id, organizerThreeProfile.rows[0].id],
+      ('Mara-on-Stage', 'profile', $1, 'current'),
+      ('Noah-Reed', 'profile', $2, 'current'),
+      ('Iona-Park', 'profile', $3, 'current')`,
+    [ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id],
   );
   await pool.query(
     `INSERT INTO handles (handle, entity_type, open_mic_id, status) VALUES
@@ -161,9 +159,9 @@ try {
     [houseLights.rows[0].id, blueNote.rows[0].id, soundcheck.rows[0].id, rebelCity.rows[0].id, petitMicro.rows[0].id],
   );
   await pool.query(
-    `UPDATE profiles SET current_handle = CASE id WHEN $1 THEN 'Mara-Quinn' WHEN $2 THEN 'Rosa-Byrne' WHEN $3 THEN 'Mara-on-Stage' WHEN $4 THEN 'Noah-Reed' WHEN $5 THEN 'Iona-Park' WHEN $6 THEN 'Camille-Laurent' END
-     WHERE id IN ($1, $2, $3, $4, $5, $6)`,
-    [organizer.rows[0].id, organizerTwoProfile.rows[0].id, ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id, organizerThreeProfile.rows[0].id],
+    `UPDATE profiles SET current_handle = CASE id WHEN $1 THEN 'Mara-on-Stage' WHEN $2 THEN 'Noah-Reed' WHEN $3 THEN 'Iona-Park' END
+     WHERE id IN ($1, $2, $3)`,
+    [ownerPerformer.rows[0].id, performerProfile.rows[0].id, performerTwoProfile.rows[0].id],
   );
   await pool.query(
     `UPDATE accounts SET current_profile_id = $1 WHERE id = $2`,

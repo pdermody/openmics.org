@@ -8,12 +8,13 @@
 
 ## 1) Summary
 
-Friendly, shareable URLs are a first-class priority. Every profile and every open-mic series has a **handle** — a short human-readable identifier — that lives at the root of the domain under a single `@` prefix:
+Friendly, shareable URLs are a first-class priority. Every performer profile and every open-mic series has a **handle** — a short human-readable identifier — that lives at the root of the domain under a single `@` prefix:
 
-- `openmics.org/@paul-dermody` — performer or organizer profile
+- `openmics.org/@paul-dermody` — performer profile
 - `openmics.org/@portlaoise-spotlight-sessions` — open-mic series
 - `openmics.org/@nighttown-galway` — open-mic series
-- `openmics.org/@sarah-organizes` — organizer profile
+
+Organizer profiles do **not** get handles: an organizer's public presence is its open-mic series, and keeping organizers out of the namespace leaves a person's name free for the performer profile they are likely to create later (see [decisions.md](decisions.md#profile-kinds-and-handles)).
 
 Both entity types share **one global handle namespace**. Handles are the **canonical public URL** for these entities; UUID-based URLs still work but 301-redirect to the handle URL. Events do **not** get handles in v1 — they inherit the parent series' handle in their URL.
 
@@ -29,7 +30,7 @@ The `/ask` design conversation that produced this decision is in commit history.
 
 | Entity | Canonical URL |
 |---|---|
-| Profile (performer or organizer) | `openmics.org/@:handle` |
+| Performer profile | `openmics.org/@:handle` |
 | Open-mic series | `openmics.org/@:handle` |
 | Event under a series | `openmics.org/@:handle/events/:eventId` |
 | Next-scheduled-event registration (durable link/QR) | `openmics.org/@:handle/register` — resolves server-side to the soonest upcoming event's register page, or shows the series' schedule summary if none is open |
@@ -51,6 +52,7 @@ The `/ask` design conversation that produced this decision is in commit history.
 - **Media.** Individual audio/video clips stay UUID-only. There's no user demand for `openmics.org/@my-favourite-song`.
 - **Suggestions, comments, messages, notifications.** Internal navigation surfaces.
 - **Accounts.** Accounts are login containers, not public identities. Only their **profiles** are public.
+- **Organizer profiles.** Organizers are represented publicly by their series. Organizer profile pages stay at `openmics.org/profiles/:id` (UUID) and do not redirect.
 
 ---
 
@@ -365,7 +367,7 @@ Returns `{ available: true }` or `{ available: false, reason: "reserved" | "in_u
 
 Handles are mutated **through the parent entity**, not via a separate handles endpoint:
 
-- On profile create (`POST /profiles`): body includes `handle`. Auto-suggested by the frontend; user can override.
+- On profile create (`POST /profiles`): body includes `handle` for performer profiles. Auto-suggested by the frontend; user can override. Organizer profiles never receive a handle and a supplied `handle` is rejected.
 - On profile handle update (`PATCH /profiles/:id`, field: `handle`): a case-only change is allowed without the semantic rename rate limit; changing any other character uses the normal rename flow, rate limit, and validation. Returns `409` with `code: HANDLE_RATE_LIMITED` or `code: HANDLE_UNAVAILABLE` on conflict.
 - Same shape for `POST /open-mics` and `PATCH /open-mics/:id`.
 
