@@ -5,6 +5,7 @@ import { createEventSchema, updateEventSchema } from '../../src/events/validatio
 const validBase = {
   title: 'Test Event',
   starts_at: '2026-12-15T19:00:00Z',
+  ends_at: '2026-12-15T21:00:00Z',
   time_zone: 'Europe/Dublin',
 };
 

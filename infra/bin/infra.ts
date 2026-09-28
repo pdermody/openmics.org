@@ -8,6 +8,7 @@ import { DatabaseStack } from '../lib/database-stack';
 import { CertificateStack } from '../lib/certificate-stack';
 import { ApiStack } from '../lib/api-stack';
 import { FrontendStack } from '../lib/frontend-stack';
+import { MigrationStack } from '../lib/migration-stack';
 
 const app = new cdk.App();
 
@@ -68,6 +69,16 @@ const apiStack = new ApiStack(app, `OpenMicApiStack-${environmentName}`, {
   userPool: authStack.userPool,
   userPoolClient: authStack.userPoolClient,
   appBaseUrl: `https://${domainName}`,
+  env,
+});
+
+new MigrationStack(app, `OpenMicMigrationStack-${environmentName}`, {
+  environmentName,
+  vpc: networkStack.vpc,
+  databaseSecret: databaseStack.instance.secret!,
+  databaseSecurityGroup: databaseStack.securityGroup,
+  databaseHost: databaseStack.instance.dbInstanceEndpointAddress,
+  databaseName: databaseStack.databaseName,
   env,
 });
 
