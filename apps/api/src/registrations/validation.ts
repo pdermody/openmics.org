@@ -7,6 +7,7 @@ const submissionChannelSchema = z.enum([
   'social_ad',
   'poster_qr',
   'kiosk',
+  'kiosk_qr',
   'prior',
 ]);
 
@@ -25,7 +26,7 @@ const registrationFields = {
   reminders_opt_in: z.boolean().optional(),
 };
 
-export const createRegistrationSchema = z.object(registrationFields).required({
+export const createRegistrationSchema = z.object({ ...registrationFields, kiosk_token: z.string().min(1).optional() }).required({
   performer_name: true,
   submission_channel: true,
   organizer_supervised: true,
@@ -33,7 +34,13 @@ export const createRegistrationSchema = z.object(registrationFields).required({
   if (value.organizer_supervised && value.submission_channel !== 'kiosk') {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['submission_channel'], message: 'Organizer-supervised registrations must use kiosk submission' });
   }
-  if (!value.organizer_supervised && !value.profile_id && !value.contact_email) {
+  if ((value.submission_channel === 'kiosk_qr') !== Boolean(value.kiosk_token)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['kiosk_token'], message: 'kiosk_token is required for, and only allowed with, kiosk_qr submission' });
+  }
+  if (value.kiosk_token && value.organizer_supervised) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['organizer_supervised'], message: 'Kiosk QR registrations are not organizer-supervised' });
+  }
+  if (!value.organizer_supervised && !value.kiosk_token && !value.profile_id && !value.contact_email) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['contact_email'], message: 'contact_email is required for guest registrations' });
   }
 });

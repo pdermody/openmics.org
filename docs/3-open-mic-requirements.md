@@ -74,7 +74,7 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 
 - Events record start/end times, time zone, venue snapshot, capacity, registration state, and lifecycle status.
 - Event creation uses sensible defaults from the parent open-mic series.
-- Registration capacity is enforced atomically so concurrent submissions cannot overbook an event.
+- Registration capacity is enforced atomically so concurrent submissions cannot overbook an event. Kiosk sign-ups (organizer kiosk form and kiosk QR) are exempt from capacity but still count toward it for online registrations.
 - Organizers can close registrations independently of the event lifecycle.
 - The event roster supports a few dozen registrations initially and remains usable during event-night operation.
 
@@ -88,6 +88,7 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 - Registration supports optional city, phone, song names, referral attribution, and media consent.
 - Performers cannot hide their own name or attendance status through self-service.
 - A guest can edit their registration through a protected magic link.
+- A performer at the venue can sign up on their own phone by scanning the kiosk's event QR code, regardless of the series' registration mode; only a name is required and the sign-up is verified by presence.
 
 ### D) Registration claiming and attribution
 

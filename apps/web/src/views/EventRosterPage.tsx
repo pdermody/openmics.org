@@ -37,7 +37,7 @@ type PerformerCardData = { registration: RosterRegistration; performance: Perfor
 
 // A registration's provenance/verification classification — shown on card "Details" (still every
 // registration's own concern) even though the filter bar itself now only distinguishes All/Pending.
-type ProvenanceKey = 'pending' | 'verified' | 'kiosk'
+type ProvenanceKey = 'pending' | 'verified' | 'kiosk' | 'kiosk_qr'
 
 // Visibility-safe provenance: mirrors the server's "Publicly visible / valid" rule
 // (organizer_supervised OR email_verified_at). Registration "claiming" is a separate
@@ -45,6 +45,7 @@ type ProvenanceKey = 'pending' | 'verified' | 'kiosk'
 // eligibility, so it's intentionally left out of this roster-facing categorization.
 function provenanceOf(registration: RosterRegistration): { key: ProvenanceKey; label: string } {
   if (registration.organizer_supervised) return { key: 'kiosk', label: 'Kiosk' }
+  if (registration.submission_channel === 'kiosk_qr') return { key: 'kiosk_qr', label: 'Kiosk QR' }
   if (registration.email_verified_at) return { key: 'verified', label: 'Verified' }
   return { key: 'pending', label: 'Pending' }
 }

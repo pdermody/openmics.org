@@ -109,10 +109,10 @@ export function usePublicOpenMics(pageSize = 6, near?: { lat: number; lng: numbe
   })
 }
 
-export function usePublicEvent(id: string | undefined) {
+export function usePublicEvent(id: string | undefined, kioskToken?: string) {
   return useQuery({
-    queryKey: [...publicReadKeys.all, 'event', id],
-    queryFn: () => api<Event>(`/events/${id}`),
+    queryKey: [...publicReadKeys.all, 'event', id, kioskToken],
+    queryFn: () => api<Event>(`/events/${id}${kioskToken ? `?kiosk_token=${encodeURIComponent(kioskToken)}` : ''}`),
     enabled: Boolean(id),
   })
 }

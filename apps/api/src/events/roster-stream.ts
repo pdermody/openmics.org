@@ -6,25 +6,49 @@ import type { Pool } from 'pg';
 // POST /events/{id}/roster/stream-token, then passes it as a query parameter on the stream
 // itself. See decisions.md → Live updates for the full contract.
 const STREAM_TOKEN_TTL_SECONDS = 5 * 60;
+// Kiosk tokens without an event end still need a bounded lifetime.
+const KIOSK_TOKEN_FALLBACK_TTL_MS = 12 * 60 * 60 * 1000;
+
+// Both token kinds share a secret and carry event_id, so each verifier must check the purpose.
+type TokenPurpose = 'roster_stream' | 'kiosk_registration';
 
 export type StreamTokenClaims = { eventId: string };
 
-export async function signStreamToken(secret: string, eventId: string): Promise<{ token: string; expiresAt: Date }> {
-  const key = new TextEncoder().encode(secret);
-  const expiresAt = new Date(Date.now() + STREAM_TOKEN_TTL_SECONDS * 1000);
-  const token = await new SignJWT({ event_id: eventId })
+async function signEventToken(secret: string, eventId: string, purpose: TokenPurpose, expiresAt: Date): Promise<string> {
+  return new SignJWT({ event_id: eventId, purpose })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
-    .sign(key);
-  return { token, expiresAt };
+    .sign(new TextEncoder().encode(secret));
+}
+
+async function verifyEventToken(secret: string, token: string, purpose: TokenPurpose): Promise<StreamTokenClaims> {
+  const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), { algorithms: ['HS256'] });
+  if (typeof payload.event_id !== 'string' || payload.purpose !== purpose) throw new Error('Invalid token');
+  return { eventId: payload.event_id };
+}
+
+export async function signStreamToken(secret: string, eventId: string): Promise<{ token: string; expiresAt: Date }> {
+  const expiresAt = new Date(Date.now() + STREAM_TOKEN_TTL_SECONDS * 1000);
+  return { token: await signEventToken(secret, eventId, 'roster_stream', expiresAt), expiresAt };
 }
 
 export async function verifyStreamToken(secret: string, token: string): Promise<StreamTokenClaims> {
-  const key = new TextEncoder().encode(secret);
-  const { payload } = await jwtVerify(token, key);
-  if (typeof payload.event_id !== 'string') throw new Error('Invalid stream token');
-  return { eventId: payload.event_id };
+  return verifyEventToken(secret, token, 'roster_stream');
+}
+
+export async function signKioskRegistrationToken(
+  secret: string,
+  event: { id: string; starts_at: Date | string; ends_at: Date | string | null },
+): Promise<{ token: string; expiresAt: Date }> {
+  const expiresAt = event.ends_at
+    ? new Date(event.ends_at)
+    : new Date(new Date(event.starts_at).getTime() + KIOSK_TOKEN_FALLBACK_TTL_MS);
+  return { token: await signEventToken(secret, event.id, 'kiosk_registration', expiresAt), expiresAt };
+}
+
+export async function verifyKioskRegistrationToken(secret: string, token: string): Promise<StreamTokenClaims> {
+  return verifyEventToken(secret, token, 'kiosk_registration');
 }
 
 // NOTIFY/LISTEN channel names must be valid unquoted SQL identifiers to keep the LISTEN/UNLISTEN

@@ -92,4 +92,44 @@ describe('RegistrationPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Registration is no longer available for this event.')
     expect(screen.queryByRole('button', { name: /submit registration/i })).not.toBeInTheDocument()
   })
+
+  it('accepts an email-less phone sign-up with a kiosk token for an on-the-night-only series', async () => {
+    const user = userEvent.setup()
+    let submitted: Record<string, unknown> | undefined
+    let requestedEventUrl = ''
+    window.history.replaceState({}, '', '/events/LIVE1/register?kiosk=presence-token')
+    server.use(
+      http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
+      http.get('/api/me', () => HttpResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Not signed in' } }, { status: 401 })),
+      http.get('/api/events/LIVE1', ({ request }) => { requestedEventUrl = request.url; return HttpResponse.json({ ...event, registrations_closed_at: '2026-09-01T19:00:00.000Z' }) }),
+      http.get('/api/open-mics/open-mic-1', () => HttpResponse.json({ ...openMic, registration_mode: 'on_night_only' })),
+      http.post('/api/events/LIVE1/registrations', async ({ request }) => {
+        submitted = await request.json() as Record<string, unknown>
+        return HttpResponse.json({ id: 'registration-1', event_id: 'event-1' }, { status: 201 })
+      }),
+    )
+    renderWithProviders(<RegistrationPage eventCode="LIVE1" theme="venue" mode="light" />)
+
+    expect(window.location.search).toBe('')
+    await user.type(await screen.findByLabelText(/performer name/i), 'Walk In')
+    await user.click(screen.getByRole('button', { name: /register/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('You’re on the list!')
+    expect(new URL(requestedEventUrl).searchParams.get('kiosk_token')).toBe('presence-token')
+    expect(submitted).toMatchObject({ performer_name: 'Walk In', submission_channel: 'kiosk_qr', kiosk_token: 'presence-token', organizer_supervised: false })
+    expect(submitted).not.toHaveProperty('contact_email')
+  })
+
+  it('explains an expired kiosk QR code', async () => {
+    const user = userEvent.setup()
+    window.sessionStorage.setItem('openmic_kiosk_token_LIVE1', 'expired-token')
+    registerReadHandlers()
+    server.use(http.post('/api/events/LIVE1/registrations', () => HttpResponse.json({ error: { code: 'KIOSK_TOKEN_INVALID', message: 'expired' } }, { status: 403 })))
+    renderWithProviders(<RegistrationPage eventCode="LIVE1" theme="venue" mode="light" />)
+
+    await user.type(await screen.findByLabelText(/performer name/i), 'Late Scan')
+    await user.click(screen.getByRole('button', { name: /register/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('This QR code has expired')
+  })
 })

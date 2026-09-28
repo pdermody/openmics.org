@@ -492,9 +492,18 @@ paths:
       tags:
         - Events
       operationId: getEvent
+      description: Unpublished events (or events in an inactive series) are returned only to the owner, or to callers supplying a valid `kiosk_token` for this event.
+      parameters:
+        - name: kiosk_token
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/EventResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
     patch:
       tags:
         - Events
@@ -555,10 +564,32 @@ paths:
       responses:
         "201":
           $ref: "#/components/responses/RegistrationResponse"
+        "403":
+          $ref: "#/components/responses/KioskTokenInvalid"
         "409":
           $ref: "#/components/responses/CapacityError"
         "429":
           $ref: "#/components/responses/RateLimited"
+  /events/{id}/kiosk-registration-token:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags:
+        - Events
+      operationId: createKioskRegistrationToken
+      summary: Issue a presence token for the kiosk's phone-registration QR code
+      description: >-
+        Owner-only. The token is bound to this event and valid until the event ends. A registration
+        carrying it (`kiosk_token`) is treated as proof of presence: it bypasses registration mode,
+        publication, phase, capacity, and closure checks, still enforces duplicate-email rules, and is
+        verified immediately with `submission_channel` and `verification_method` set to `kiosk_qr`.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/KioskRegistrationTokenResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /events/{id}/roster/stream-token:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -1364,6 +1395,19 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/RosterStreamToken"
+    KioskRegistrationTokenResponse:
+      description: Presence token for kiosk QR phone registration
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/KioskRegistrationToken"
+    KioskTokenInvalid:
+      description: "`error.code` is `KIOSK_TOKEN_INVALID` when the supplied kiosk_token
+        is expired, malformed, or issued for a different event."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
     NotFound:
       description: Resource not found
       content:
@@ -1385,7 +1429,8 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     CapacityError:
-      description: Capacity exceeded
+      description: Capacity exceeded. Never returned for kiosk sign-ups (`organizer_supervised`
+        or a valid `kiosk_token`), which are exempt from capacity but still count toward it.
       content:
         application/json:
           schema:
@@ -1463,6 +1508,7 @@ components:
         - social_ad
         - poster_qr
         - kiosk
+        - kiosk_qr
         - prior
     RegistrationVisibility:
       type: string
@@ -1920,6 +1966,7 @@ components:
           enum:
             - email
             - organizer_kiosk
+            - kiosk_qr
             - authenticated_account
           nullable: true
         visibility_state:
@@ -2173,6 +2220,16 @@ components:
       type: object
       properties:
         stream_token:
+          type: string
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+    KioskRegistrationToken:
+      type: object
+      required:
+        - kiosk_token
+        - expires_at
+      properties:
+        kiosk_token:
           type: string
         expires_at:
           $ref: "#/components/schemas/Timestamp"
@@ -2649,6 +2706,9 @@ components:
           type: boolean
         reminders_opt_in:
           type: boolean
+        kiosk_token:
+          type: string
+          description: Presence token from the kiosk QR code. Requires submission_channel=kiosk_qr and organizer_supervised=false; contact_email becomes optional.
     RegistrationUpdateRequest:
       type: object
       properties:

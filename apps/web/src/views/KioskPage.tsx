@@ -5,7 +5,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { RegistrationLinkTools } from '../components/RegistrationLinkTools'
 import { PasswordInput } from '../components/forms/PasswordInput'
-import { useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useOpenMicDetail, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
+import { useEventDetail, useKioskBackupPinStatus, useKioskRegistration, useKioskRegistrationToken, useOpenMicDetail, useOrganizerProfile, useSetKioskBackupPin, useVerifyKioskBackupPin } from '../features/organizer'
 import type { ColorMode, ThemeId } from '../theme'
 import { Modal, ReadState, Required, RequiredFieldsNote } from './shared'
 
@@ -25,7 +25,6 @@ function formatEventDateTime(startsAt: string, timeZone: string, locale: string)
 function kioskErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === 'REGISTRATIONS_CLOSED') return 'Registration is closed for this event.'
-    if (error.code === 'CAPACITY_EXCEEDED') return 'This event is full — no more spots available.'
     if (error.code === 'DUPLICATE_REGISTRATION') return 'That performer is already on the roster for this event.'
     if (error.code === 'FORBIDDEN') return 'Only this event\'s organizer can record kiosk sign-ups.'
     const fieldErrors = (error.details as { fieldErrors?: Record<string, string[]> } | undefined)?.fieldErrors
@@ -270,6 +269,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   const event = useEventDetail(seriesId, eventId)
   const openMic = useOpenMicDetail(seriesId)
   const kioskRegistration = useKioskRegistration(eventId)
+  const kioskToken = useKioskRegistrationToken(isOrganizer ? event.data?.id : undefined)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const emailInputRef = useRef<HTMLInputElement>(null)
   const confirmationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -380,12 +380,12 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
             <summary>{t('kioskRegistrationQrTitle')}</summary>
             <p>{t(seriesPreRegistrationAllowed ? 'kioskRegistrationQrIntro' : 'kioskRegistrationQrEventOnlyIntro')}</p>
             <div className={`kiosk-registration-qr-grid${seriesPreRegistrationAllowed ? '' : ' kiosk-registration-qr-grid-single'}`}>
-              <RegistrationLinkTools
-                url={`${window.location.origin}/events/${event.data.id}/register`}
+              {kioskToken.data ? <RegistrationLinkTools
+                url={`${window.location.origin}/events/${event.data.id}/register?kiosk=${encodeURIComponent(kioskToken.data.kiosk_token)}`}
                 fileName={event.data.public_code}
                 title={t('registerForThisEvent')}
                 showPreview
-              />
+              /> : <ReadState message={t(kioskToken.isError ? 'kioskQrUnavailable' : 'preparingQr')} retry={kioskToken.isError ? () => void kioskToken.refetch() : undefined} />}
               {seriesPreRegistrationAllowed && <RegistrationLinkTools
                   url={`${window.location.origin}/open-mics/${seriesId}/register`}
                   fileName={seriesId}

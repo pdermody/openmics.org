@@ -262,6 +262,107 @@ describe('registration routes (real database)', () => {
     expect(response.json().error.code).toBe('REGISTRATION_MODE_DISABLED');
   });
 
+  describe('kiosk QR presence token', () => {
+    async function createModeEvent(registrationMode: string, overrides: { status?: string; closed?: boolean; capacity?: number } = {}) {
+      const openMic = await pool.query<{ id: string }>(
+        `INSERT INTO open_mics (owner_profile_id, name, venue_name, address_line1, city, country, time_zone, activities, age_policy, registration_mode, external_registration_url, status)
+         VALUES ($1, 'Kiosk QR Open Mic', 'Venue', '1 Test Street', 'Dublin', 'IE', 'Europe/Dublin', ARRAY['singing'], 'both', $2, $3, 'active')
+         RETURNING id`,
+        [ownerProfileId, registrationMode, registrationMode === 'external' ? 'https://example.test/register' : null],
+      );
+      const event = await pool.query<{ id: string }>(
+        `INSERT INTO events (open_mic_id, title, starts_at, ends_at, status, time_zone, venue_name, address_line1, city, country, registrations_closed_at, capacity)
+         VALUES ($1, 'Kiosk QR Event', now() - interval '1 hour', now() + interval '2 hours', $2, 'Europe/Dublin', 'Venue', '1 Test Street', 'Dublin', 'IE', $3, $4)
+         RETURNING id`,
+        [openMic.rows[0].id, overrides.status ?? 'published', overrides.closed ? new Date(Date.now() - 60_000) : null, overrides.capacity ?? null],
+      );
+      return event.rows[0].id;
+    }
+
+    async function mintToken(id: string, cognitoId = 'registration-owner') {
+      return app.inject({ method: 'POST', url: `/api/events/${id}/kiosk-registration-token`, headers: { authorization: `Bearer ${cognitoId}` } });
+    }
+
+    const qrSignup = (id: string, kioskToken: string, name = 'Phone Performer') => app.inject({
+      method: 'POST',
+      url: `/api/events/${id}/registrations`,
+      payload: { performer_name: name, submission_channel: 'kiosk_qr', organizer_supervised: false, kiosk_token: kioskToken },
+    });
+
+    it.each(['on_night_only', 'external'])('accepts a %s phone sign-up only with a kiosk token', async (registrationMode) => {
+      const id = await createModeEvent(registrationMode);
+      const blocked = await app.inject({
+        method: 'POST',
+        url: `/api/events/${id}/registrations`,
+        payload: { performer_name: 'No Token', contact_email: `${registrationMode}-qr@example.test`, submission_channel: 'organic', organizer_supervised: false },
+      });
+      expect(blocked.statusCode).toBe(409);
+
+      const token = (await mintToken(id)).json().kiosk_token as string;
+      const accepted = await qrSignup(id, token);
+      expect(accepted.statusCode).toBe(201);
+      expect(accepted.json().submission_channel).toBe('kiosk_qr');
+      expect(accepted.json().verification_method).toBe('kiosk_qr');
+      expect(accepted.json().visibility_state).toBe('valid');
+      const performance = await pool.query<{ status: string }>('SELECT status FROM performances WHERE registration_id = $1', [accepted.json().id]);
+      expect(performance.rows[0].status).toBe('present');
+    });
+
+    it('bypasses registration closure, publication, and capacity', async () => {
+      const id = await createModeEvent('pre_only', { status: 'draft', closed: true, capacity: 1 });
+      const token = (await mintToken(id)).json().kiosk_token as string;
+
+      const hiddenEvent = await app.inject({ method: 'GET', url: `/api/events/${id}` });
+      expect(hiddenEvent.statusCode).toBe(404);
+      const tokenEvent = await app.inject({ method: 'GET', url: `/api/events/${id}?kiosk_token=${encodeURIComponent(token)}` });
+      expect(tokenEvent.statusCode).toBe(200);
+
+      expect((await qrSignup(id, token, 'First')).statusCode).toBe(201);
+      expect((await qrSignup(id, token, 'Second')).statusCode).toBe(201);
+    });
+
+    it('lets kiosk sign-ups exceed capacity while still counting them against online sign-ups', async () => {
+      const id = await createModeEvent('both', { capacity: 1 });
+      const online = (name: string) => app.inject({
+        method: 'POST',
+        url: `/api/events/${id}/registrations`,
+        payload: { performer_name: name, contact_email: `${name.toLowerCase().replace(/\s+/g, '-')}@example.test`, submission_channel: 'organic', organizer_supervised: false },
+      });
+
+      expect((await online('Online First')).statusCode).toBe(201);
+      const kioskForm = await app.inject({
+        method: 'POST',
+        url: `/api/events/${id}/registrations`,
+        headers: { authorization: 'Bearer registration-owner' },
+        payload: { performer_name: 'Kiosk Walk In', submission_channel: 'kiosk', organizer_supervised: true },
+      });
+      expect(kioskForm.statusCode).toBe(201);
+      const token = (await mintToken(id)).json().kiosk_token as string;
+      expect((await qrSignup(id, token, 'Phone Walk In')).statusCode).toBe(201);
+
+      const blocked = await online('Online Second');
+      expect(blocked.statusCode).toBe(409);
+      expect(blocked.json().error.code).toBe('CAPACITY_EXCEEDED');
+    });
+
+    it('rejects tokens for another event, stream tokens, and tokens minted by non-owners', async () => {
+      const id = await createModeEvent('on_night_only');
+      const otherToken = (await mintToken(eventId)).json().kiosk_token as string;
+      const wrongEvent = await qrSignup(id, otherToken);
+      expect(wrongEvent.statusCode).toBe(403);
+      expect(wrongEvent.json().error.code).toBe('KIOSK_TOKEN_INVALID');
+
+      const streamToken = (await app.inject({ method: 'POST', url: `/api/events/${id}/roster/stream-token`, headers: { authorization: 'Bearer registration-owner' } })).json().stream_token as string;
+      expect((await qrSignup(id, streamToken)).json().error.code).toBe('KIOSK_TOKEN_INVALID');
+
+      const kioskToken = (await mintToken(id)).json().kiosk_token as string;
+      const streamWithKioskToken = await app.inject({ method: 'GET', url: `/api/events/${id}/roster/stream?stream_token=${encodeURIComponent(kioskToken)}` });
+      expect(streamWithKioskToken.statusCode).toBe(403);
+
+      expect((await mintToken(id, 'registration-claimant')).statusCode).toBe(403);
+    });
+  });
+
   it('rejects a second verified registration for the same event and email', async () => {
     await pool.query(
       "UPDATE registrations SET email_verified_at = now(), verification_method = 'email' WHERE contact_email = 'guest@example.test'",

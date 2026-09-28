@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { http, HttpResponse } from 'msw'
-import { fireEvent, screen } from '@testing-library/react'
-import { beforeEach, afterEach, describe, expect, it } from 'vitest'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { KioskPage } from '../views/KioskPage'
 import { renderWithProviders } from './render'
 import { server } from './server'
@@ -38,6 +38,7 @@ function registerOrganizerHandlers(registrationMode: 'both' | 'on_night_only' = 
       registration_mode: registrationMode, status: 'active',
     })),
     http.get('/api/open-mics/series-1/kiosk-backup-pin', () => HttpResponse.json({ configured: true })),
+    http.post('/api/events/event-1/kiosk-registration-token', () => HttpResponse.json({ kiosk_token: 'presence-token', expires_at: '2026-10-01T22:00:00.000Z' })),
   )
 }
 
@@ -102,6 +103,17 @@ describe('KioskPage behavior', () => {
 
     expect(await screen.findByRole('button', { name: 'Add to roster' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Register for any event' })).not.toBeInTheDocument()
+  })
+
+  it('embeds the presence token in the event QR link even for on-the-night-only series', async () => {
+    registerOrganizerHandlers('on_night_only')
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    renderWithProviders(<KioskPage seriesId="series-1" eventId="event-1" theme="venue" mode="light" />)
+
+    const heading = await screen.findByRole('heading', { name: 'Register for this event' })
+    fireEvent.click(within(heading.closest('.registration-link-tools') as HTMLElement).getAllByRole('button')[0])
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/events/event-1/register?kiosk=presence-token')))
   })
 
   it('routes Escape through the PIN gate instead of leaving the kiosk', async () => {

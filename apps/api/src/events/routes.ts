@@ -20,7 +20,7 @@ import {
   softDeleteEvent,
   updateEvent,
 } from './repository.js';
-import { notifyRoster, rosterChannelName, signStreamToken, verifyStreamToken } from './roster-stream.js';
+import { notifyRoster, rosterChannelName, signKioskRegistrationToken, signStreamToken, verifyKioskRegistrationToken, verifyStreamToken } from './roster-stream.js';
 import { createEventSchema, updateEventSchema } from './validation.js';
 
 export type EventsPluginOptions = { pool: Pool; streamTokenSecret: string };
@@ -132,12 +132,15 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     },
   );
 
-  app.get<{ Params: { id: string } }>('/events/:id', { preHandler: app.authenticateOptional }, async (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: { kiosk_token?: string } }>('/events/:id', { preHandler: app.authenticateOptional }, async (request, reply) => {
     const event = await findEventByIdOrPublicCode(pool, request.params.id);
     if (!event) throw new NotFoundError('Event not found');
     const openMic = await findOpenMicByIdOrPublicCode(pool, event.open_mic_id);
     const canManage = openMic && await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account);
-    if (!openMic || (!canManage && (openMic.status !== 'active' || event.status !== 'published'))) {
+    const hasKioskAccess = request.query.kiosk_token
+      ? await verifyKioskRegistrationToken(streamTokenSecret, request.query.kiosk_token).then((claims) => claims.eventId === event.id, () => false)
+      : false;
+    if (!openMic || (!canManage && !hasKioskAccess && (openMic.status !== 'active' || event.status !== 'published'))) {
       throw new NotFoundError('Event not found');
     }
     reply.send(serializeEvent(event));
@@ -255,6 +258,26 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       const restored = await restoreEvent(pool, existing.id);
       if (!restored) throw new NotFoundError('Event not found, already active, or past its 30-day recovery window');
       reply.send(serializeEvent(restored));
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/events/:id/kiosk-registration-token',
+    { preHandler: app.authenticate },
+    async (request, reply) => {
+      const event = await findEventByIdOrPublicCode(pool, request.params.id);
+      if (!event) throw new NotFoundError('Event not found');
+      const openMic = await findOpenMicByIdOrPublicCode(pool, event.open_mic_id);
+      if (!openMic) throw new NotFoundError('Parent open mic not found');
+
+      const account = request.account!;
+      const ownerAccountId = await findOpenMicOwnerAccountId(pool, openMic.owner_profile_id);
+      if (ownerAccountId !== account.accountId && !account.isPlatformAdmin) {
+        throw new ForbiddenError('Only the event organizer can issue kiosk registration tokens');
+      }
+
+      const { token, expiresAt } = await signKioskRegistrationToken(streamTokenSecret, event);
+      reply.send({ kiosk_token: token, expires_at: expiresAt.toISOString() });
     },
   );
 

@@ -45,6 +45,24 @@ function editSessionStorageKey(eventCode: string) {
   return `openmic_edit_registration_id_${eventCode}`
 }
 
+function kioskTokenStorageKey(eventCode: string) {
+  return `openmic_kiosk_token_${eventCode}`
+}
+
+// The kiosk QR carries a presence token; keep it for this tab only and drop it from the visible URL.
+function takeKioskToken(eventCode: string): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const url = new URL(window.location.href)
+  const fromUrl = url.searchParams.get('kiosk')
+  if (fromUrl) {
+    window.sessionStorage.setItem(kioskTokenStorageKey(eventCode), fromUrl)
+    url.searchParams.delete('kiosk')
+    window.history.replaceState({}, '', `${url.pathname}${url.search}`)
+    return fromUrl
+  }
+  return window.sessionStorage.getItem(kioskTokenStorageKey(eventCode)) ?? undefined
+}
+
 function formatEventDateTime(startsAt: string, timeZone: string, locale: string): string {
   try {
     return new Intl.DateTimeFormat(locale, {
@@ -58,7 +76,9 @@ function formatEventDateTime(startsAt: string, timeZone: string, locale: string)
 
 export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string } & ThemeProps) {
   const { t, i18n } = useTranslation()
-  const event = usePublicEvent(eventCode)
+  const [kioskToken] = useState(() => takeKioskToken(eventCode))
+  const kioskMode = Boolean(kioskToken)
+  const event = usePublicEvent(eventCode, kioskToken)
   const parentOpenMic = usePublicOpenMic(event.data?.open_mic_id)
   const accountContext = useAccountContext()
   const activeProfile = accountContext.profiles.data?.items.find((profile) => profile.id === accountContext.account.data?.current_profile_id)
@@ -66,11 +86,11 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
   const needsPerformerProfile = Boolean(accountContext.account.data) && !performerProfile
   const registrationMode = parentOpenMic.data?.registration_mode
   const eventRegistrationClosed = Boolean(event.data) && isRegistrationClosed(event.data!)
-  const standardRegistrationDisabled = eventRegistrationClosed
+  const standardRegistrationDisabled = !kioskMode && (eventRegistrationClosed
     || parentOpenMic.data?.status !== 'active'
     || event.data?.status !== 'published'
     || event.data?.phase === 'past'
-    || !['pre_only', 'both'].includes(registrationMode ?? '')
+    || !['pre_only', 'both'].includes(registrationMode ?? ''))
   const registrationUnavailableMessage = eventRegistrationClosed
     ? 'Registration is closed for this event.'
     : event.data?.phase === 'past'
@@ -164,7 +184,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
       setMessage('Please enter the name you would like the organizer to call.')
       return
     }
-    if (!editRegistration && !performerProfile && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    if (!editRegistration && !performerProfile && (!kioskMode || contactEmail) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
       setState('error')
       setMessage('Please enter a valid email address, such as you@example.com.')
       return
@@ -192,21 +212,22 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
         body: JSON.stringify({
           profile_id: performerProfile?.id,
           performer_name: performerProfile?.profile_name ?? performerName,
-          contact_email: performerProfile ? undefined : contactEmail,
+          contact_email: performerProfile || !contactEmail ? undefined : contactEmail,
           performer_city: performerCity || undefined,
           contact_phone: contactPhone || undefined,
           song_names: songNames.split(',').map((song) => song.trim()).filter(Boolean),
           media_consent: mediaConsent,
-          submission_channel: 'organic',
+          submission_channel: kioskMode ? 'kiosk_qr' : 'organic',
           organizer_supervised: false,
+          ...(kioskToken ? { kiosk_token: kioskToken } : {}),
         }),
       })
       if (event.data) markEventRegisteredLocally(event.data.id)
       setState('success')
-      setMessage(performerProfile ? 'You are registered for this event.' : 'Check your inbox to confirm your registration.')
+      setMessage(kioskMode ? t('kioskQrSignedUp') : performerProfile ? 'You are registered for this event.' : 'Check your inbox to confirm your registration.')
     } catch (error) {
       setState('error')
-      setMessage(registrationErrorMessage(error))
+      setMessage(error instanceof ApiError && error.code === 'KIOSK_TOKEN_INVALID' ? t('kioskQrExpired') : registrationErrorMessage(error))
     }
   }
 
@@ -225,9 +246,9 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
             <p className="registration-event-fact"><CalendarDays size={17} aria-hidden="true" /><strong>{formatEventDateTime(event.data.starts_at, event.data.time_zone, i18n.language)}</strong></p>
             <p className="registration-event-fact"><MapPin size={17} aria-hidden="true" /><span>{event.data.venue_name}, {event.data.city}, {event.data.country}</span></p>
             {event.data.capacity && <p className="registration-event-fact"><Users size={17} aria-hidden="true" /><span>{t('eventCapacity', { count: event.data.capacity })}</span></p>}
-            <p className="registration-event-fact"><Clock3 size={17} aria-hidden="true" /><span>{eventRegistrationClosed ? t('registrationClosed') : registrationMode === 'on_night_only' ? t('onNightRegistration') : t('registrationOpen')}</span></p>
+            <p className="registration-event-fact"><Clock3 size={17} aria-hidden="true" /><span>{kioskMode ? t('registrationOpen') : eventRegistrationClosed ? t('registrationClosed') : registrationMode === 'on_night_only' ? t('onNightRegistration') : t('registrationOpen')}</span></p>
           </div>
-          <p className="detail-lede">{t('registrationLead')}</p>
+          <p className="detail-lede">{kioskMode ? t('kioskQrIntro') : t('registrationLead')}</p>
           {editState === 'loading' && <ReadState message={t('loadingRegistration')} />}
           {editState === 'error' && <div className="profile-context profile-context-warning" role="alert">{t('invalidEditLink')}</div>}
           {verifyState === 'verified' && <div className="profile-context" role="status">{t('emailConfirmed')}</div>}
@@ -240,11 +261,11 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
           {needsPerformerProfile && !editRegistration && <div className="profile-context profile-context-warning" role="alert">{t('switchPerformerWarning')}</div>}
           {performerProfile && !editRegistration && <div className="profile-context" role="status">{t('registeringAs')} <strong>{performerProfile.profile_name}</strong> · {t('performerProfile')}</div>}
           {performerProfile && editRegistration && <div className="profile-context" role="status">{t('performerFieldsStay', { name: editRegistration.performer_name })}</div>}
-          {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong>{!editRegistration && !performerProfile && <p>{t('pendingEmailConfirmation')}</p>}</div> : (needsPerformerProfile && !editRegistration) || (standardRegistrationDisabled && !editRegistration) || editState === 'loading' ? null : <form className="registration-form" noValidate onSubmit={submit}>
+          {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong>{!editRegistration && !performerProfile && !kioskMode && <p>{t('pendingEmailConfirmation')}</p>}</div> : (needsPerformerProfile && !editRegistration) || (standardRegistrationDisabled && !editRegistration) || editState === 'loading' ? null : <form className="registration-form" noValidate onSubmit={submit}>
             {(!performerProfile || editRegistration) && <RequiredFieldsNote />}
             {!performerProfile && !editRegistration && <>
               <label><span>{t('performerName')}<Required /></span><input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
-              <label><span>{t('contactEmail')}<Required /></span><input required type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
+              <label><span>{t('contactEmail')}{!kioskMode && <Required />}</span>{kioskMode && <span className="field-hint">{t('kioskEmailHint')}</span>}<input required={!kioskMode} type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
               <label>{t('city')} <span className="field-hint">{t('optional')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
               <label>{t('phone')} <span className="field-hint">{t('phoneOptional')}</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
             </>}

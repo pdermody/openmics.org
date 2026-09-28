@@ -655,6 +655,17 @@ export type KioskRegistrationInput = {
   reminders_opt_in?: boolean
 }
 
+// Presence token embedded in the kiosk's phone-registration QR; valid until the event ends.
+export function useKioskRegistrationToken(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ['organizer', 'kiosk-registration-token', eventId],
+    queryFn: () => api<{ kiosk_token: string; expires_at: string }>(`/events/${eventId}/kiosk-registration-token`, { method: 'POST' }),
+    enabled: Boolean(eventId),
+    staleTime: Infinity,
+    retry: false,
+  })
+}
+
 export function useKioskRegistration(eventId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({

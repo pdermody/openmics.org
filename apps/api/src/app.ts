@@ -121,7 +121,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.register(profilesRoutes, { pool, prefix: '/api' });
   app.register(openMicsRoutes, { pool, prefix: '/api' });
   app.register(eventsRoutes, { pool, streamTokenSecret: config.streamTokenSecret, prefix: '/api' });
-  app.register(registrationsRoutes, { pool, emailAdapter, appBaseUrl: config.appBaseUrl, prefix: '/api' });
+  app.register(registrationsRoutes, { pool, emailAdapter, appBaseUrl: config.appBaseUrl, streamTokenSecret: config.streamTokenSecret, prefix: '/api' });
   app.register(performancesRoutes, { pool, prefix: '/api' });
   app.register(accountsRoutes, { pool, prefix: '/api' });
   app.register(spaRoutes);

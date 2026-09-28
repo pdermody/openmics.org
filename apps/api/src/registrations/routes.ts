@@ -4,9 +4,9 @@ import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
 import type { EmailAdapter } from '../email/index.js';
-import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../errors.js';
+import { AppError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../errors.js';
 import { findEventById, findEventByIdOrPublicCode } from '../events/repository.js';
-import { notifyRoster } from '../events/roster-stream.js';
+import { notifyRoster, verifyKioskRegistrationToken } from '../events/roster-stream.js';
 import { findOpenMicById } from '../open-mics/repository.js';
 import { findPerformancesByRegistrationIds, insertPerformance, serializePerformance } from '../performances/repository.js';
 import { findProfileById } from '../profiles/repository.js';
@@ -23,7 +23,7 @@ import {
 } from './repository.js';
 import { claimRegistrationSchema, createRegistrationSchema, updateRegistrationSchema, verifyEmailSchema } from './validation.js';
 
-export type RegistrationsPluginOptions = { pool: Pool; emailAdapter: EmailAdapter; appBaseUrl: string };
+export type RegistrationsPluginOptions = { pool: Pool; emailAdapter: EmailAdapter; appBaseUrl: string; streamTokenSecret: string };
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -87,7 +87,7 @@ async function assertRegistrationAccess(pool: Pool, request: FastifyRequest, reg
   return registration;
 }
 
-export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions> = async (app, { pool, emailAdapter, appBaseUrl }) => {
+export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions> = async (app, { pool, emailAdapter, appBaseUrl, streamTokenSecret }) => {
   app.post<{ Params: { id: string } }>(
     '/events/:id/registrations',
     { preHandler: app.authenticateOptional },
@@ -99,10 +99,18 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       if (!event) throw new NotFoundError('Event not found');
       const openMic = await findOpenMicById(pool, event.open_mic_id);
       if (!openMic) throw new NotFoundError('Parent open mic not found');
-      if (!input.organizer_supervised && (openMic.status !== 'active' || event.status !== 'published')) {
+      if (input.kiosk_token) {
+        const claims = await verifyKioskRegistrationToken(streamTokenSecret, input.kiosk_token).catch(() => null);
+        if (!claims || claims.eventId !== event.id) {
+          throw new AppError(403, 'KIOSK_TOKEN_INVALID', 'This kiosk QR code has expired or is not valid for this event');
+        }
+      }
+      // A valid kiosk token proves presence at the venue, like organizer supervision.
+      const presenceVerified = input.organizer_supervised || Boolean(input.kiosk_token);
+      if (!presenceVerified && (openMic.status !== 'active' || event.status !== 'published')) {
         throw new ConflictError('REGISTRATION_UNAVAILABLE', 'Registration is not available for this event');
       }
-      if (!input.organizer_supervised && !['pre_only', 'both'].includes(openMic.registration_mode)) {
+      if (!presenceVerified && !['pre_only', 'both'].includes(openMic.registration_mode)) {
         throw new ConflictError(
           'REGISTRATION_MODE_DISABLED',
           openMic.registration_mode === 'external'
@@ -110,10 +118,10 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
             : 'Online registration is not available for this open mic.',
         );
       }
-      if (!input.organizer_supervised && (!event.ends_at || new Date(event.ends_at).getTime() <= Date.now())) {
+      if (!presenceVerified && (!event.ends_at || new Date(event.ends_at).getTime() <= Date.now())) {
         throw new ConflictError('REGISTRATION_UNAVAILABLE', 'Registration is no longer available for this event');
       }
-      if (!input.organizer_supervised && event.registrations_closed_at && new Date(event.registrations_closed_at).getTime() <= Date.now()) {
+      if (!presenceVerified && event.registrations_closed_at && new Date(event.registrations_closed_at).getTime() <= Date.now()) {
         throw new ConflictError('REGISTRATIONS_CLOSED', 'Registrations are closed for this event');
       }
 
@@ -131,6 +139,9 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
         }
         verificationMethod = 'authenticated_account';
         verifiedAt = new Date();
+      } else if (input.kiosk_token) {
+        verificationMethod = 'kiosk_qr';
+        verifiedAt = new Date();
       }
 
       if (input.organizer_supervised) {
@@ -144,8 +155,8 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
         verifiedAt = new Date();
       }
 
-      const editToken = !input.organizer_supervised ? tokenPair(TOKEN_TTL_MS) : null;
-      const verificationToken = !input.organizer_supervised && !profileId ? tokenPair(VERIFICATION_TTL_MS) : null;
+      const editToken = !presenceVerified ? tokenPair(TOKEN_TTL_MS) : null;
+      const verificationToken = !presenceVerified && !profileId ? tokenPair(VERIFICATION_TTL_MS) : null;
       try {
         const created = await withTransaction(pool, async (client) => {
           const lockedEvent = await client.query<{ capacity: string | null }>(
@@ -153,7 +164,8 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
             [event.id],
           );
           if (!lockedEvent.rows[0]) throw new NotFoundError('Event not found');
-          if (lockedEvent.rows[0].capacity !== null) {
+          // Kiosk sign-ups are exempt from capacity but still count toward it for online sign-ups.
+          if (!presenceVerified && lockedEvent.rows[0].capacity !== null) {
             const count = await client.query<{ count: string }>(
               'SELECT count(*)::text AS count FROM registrations WHERE event_id = $1 AND deleted_at IS NULL',
               [event.id],
@@ -203,7 +215,7 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
             registrationId: registration.id,
             eventId: event.id,
             name: input.performer_name,
-            status: input.organizer_supervised ? 'present' : 'registered',
+            status: presenceVerified ? 'present' : 'registered',
           });
           return registration;
         });
