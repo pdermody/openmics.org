@@ -24,159 +24,18 @@ The public vanity resolver (`GET /@:handle`) intentionally does not appear in `o
 
 ## 5) API Architecture
 
-**Canonical contract:** [`openapi.yaml`](../../openapi.yaml)
+**Canonical contract:** [`openapi.yaml`](../../openapi.yaml) is the single source of truth for paths, methods, parameters, request/response schemas, status codes, and authentication for the Phase 1 API. The Fastify service serves the same document at `GET /api/openapi.json`.
 
-**Base URL:** `https://api.openmics.org/api` (all JSON and SSE API operations are below the `/api` root)
+**Base URL:** `https://api.openmics.org/api`. All JSON and SSE API operations live below the `/api` root; for example `GET /open-mics` is served at `GET https://api.openmics.org/api/open-mics`. Browser-facing paths remain outside the API root and receive the shared SPA entry point — the API does not render entity-specific HTML.
 
-The Fastify service serves the same contract at `GET /api/openapi.json`. Paths in the endpoint inventory below are relative to the base URL, so for example `GET /open-mics` is served at `GET https://api.openmics.org/api/open-mics`. Browser-facing paths remain outside the API root and receive the shared SPA entry point; the API does not render entity-specific HTML.
+**Contract conventions** (not repeated in this document — see `openapi.yaml`):
 
-> **Contract note:** The endpoint inventory below is retained as architectural history and is not the executable Phase 1 contract. Use [`openapi.yaml`](../../openapi.yaml), [docs/decisions.md](../decisions.md), and [docs/contract-gap-matrix.md](../contract-gap-matrix.md) for current paths, methods, authentication, and implementation status. In particular, browser authentication is handled by Cognito through Amplify; Phase 1 SSE is limited to the organizer event-roster stream; and the current contract uses `PATCH` for partial resource updates.
+- Partial resource updates use `PATCH` (profiles, open-mics, events, registrations, accounts). `PUT` is reserved for wholesale-replace operations such as `PUT /accounts/{id}/current-profile`.
+- Browser authentication is Cognito ID tokens issued through Amplify. There are no `/auth/sign-up`, `/auth/sign-in`, or `/auth/refresh-token` operations on this API — the browser talks to Cognito directly.
+- Phase 1 SSE is scoped to the organizer event-roster stream (`GET /events/{id}/roster/stream`) plus its stream-token mint endpoint. See [decisions.md → Milestone 2 event lifecycle](../decisions.md#milestone-2-event-lifecycle) for the token, ordering, resync, and multi-instance fan-out contract.
+- Handles are resolved outside `/api` by the vanity resolver (`GET /@:handle`), per [6-open-mic-vanity-urls.md](../6-open-mic-vanity-urls.md#10-api-surface).
 
-**Core Resources:**
-
-```
-Authentication
-  GET    /auth/profile            (current application account from the verified Cognito ID token)
-  GET    /me                       (alias for the current application account)
-
-Public documents (CloudFront origin for canonical handle URLs)
-  GET    /@:handle                (shared SPA entry point; the SPA resolves the handle through the API)
-  GET    /@:handle/events/:id     (shared SPA entry point; the SPA loads the event through the API)
-
-Profiles (unified context management)
-  GET    /accounts/:id/profiles           (list all profiles for current user with their roles)
-  GET    /profiles/slug-available?slug=<candidate>   (check global profile slug availability)
-  GET    /profiles/:id                    (view profile details — public or private based on permissions)
-  POST   /profiles                        (create new profile)
-  PUT    /profiles/:id                    (update profile — permission: profiles:edit)
-  DELETE /profiles/:id                    (delete profile — permission: profiles:delete, owner only)
-  PUT    /accounts/:id/current-profile    (set which profile user is currently using)
-  POST   /profiles/:id/media              (add media to profile)
-  GET    /profiles/:id/media              (get profile-only media)
-
-Profile Follows ("likes")
-  POST   /profiles/:id/follow             (current profile starts following :id)
-  DELETE /profiles/:id/follow             (current profile unfollows :id)
-  GET    /profiles/:id/followers          (list profiles that follow :id)
-  GET    /profiles/:id/following          (list profiles :id follows)
-  GET    /me/following/upcoming-events    (upcoming events from every profile the current profile follows;
-                                           supports ?limit=&from=&to=; ordered by date/time ascending)
-
-Profile Access Management
-  GET    /profiles/:id/members            (list all accounts and their roles — permission: profiles:manage_roles)
-  POST   /profiles/:id/invitations        (invite account with role — permission: profiles:manage_roles)
-  GET    /profiles/:id/invitations        (list pending invitations — permission: profiles:manage_roles)
-  PUT    /invitations/:id                 (accept/reject invitation by recipient)
-  DELETE /profiles/:id/members/:account_id  (remove account's access — permission: profiles:manage_roles)
-  PUT    /profiles/:id/members/:account_id/role  (change account's role — permission: profiles:manage_roles)
-
-Roles & Permissions (post-MVP, platform admin only)
-  GET    /roles                           (list all roles)
-  GET    /permissions                     (list all permissions)
-  POST   /roles                           (create new role — permission: roles:create)
-  PUT    /roles/:id                       (update role — permission: roles:edit)
-  GET    /roles/:id/permissions           (list permissions for a role)
-  POST   /roles/:id/permissions           (add permission to role — permission: roles:edit)
-  DELETE /roles/:id/permissions/:perm_id  (remove permission from role — permission: roles:edit)
-
-OpenMics (directory + management)
-  GET    /open-mics                  (directory search — see "Directory search & map endpoints" below)
-  GET    /open-mics/map              (map view: pins or clusters within a bounding box)
-  POST   /open-mics                  (authenticated; the caller's current profile becomes the owning organizer profile)
-  GET    /open-mics/slug-available?slug=<candidate>   (check global slug availability)
-  GET    /open-mics/:id
-  PUT    /open-mics/:id
-  GET    /open-mics/:id/events
-  GET    /open-mics/:id/next-event    (public; the soonest upcoming, not-yet-closed event under the series, or null + schedule_summary/schedule_details fallback; powers the durable "next event" QR/link)
-  GET    /open-mics/:id/register      (shared SPA entry point; the SPA resolves the next event through /api/open-mics/:id/next-event)
-  GET    /open-mics/:id/events/slug-available?slug=<candidate>   (check per-series event slug availability)
-  GET    /open-mics/:id/reviews
-  POST   /open-mics/:id/reviews   (registered users only)
-
-Events
-  GET    /events/upcoming         (public; ordered by date/time ascending; supports ?near=<lat>,<lng>&radius_km=&limit=&from=&to=; used by the directory home "Upcoming events" section)
-  GET    /events/:id
-  POST   /events                  (organizer only; requires open_mic_id; defaults location from the open mic but accepts location overrides for a one-off venue)
-  PUT    /events/:id
-  GET    /events/:id/registrations                (organizer/assistant view of the roster; also backs the walk-in kiosk state)
-  POST   /events/:id/registrations                (self-serve or kiosk; body sets submission_channel, organizer_supervised, referred_by_profile_id, contact_email, etc.)
-  GET    /events/:id/reviews
-  POST   /events/:id/reviews
-  GET    /events/:id/media         (grouped by added_by_role: organizer | performer)
-  POST   /events/:id/media         (organizer or registered performer, using current profile)
-
-Registrations
-  GET    /registrations/:id                        (owner — profile or claiming account — or organizer/assistant of the event)
-  GET    /registrations/edit?token=<edit_token>    (magic-link resolve for guest edits; no auth required)
-  PUT    /registrations/:id                        (owner or organizer/assistant, or the short-lived edit session established by the magic-link resolver)
-  POST   /registrations/:id/rotate-edit-token      (owner or organizer/assistant; invalidates the previous magic link and emails a new one)
-  POST   /registrations/:id/verify-email           (public; body/query carries the one-shot verification token; flips a pending self-serve guest row to valid)
-  POST   /registrations/:id/claim                  (authenticated; claims a guest registration whose contact_email matches the caller's Cognito-verified email)
-  GET    /registrations/:id/performances
-
-Me
-  GET    /me/claimable-registrations               (authenticated; lists unclaimed guest registrations whose contact_email matches the caller's Cognito-verified email, excluding pending self-serve rows)
-  GET    /me/home/upcoming-events                  (authenticated; personalized upcoming-events feed for the directory home — prioritizes followed profiles, prior registrations, and attended open mics; falls back to nearest then soonest globally; supports ?near=&limit=)
-  GET    /me/home/notable-open-mics                (authenticated; personalized "notable open-mics" feed with the same priority order and fallbacks; supports ?near=&limit=)
-
-Performances
-  POST   /performances             (create performance for a registration)
-  PUT    /performances/:id
-  DELETE /performances/:id
-
-Media
-  GET    /media/:id
-  POST   /media/upload-url        (presigned upload URL)
-  POST   /media                   (create media record, associated with current profile)
-  DELETE /media/:id               (soft delete)
-  POST   /media/:id/recover       (from recycle bin, using current profile)
-  GET    /media/:id/comments
-  POST   /media/:id/comments      (using current profile)
-  GET    /media/:id/reactions
-  POST   /media/:id/reactions     (using current profile)
-
-Comments
-  GET    /comments/:id
-  PUT    /comments/:id             (edit text/rating; author only)
-  DELETE /comments/:id
-  POST   /comments/:id/replies    (using current profile)
-
-EventReviews
-  GET    /events/:id/reviews/:reviewId
-  PUT    /events/:id/reviews/:reviewId              (edit text/rating; reviewer only)
-  DELETE /events/:id/reviews/:reviewId
-  POST   /events/:id/reviews/:reviewId/responses   (organizer's profile only)
-
-OpenMicReviews
-  GET    /open-mics/:id/reviews/:reviewId
-  PUT    /open-mics/:id/reviews/:reviewId              (edit text/rating; reviewer only)
-  DELETE /open-mics/:id/reviews/:reviewId
-  POST   /open-mics/:id/reviews/:reviewId/responses   (organizer's profile only)
-
-PrivateMessages
-  GET    /messages                (inbox for current profile)
-  POST   /messages/:profile_id    (send from current profile to recipient profile)
-  GET    /messages/:profile_id    (conversation with specific profile)
-  PUT    /messages/:id/mark-read
-
-Suggestions (site-wide suggestion box — platform/product feedback only, never about a specific open mic, event, or profile)
-  GET    /suggestions                         (list; supports ?status=&tag=&sort=top|new; public read)
-  POST   /suggestions                         (authenticated account posts a suggestion)
-  GET    /suggestions/:id                     (view a suggestion)
-  PUT    /suggestions/:id                     (edit title/body/tags — author only)
-  PATCH  /suggestions/:id/status              (change status — platform admin only)
-  PUT    /suggestions/:id/admin-notes         (update admin_notes — platform admin only)
-  DELETE /suggestions/:id                     (soft delete — author or platform admin)
-  GET    /suggestions/:id/replies             (list replies through CommentSuggestions)
-  POST   /suggestions/:id/replies             (add a reply, using current profile)
-  GET    /suggestions/:id/reactions           (upvotes)
-  POST   /suggestions/:id/reactions           (upvote, using current profile)
-
-Notifications
-  GET    /notifications/stream    (SSE endpoint)
-  GET    /notifications           (unread list)
-  PUT    /notifications/:id/read
-```
+For anything not covered by `openapi.yaml`, prefer [decisions.md](../decisions.md), [../contract-gap-matrix.md](../contract-gap-matrix.md), and this document's Directory search, Home page feed, Personalization, and Geocoding sections below.
 
 **Error Response Format:**
 ```json
@@ -203,9 +62,9 @@ Quota errors use the same envelope with a stable `code` so the frontend can catc
 }
 ```
 
-**Rate Limiting:**
-- 100 requests/min per user (CloudWatch + API Gateway rules later)
-- 10 requests/min for media uploads
+Quotas themselves are a post-MVP concept — see [data-model.md → Post-MVP appendix](data-model.md#post-mvp-appendix) for the current unimplemented model. The stable error envelope is retained so the frontend can react to a `QUOTA_EXCEEDED` code without a follow-up contract change when quotas ship.
+
+**Rate limiting** in Phase 1 is applied by the API to specific abuse surfaces (guest registration, geocoding proxy). A generic per-user request budget is not implemented; document any additions in `openapi.yaml` and this section together.
 
 **Directory search & map endpoints:**
 

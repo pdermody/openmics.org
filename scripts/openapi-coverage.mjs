@@ -1,4 +1,4 @@
-// Milestone 0, item 5 (IMPLEMENTATION-PLAN.md): reports which openapi.yaml operations have at least one
+// Reports which openapi.yaml operations have at least one
 // matching apps/api/tests/**/*.ts Fastify `inject({ method, url })` call. This is a structural heuristic,
 // not a substitute for actually running the suites — it only proves a test *calls* the shape of a route,
 // not that it asserts anything meaningful about the response.

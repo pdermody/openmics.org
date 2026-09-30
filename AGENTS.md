@@ -1,24 +1,33 @@
 # Repository Guidance
 
-## Document Authority
+## Source of Truth
 
-- `docs/3-open-mic-requirements.md` is authoritative for product behavior and permissions.
-- `docs/6-open-mic-vanity-urls.md` is authoritative for handle lifecycle, casing, routing, and visibility policy.
-- `docs/4-open-mic-technical-architecture.md` is an index into `docs/architecture/*.md` (overview, infrastructure, data model, API design, development workflow), which are authoritative for persistence, infrastructure, and implementation boundaries.
-- `docs/5-open-mic-frontend-architecture.md` is authoritative for frontend structure and the canonical page/route map.
-- `openapi.yaml` is the API contract and must be aligned with the authoritative product and architecture documents.
-- `docs/decisions.md` records settled cross-document decisions. If a document conflicts with it, flag the conflict before changing behavior.
+- `docs/decisions.md` contains settled cross-document decisions and wins conflicts.
+- `docs/3-open-mic-requirements.md` defines product behavior and permissions.
+- `docs/6-open-mic-vanity-urls.md` defines handle lifecycle, casing, routing, and visibility.
+- `docs/5-open-mic-frontend-architecture.md` defines frontend structure and the canonical route map.
+- `openapi.yaml` is the executable JSON API contract.
+- `FEATURE-PLAN.md` is the Phase 1 feature-scope sequencing authority and records the current implementation baseline.
+- `docs/4-open-mic-technical-architecture.md` indexes the data model and API design documents. Treat `docs/architecture/data-model.md` and `docs/architecture/api-design.md` as current boundaries.
 
-The following detailed architecture pages are historical and superseded for current implementation guidance: `docs/architecture/overview.md`, `docs/architecture/infrastructure.md`, and `docs/architecture/development.md`. Use `IMPLEMENTATION-PLAN.md`, `docs/decisions.md`, and the current repository scripts instead. Do not pull the superseded pages into planning context unless the task is specifically to review or rewrite them.
+When sources disagree, resolve the decision in `docs/decisions.md` before changing behavior. Do not silently choose an interpretation or revive deferred features.
 
-## Working Rules
+## Cross-Cutting Rules
 
-- Treat documentation changes as specification changes: identify contradictions before editing.
-- Preserve existing decisions unless the user explicitly changes them.
-- Keep guest registration provenance separate from later profile adoption.
+- Preserve guest registration provenance separately from claimed account ownership and adopted public attribution.
 - Handles preserve canonical casing, compare case-insensitively, and distinguish case-only changes from semantic renames.
-- Run `npm run validate:openapi` after OpenAPI changes.
-- Run `npm run lint:openapi` after API contract changes.
+- Enforce authorization and visibility in the API; frontend controls are not a security boundary.
+- Keep Cognito, email, S3, geocoding, and live-update providers behind adapters with deterministic test fakes.
+- Use partial `PATCH` operations for partial resource updates. Keep `/api` JSON-only and preserve the established public vanity routes.
+- Do not deploy or bootstrap AWS resources without explicit user confirmation.
+
+## Validation
+
+- `npm run typecheck:api` checks the API TypeScript boundary.
+- `npm run test` runs API typecheck/unit/API/integration tests and the web suite; integration tests require Docker/Testcontainers.
+- Run `npm run validate:openapi` and `npm run lint:openapi` after contract changes.
 - Run `npm run check:links` after moving or renaming documents.
-- Run `cd infra && npm run synth` after changes under `infra/`; deploying (`cdk deploy`) requires explicit user confirmation since it touches real AWS resources.
-- Markdown documents are not linted; do not run or reintroduce Markdown lint checks.
+- Run `cd infra && npm run build && npm run synth` after infrastructure changes.
+- Markdown is not linted; do not add or reintroduce Markdown lint checks.
+
+Folder-specific conventions live in `apps/api/AGENTS.md`, `apps/web/AGENTS.md`, and `infra/AGENTS.md`.

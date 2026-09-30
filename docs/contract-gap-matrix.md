@@ -1,7 +1,7 @@
 # Phase 1 Contract-Gap Matrix
 
 **Status:** Active working document  
-**Authority:** [IMPLEMENTATION-PLAN.md](../IMPLEMENTATION-PLAN.md) for sequencing; [docs/decisions.md](decisions.md) for settled behavior; [openapi.yaml](../openapi.yaml) for the executable API contract.
+**Authority:** [FEATURE-PLAN.md](../FEATURE-PLAN.md) for sequencing; [docs/decisions.md](decisions.md) for settled behavior; [openapi.yaml](../openapi.yaml) for the executable API contract.
 
 This matrix records the remaining contract and coverage gaps for the selected Phase 1 workflows. A workflow is not complete until its API, authorization, visibility, failure states, fixtures, and applicable automated tests are aligned.
 

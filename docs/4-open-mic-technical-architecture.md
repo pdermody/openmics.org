@@ -16,13 +16,12 @@ This document is an index. Detailed content lives in the linked files so each co
 
 | Topic | File | Covers |
 |---|---|---|
-| Architecture overview | [architecture/overview.md](architecture/overview.md) | Goals, constraints, high-level system diagram |
-| Infrastructure, scaling, security, deployment | [architecture/infrastructure.md](architecture/infrastructure.md) | AWS components (EC2, RDS, S3, Cognito, SES, networking, monitoring, CI/CD, SSE), scalability path, cost estimation, security considerations, deployment strategy |
-| Data model | [architecture/data-model.md](architecture/data-model.md) | Full PostgreSQL schema for all entities, constraints, indexes, triggers, and permission/notification/deletion mechanics |
-| API design | [architecture/api-design.md](architecture/api-design.md) | REST conventions, error envelope, endpoint list, quotas, home page feed rules, [geocoding proxy](architecture/api-design.md#geocoding) |
+| Data model | [architecture/data-model.md](architecture/data-model.md) | Phase 1 PostgreSQL schema (Accounts, Profiles, Handles, OpenMics, Events, Registrations, Performances, Media) plus the post-MVP appendix for follows, comments, reactions, messaging, notifications, roles, and quotas |
+| API design | [architecture/api-design.md](architecture/api-design.md) | Deferred (post-MVP) surface, directory/map behavior, home-page feed rules, personalization, geocoding proxy, and error envelope. The executable operation list lives in [`openapi.yaml`](../openapi.yaml) |
 | Frontend architecture | [5-open-mic-frontend-architecture.md](5-open-mic-frontend-architecture.md) | Stack, routing, the canonical [Key Pages (Route Map)](5-open-mic-frontend-architecture.md#key-pages-route-map), data fetching, auth, accessibility, i18n |
 | Handle lifecycle | [6-open-mic-vanity-urls.md](6-open-mic-vanity-urls.md) | Vanity URL and handle policy |
-| Development workflow, limitations, roadmap | [architecture/development.md](architecture/development.md) | Local setup, known limitations, implementation next steps, team responsibilities, open questions |
 | Map/location-picker research | [research/open-mic-map-location-picker.md](research/open-mic-map-location-picker.md) | Options considered for the venue map/geocoding picker; background for the decisions recorded in [decisions.md](decisions.md#forms-and-location-picker) |
+
+Current infrastructure, deployment, and workflow guidance lives in [FEATURE-PLAN.md](../FEATURE-PLAN.md), [decisions.md](decisions.md), [AGENTS.md](../AGENTS.md), and the [infra/](../infra/) CDK sources. The prior EC2-oriented overview/infrastructure/development pages have been removed.
 
 Use [decisions.md](decisions.md) first for any settled cross-document policy; only open the detailed files above when the specific implementation detail is needed.
