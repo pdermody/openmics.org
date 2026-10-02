@@ -34,7 +34,7 @@ The `/ask` design conversation that produced this decision is in commit history.
 | Open-mic series | `openmics.org/@:handle` |
 | Event under a series | `openmics.org/@:handle/events/:eventId` |
 | Next-scheduled-event registration (durable link/QR) | `openmics.org/@:handle/register` — resolves server-side to the soonest upcoming event's register page, or shows the series' schedule summary if none is open |
-| Media on a profile or event | `openmics.org/media/:mediaId` *(no handle — internal id only)* |
+| Individual media item | `openmics.org/media/:mediaId` *(one canonical URL regardless of gallery context; no handle)* |
 
 ### Alternate URLs (still work, 301 to canonical)
 

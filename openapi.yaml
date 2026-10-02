@@ -213,6 +213,18 @@ paths:
       tags:
         - Media
       operationId: listProfileMedia
+      description: Lists event media attributed to registrations that currently adopt this performer profile. Media cannot be uploaded directly to a profile.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/MediaListResponse"
+  /open-mics/{id}/media:
+    get:
+      tags:
+        - Media
+      operationId: listOpenMicMedia
+      description: Lists free-standing media uploaded to this open-mic series together with visible media from its published events.
       parameters:
         - $ref: "#/components/parameters/Id"
       responses:
@@ -221,7 +233,8 @@ paths:
     post:
       tags:
         - Media
-      operationId: addProfileMedia
+      operationId: addOpenMicMedia
+      description: Adds free-standing media directly to an open-mic series. Series media cannot carry performer attribution.
       security:
         - bearerAuth: []
       parameters:
@@ -642,13 +655,6 @@ paths:
       tags:
         - Media
       operationId: listEventMedia
-      parameters:
-        - name: grouped_by
-          in: query
-          schema:
-            type: string
-            enum:
-              - added_by_role
       responses:
         "200":
           $ref: "#/components/responses/MediaListResponse"
@@ -854,14 +860,12 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/MediaResponse"
-    put:
+    patch:
       tags:
         - Media
       operationId: updateMedia
       summary: Update media metadata
-      description: The uploader may update their media. The owning organizer may
-        update any media within the organization, including performer-uploaded
-        media. Uploader attribution is immutable.
+      description: The organizer who owns the associated event or open-mic series may update the media. Uploader attribution is immutable.
       security:
         - bearerAuth: []
       requestBody:
@@ -875,9 +879,7 @@ paths:
       tags:
         - Media
       operationId: deleteMedia
-      description: The uploader may delete their own media. The owning organizer may
-        delete any media within the organization, including performer-uploaded
-        media.
+      description: The organizer who owns the associated event or open-mic series may soft-delete the media.
       security:
         - bearerAuth: []
       responses:
@@ -1949,9 +1951,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/Timestamp"
           nullable: true
-          description: Set whenever media_consent changes. Revocation only blocks future
-            media publication under this registration; media already published
-            beforehand is not retroactively removed.
+          description: Set whenever media_consent changes. Revocation blocks new attribution and starts reason-coded soft deletion of linked media. Restoring consent within 30 days automatically restores media deleted solely for that revocation.
         reminders_opt_in:
           type: boolean
           description: Performer opted in to being reminded about upcoming events in this
@@ -2071,17 +2071,35 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-        profile_owner_id:
+        open_mic_id:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
+          description: Set only for free-standing media uploaded directly to an open-mic series.
+        registration_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: Optional performer attribution. The registration must belong to event_id and have media consent. Never set for series media.
         added_by_profile_id:
-          $ref: "#/components/schemas/Id"
-        added_by_role:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          description: The organizer profile that uploaded the media.
+        deleted_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        recovery_deadline:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        deletion_reason:
           type: string
           enum:
-            - performer
             - organizer
+            - consent_revocation
+          nullable: true
+          description: Consent restoration automatically restores only rows whose deletion_reason is consent_revocation and whose recovery window remains open.
         source_url:
           type: string
           format: uri
@@ -2863,7 +2881,9 @@ components:
           type: string
         event_id:
           $ref: "#/components/schemas/Id"
-        profile_owner_id:
+        open_mic_id:
+          $ref: "#/components/schemas/Id"
+        registration_id:
           $ref: "#/components/schemas/Id"
     MediaUpdateRequest:
       type: object
@@ -2875,8 +2895,11 @@ components:
           format: uri
           description: Subject to the same host-allowlist policy as
             MediaCreateRequest.source_url.
-        profile_owner_id:
-          $ref: "#/components/schemas/Id"
+        registration_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: Changes or removes performer attribution. The registration must belong to the media's event and have media consent.
     UploadUrlRequest:
       type: object
       required:

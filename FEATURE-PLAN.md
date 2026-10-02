@@ -32,7 +32,7 @@ Phase 1 is organizer-first and is complete when:
 - An organizer can record a kiosk registration without guest email verification, and a walk-in can self-register via the kiosk's event QR.
 - A verified account can explicitly claim an eligible guest registration and optionally adopt an account-owned performer profile as public attribution without losing guest provenance.
 - Public home, profile, open-mic, event, durable registration, and canonical handle routes enforce visibility rules and redirect stale/retired handles to the canonical URL.
-- An organizer can upload photos and add video links to their profile, open-mic series, and events, subject to source-policy enforcement, quotas, and 30-day soft-delete recovery.
+- An organizer can upload photos and add video links to open-mic series and events, including attribution to an event registration, subject to source-policy enforcement, quotas, and 30-day soft-delete recovery. Performer profile galleries are derived and are not direct upload targets.
 - The production authentication, email, database, hosting, authorization, observability, accessibility, and recovery paths work in staging under CI.
 
 The primary product measure remains registrations per event. Supporting measures should include registration completion/drop-off, repeat registrations, organizer activation, event creation, and roster-operation success. Analytics must not be added until event names, privacy rules, and a provider-neutral event vocabulary are agreed.
@@ -55,7 +55,7 @@ The primary product measure remains registrations per event. Supporting measures
 
 Independently reviewable slices, roughly dependency-ordered:
 
-1. **Organizer-owned media.** Settle operational policy decisions (MIME allowlist, file-size cap, malware/AV scanning, presigned URL expiry) in [docs/decisions.md](docs/decisions.md), land the S3 CDK stack, then implement the schema, API, source-policy enforcement, upload adapter, and organizer upload/recover UI.
+1. **Organizer-owned media.** Deliver the Media Gallery slice per [media-gallery-plan.md](media-gallery-plan.md): schema, API, source-policy enforcement, S3 + CloudFront infrastructure on the dedicated `media.openmics.org` subdomain, upload adapter, organizer upload/recover UI, server-rendered OG for `/media/:mediaId` deep links, and public galleries on event / open-mic / performer-profile pages. Plan values and policy are already settled in [docs/decisions.md](docs/decisions.md) ("Organizer `DEFAULT_PLAN` values", "Media delivery", "Media consent at kiosk").
 2. **Registration hardening:** guest-registration rate limiting, edit-token rotation, referral capture end to end.
 3. **Vanity finalization:** server-side canonical redirects and reserved-handle admin.
 4. **Directory & public UX polish:** public directory filters/search, sticky mobile registration actions, coming-soon treatment for deferred social controls.
@@ -64,7 +64,7 @@ Independently reviewable slices, roughly dependency-ordered:
 7. **Release hardening:** security, accessibility, and performance reviews plus the full test matrix.
 8. **Staging validation of production auth:** deployed Cognito user pool + app client and end-to-end verification.
 
-Slices 1–5 can be worked in parallel across API/web tracks once slice 1's policy decisions and CDK bucket are landed. Slice 6 must precede slice 8; slice 7 finishes before launch.
+Slices 1\u20135 can be worked in parallel across API/web tracks once slice 1's `MediaStack` (media bucket, `media.openmics.org` distribution, renditions queue + Lambda) is landed. Slice 6 must precede slice 8; slice 7 finishes before launch.
 
 ## 6) Remaining workstreams
 
@@ -72,23 +72,26 @@ The workstreams below are the remaining Phase 1 scope. Everything referenced her
 
 ### A) Organizer-owned media
 
-**Prerequisites (settle before code lands).**
+**Prerequisites (settled; carry into implementation).**
 
-- **Operational policy** in [docs/decisions.md](docs/decisions.md): MIME allowlist, per-file size cap, per-account/per-open-mic quota, malware/AV scanning decision (scan vs. quarantine vs. reject), presigned URL scope + expiry + rotation. Currently open per [docs/concerns.md](docs/concerns.md).
-- **S3 CDK stack** in [`infra/lib/`](infra/lib): media bucket, least-privilege IAM for the API task role, CORS for presigned uploads, lifecycle/deletion policy, CloudFront delivery, and its wiring into [`infra/bin/infra.ts`](infra/bin/infra.ts).
+- **Policy values** recorded in [docs/decisions.md](docs/decisions.md) → "Organizer `DEFAULT_PLAN` values (Phase 1, config-only)": MIME allowlist (`image/jpeg`, `image/png`, `image/webp`), per-file size cap (10 MB), per-event photo count cap (50), per-event video count cap (50), global per-account byte backstop (5 GB), presigned URL expiry (15 minutes), AV scanning disabled Phase 1, plus scale caps (max 1 series per organizer, 50 events per series, max event capacity 50) and reserved conversion-lever fields. Plan is config-only in the API — no `Plans` table and no `Accounts.plan_id` column until a second plan actually ships.
+- **Media delivery topology** recorded in [docs/decisions.md](docs/decisions.md) → "Media delivery": dedicated `media.openmics.org` subdomain backed by its own CloudFront distribution and S3 origin (OAC). The main site distribution only forwards `/media/*` to the ALB so the API can stamp OG tags into the SPA shell. Flat per-media-id S3 object layout (`tmp/`, `original/{mediaId}.{ext}`, `renditions/{mediaId}/{thumb|grid|lightbox}.webp`).
+- **CDK scaffolding** in [`infra/lib/`](infra/lib): new `MediaStack` (media S3 bucket, dedicated CloudFront distribution + Route 53 record for `media.openmics.org`, SQS renditions queue + Lambda, scheduled purge Lambda), updates to `ApiStack` (S3 + SQS IAM, env vars, Dockerfile baking `apps/web/dist/index.html` for OG), updates to `FrontendStack` (`/media/*` behavior → ALB), and extension of `CertificateStack` to add `media.openmics.org` to the SAN list.
 - **Rate limiting primitive.** Upload endpoints need per-account and per-source limits. If workstream B's registration limiter lands first, share it; otherwise ship the primitive here.
 
 **Implementation.**
 
-1. **Migration.** Add `Media` and `PendingS3Deletions` schemas (currently in [docs/architecture/data-model.md → Post-MVP appendix](docs/architecture/data-model.md#media-pipeline-post-mvp-schema)). Promote both back into the Phase 1 schema section of that document as part of the slice.
+1. **Migration.** Add `Media`, `PendingS3Deletions`, and an ordered `OpenMicFeaturedMedia` join table (`open_mic_id`, `media_id`, `position`) (the first two are currently in [docs/architecture/data-model.md → Post-MVP appendix](docs/architecture/data-model.md#media-pipeline-post-mvp-schema)). The join table must support both series-owned and event-owned media, enforce one pin per series/media pair and one position per series, and remove pins when media ceases to be publicly visible. Add `Profiles.show_gig_media` as a non-null boolean defaulting to `true`; it controls only the derived gallery on performer-profile pages and does not alter event or series visibility. Promote the media schemas back into the Phase 1 schema section of that document as part of the slice.
 2. **Storage adapter behind an interface**, with a local deterministic fake for unit/API tests:
-   - short-lived presigned upload URLs (owner-authenticated only);
+   - short-lived presigned upload URLs (owner-authenticated only), 15-minute expiry per [decisions.md](docs/decisions.md);
    - server-generated object keys bound to owner + target entity (never client-supplied);
-   - size, MIME, extension, and image-dimension validation on the create/complete step;
-   - malware/AV integration or quarantine per the decisions above.
-3. **API routes** per [`openapi.yaml`](openapi.yaml) (`/media`, `/media/upload-url`, `/media/{id}`, `/media/{id}/recover`, `/profiles/{id}/media`, `/events/{id}/media`):
+   - size, MIME, extension, and image-dimension validation on the create/complete step against the `DEFAULT_PLAN` values;
+   - upload-time generation of named `thumb`, `grid`, `lightbox`, and `original` photo renditions, with structured metadata for each variant (`url`, `width`, `height`, `mime_type`, and `size_bytes`) rather than client-derived storage paths or server-built `srcset` strings. Renditions produced by an SQS-driven Lambda consumer (mirroring the email pattern), not synchronously in the API container.
+   - no AV scanning in Phase 1 — the Plan shape carries no `av_scan_enabled` flag.
+3. **API routes** per [`openapi.yaml`](openapi.yaml) (`/media`, `/media/upload-url`, `/media/{id}`, `/media/{id}/recover`, read-only `/profiles/{id}/media`, `/open-mics/{id}/media`, `/events/{id}/media`):
    - create/get/update/soft-delete/recover;
    - profile, open-mic, and event associations;
+   - anchor-aware cursor pagination for canonical `/media/:mediaId` deep links, returning a window containing the target plus opaque cursors in both directions so Prev/Next never requires scanning from the first page;
    - owner and platform-admin authorization;
    - public visibility serialization;
    - 30-day recovery followed by purge, using the same per-table soft-delete pattern as events/performances/registrations.
@@ -97,20 +100,20 @@ The workstreams below are the remaining Phase 1 scope. Everything referenced her
    - videos must use allowlisted YouTube or Vimeo hosts;
    - arbitrary remote image/video hosts are rejected.
 5. **Organizer upload UI:**
-   - upload progress and cancellation;
+   - per-file upload progress and cancellation plus **Cancel all**; cancellation aborts active requests, cancels queued files, enqueues uploaded-but-uncommitted objects for cleanup, and releases any reserved quota;
    - video-link form;
-   - caption and required alt-text handling;
+   - caption editing with token substitution; the full substituted caption is also the photo alt text, falling back to `Photo from {event_name}` when no caption resolves;
    - target-entity selection;
    - failure/retry;
    - soft-delete and recovery.
-6. **Registration media consent.** Enforce `Registrations.media_consent` (future-only, per [decisions.md → Guest Registrations](docs/decisions.md#guest-registrations)) when associating media with event/performance rows.
+6. **Registration media consent.** Enforce retroactive `Registrations.media_consent` per [decisions.md → Guest Registrations](docs/decisions.md#guest-registrations): revocation hides linked media and starts consent-revocation soft deletion; restoring consent within the recovery window automatically restores media deleted solely for that reason.
 7. **Public serialization.** Public reads of profile/open-mic/event pages surface only visibility-safe media rows; soft-deleted, quarantined, and consent-revoked media stay hidden.
 
 **Tests**
 
 - Unit/API: validation, authorization, source-policy enforcement, consent gating, soft-delete/recovery.
 - Storage adapter tests without AWS (local fake).
-- Integration: associations across profile/open-mic/event, deletion/recovery window, consent revocation, public visibility.
+- Integration: associations across profile/open-mic/event, anchor-aware pagination for old deep-linked media, deletion/recovery window, consent revocation, the performer-profile `show_gig_media` toggle, and public visibility.
 - Playwright: happy path plus failed-upload recovery.
 
 **Exit criteria**
@@ -136,7 +139,7 @@ The workstreams below are the remaining Phase 1 scope. Everything referenced her
    - Account sign-up: place the stored referral in a signed, single-use Cognito OAuth `state` value; validate and consume it in Fastify while first-provisioning the account.
    - Silently ignore unrecognized/expired/missing values on both paths.
 4. **Reusable share control.** Web Share API with copy-link fallback on event, registration, open-mic, and profile pages so the referral link has an obvious source.
-5. **Media-consent audit surface.** `Registrations.media_consent_updated_at` already tracks changes; ensure the registration edit UI surfaces revocation with copy that reflects future-only semantics.
+5. **Media-consent audit surface.** `Registrations.media_consent_updated_at` already tracks changes; ensure the registration edit UI explains retroactive hiding, the 30-day deletion window, and automatic restoration when consent is restored within that window.
 
 **Tests**
 
@@ -171,7 +174,7 @@ The workstreams below are the remaining Phase 1 scope. Everything referenced her
 4. **Interaction and resilience audit.**
    - Consistent form dirty/saved/error state and unsaved-change protection across every RHF+Zod form.
    - Route/page transitions plus reduced-motion equivalents.
-   - Offline/retry behavior and a shared quota banner primitive (no `Accounts.plan` today, but the `QUOTA_EXCEEDED` envelope is stable — see [api-design.md](docs/architecture/api-design.md#5-api-architecture)).
+   - Offline/retry behavior and a shared quota banner primitive. Phase 1 Plan is config-only (no `Plans` table, no `Accounts.plan_id` column); the stable error envelopes are `QUOTA_EXCEEDED` for media quotas (per-event photo/video count, global byte backstop) and `PLAN_LIMIT_EXCEEDED` for non-media scale caps (series/event/event-capacity). See [api-design.md](docs/architecture/api-design.md#5-api-architecture) and [decisions.md](docs/decisions.md) → "Organizer `DEFAULT_PLAN` values".
    - No success-shaped fallback after a failed API operation.
 5. **Docs.** Replace the template [`apps/web/README.md`](apps/web/README.md) with actual local setup, auth, API, seed, test, locale, theme, and build instructions.
 
@@ -311,7 +314,7 @@ A slice is complete only when:
 
 ## 10) Project risks and decision checkpoints
 
-- **Media policy is unresolved.** Workstream A cannot start without settled MIME/size/AV/expiry decisions in [docs/decisions.md](docs/decisions.md) and the corresponding S3 CDK stack. Starting the code before these settle produces churn and a brittle security surface.
+- **Media policy is settled.** MIME, size caps, per-event photo/video count caps, byte backstop, presigned URL expiry, scale caps, and the no-AV-scanning decision are recorded in [docs/decisions.md](docs/decisions.md) \u2192 \"Organizer `DEFAULT_PLAN` values (Phase 1, config-only)\"; media delivery topology is recorded in the same file under \"Media delivery\". Workstream A sequencing lives in [media-gallery-plan.md](media-gallery-plan.md). Remaining risk: this is new deploy surface area (dedicated `media.openmics.org` subdomain, media bucket, SQS + Lambda renditions, OG-stamping in the SPA entry point) that should not roll out under manual verification \u2014 ship workstream G (CI) alongside.
 - **Contract drift.** OpenAPI, API routes, and handwritten frontend types still differ in places; generated types (workstream E) plus CI coverage (workstream G) close this before it grows.
 - **No CI.** Every check listed in [§8](#8-verification-commands) currently depends on maintainer discipline. Ship workstream G before scaling delivery — media (workstream A) adds meaningful deploy surface area and should not roll out under manual verification.
 - **Rate-limit / abuse surface.** Guest registration, edit-link resends, and media uploads are all abuse surfaces. Workstream C covers registration and edit links; workstream A carries the upload surface. Do not launch without both.

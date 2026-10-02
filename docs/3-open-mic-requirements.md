@@ -63,7 +63,7 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 ### A) Organizer workflows
 
 - An organizer can create and manage multiple open-mic series.
-- An organizer can create, edit, publish, pause, and close events.
+- An organizer can create, edit, publish, unpublish, and delete events, and can close event registrations independently. Pausing applies to the parent open-mic series, not to individual events.
 - An organizer can configure registration mode, capacity, schedule, venue, and event details.
 - An organizer can view and manage the event roster.
 - An organizer can add, edit, soft-delete, and recover photos and video links for their series and events.
@@ -111,10 +111,10 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 
 ### E) Organizer-owned content
 
-- Organizers can add photos and video links to their profile, open-mic series, and events.
+- Organizers can add photos and video links to their open-mic series and events, including through a registration shortcut that attributes event media to that registration. They cannot upload media directly to organizer profiles.
 - Organizer content is clearly attributed and shown in a labelled section on public pages.
 - Organizers can edit or soft-delete their content and recover it during the configured retention period.
-- Performer content upload and profile media management are deferred.
+- Performer content upload is deferred. Performer profile galleries are derived from event media attributed to registrations that have adopted the profile; they are not a direct upload target.
 - Comments, reviews, and reactions are unavailable in Phase 1.
 
 ### F) Public page visibility contract

@@ -35,13 +35,13 @@ This file records settled decisions that affect more than one planning document.
 - The claim request identifies the adopted profile explicitly (`adopted_profile_id`), since an account may own more than one performer profile.
 - A duplicate guest registration is defined as a second row for the same event with the same verified contact email; unverified/pending rows do not block others until confirmed. Enforced by a partial unique index on `(event_id, lower(contact_email))` where `email_verified_at IS NOT NULL`.
 - A registration claim is atomic: the first successful claim wins, and a losing concurrent claim attempt fails explicitly with `409` rather than silently overwriting or duplicating attribution.
-- Media consent can be revoked after registration, but revocation is future-only: it blocks new media publication under that registration and is not retroactive against media already published. `Registration.media_consent_updated_at` records when consent last changed, for audit purposes.
+- Media consent is retroactive. Revocation blocks new media attribution to the registration and immediately removes already-attributed media from application listings, profile galleries, the canonical `/media/:mediaId` page, and media-specific Open Graph output. It does not invalidate an already-known raw CDN object URL. Affected media enters the standard 30-day soft-delete window; restoring consent during that window automatically restores media deleted solely because of that revocation. Media that was independently soft-deleted stays deleted. `Registration.media_consent_updated_at` records when consent last changed, for audit purposes.
 - Guest registration submission is rate-limited per source (e.g. per IP) to deter abuse; exceeding the limit returns `429`.
 
 ## Organizer management actions
 
 - Series and event management controls are grouped into hamburger menus on the dashboard, `/series/{id}`, and `/roster` pages so a single action surface covers navigation, lifecycle state changes, and sharing utilities without exposing inconsistent per-page toolbars.
-- Publish, pause, resume, and delete actions use modal confirmation dialogs before mutating API state.
+- Series publish, pause, resume, and delete actions use modal confirmation dialogs before mutating API state. Event publish, unpublish, and delete actions follow the same confirmation pattern; closing event registrations remains a separate control and is not an event lifecycle state.
 - Paused series can be soft-deleted through the same owner-scoped path as other organizer-managed resources, with a 30-day recovery window matching the uniform retention policy.
 - Event lifecycle actions use the existing `PATCH /events/{id}` running-state behavior plus the existing soft-delete endpoint; copy-link and QR download actions are included in the same menu alongside those lifecycle actions.
 - Copy-link actions use the `Copy` icon and QR actions use the `QrCode` icon across the surfaces that expose shared registration links.
@@ -58,6 +58,63 @@ This file records settled decisions that affect more than one planning document.
 ## Media
 
 - Organizer-owned media `source_url` is validated server-side: photos must be objects in the platform's own S3 media bucket (via the upload-url flow); videos must link to an allowlisted host (`youtube.com`, `youtu.be`, or `vimeo.com`). Arbitrary hosts are rejected.
+- Organizers upload media only to events, registrations, and open-mic series, never directly to organizer profiles. A performer profile gallery is a derived view of event media linked to registrations that have adopted that profile.
+- Performer attribution attaches media to a registration, not to an individual performance/set. Free-standing event and open-mic media has no registration link.
+- `/media/:mediaId` is the sole canonical public URL for an individual media item, regardless of which galleries display it.
+
+### Media delivery
+
+- Photo bytes are served from a dedicated `media.openmics.org` subdomain backed by its own CloudFront distribution + S3 origin (OAC). The main site distribution carries only `/media/*` → ALB for OG-stamped SPA deep-links; it does not front the media bucket directly.
+- Video media is not re-hosted. Thumbnails are hotlinked from the provider CDN (`i.ytimg.com`, `vumbnail.com`); playback uses the provider iframe inside the lightbox.
+- S3 object layout is flat per-media-id: `tmp/{accountId}/{uuid}.{ext}` (presigned-PUT target, 24h lifecycle), `original/{mediaId}.{ext}` (uploader's extension preserved), `renditions/{mediaId}/{thumb|grid|lightbox}.webp` (always webp; sharp converts). No entity-scoped (`events/...`) or hash-sharded layout. Objects are uploaded with `Cache-Control: public, max-age=31536000, immutable`.
+
+### Organizer `DEFAULT_PLAN` values (Phase 1, config-only)
+
+Shipped as a single hard-coded `DEFAULT_PLAN` object in the API; every organizer uses it. No `Plans` table and no `Accounts.plan_id` column in Phase 1 — introducing a second plan is a config change plus (then and only then) a migration.
+
+The Plan **deliberately extends beyond media quotas**, overriding `media-gallery-design.md` §8.5 which scoped the Plan "narrowly to media quotas." Rationale: the Plan is where every tier-differentiating lever lives, and splitting media from non-media caps would double the surface for no gain. Media-only consumers of the Plan read only the media-related fields.
+
+#### Media quotas (enforced in Phase 1)
+
+- **Photo MIME allowlist:** `image/jpeg`, `image/png`, `image/webp`. Everything else is rejected at `POST /media/upload-url` with `MEDIA_UPLOAD_INVALID`. HEIC, AVIF, GIF, TIFF, raw formats, and video uploads are out of scope.
+- **Max per-file photo size:** 10 MB (10,485,760 bytes). Enforced client-side as a friendly error and server-side both at `POST /media/upload-url` and in the presigned PUT `Content-Length` policy.
+- **Per-event photo count cap:** 50 photos. Primary monetization lever: a sharp, visible ceiling tied to a successful night. Enforced at `POST /media` (commit). Returns `MEDIA_QUOTA_EXCEEDED` with `scope: 'event'`.
+- **Per-event video count cap:** 50 videos. Mirrors the photo cap. Enforced at `POST /media` (commit) for `media_type='video'`. Returns `MEDIA_QUOTA_EXCEEDED` with `scope: 'event'`.
+- **Global per-account byte backstop:** 5 GB (5,368,709,120 bytes). Ops safety net, not a conversion lever — set generously enough that no organic Phase 1 user hits it. Counted across every non-hard-deleted `original/*` object owned by the account. Returns `MEDIA_QUOTA_EXCEEDED` with `scope: 'account'`.
+- **Presigned PUT URL expiry:** 15 minutes. Single-use, server-generated object key only (never client-supplied), bound to a specific `Content-Length` max and `Content-Type`.
+- **AV scanning:** disabled. The Plan shape carries no `av_scan_enabled` flag; adding one is deferred until a scanning technology is chosen.
+- **Rendition variants:** `thumb` (400px short side), `grid` (800px), `lightbox` (2048px), all webp. Fixed; not tunable per plan.
+
+#### Capacity caps (enforced in Phase 1)
+
+- **`max_series_per_organizer`: 1.** Counted across non-soft-deleted series owned by the organizer. Soft-deleted series free the slot immediately (permissive — lets organizers "reset" by deleting). Enforced at `POST /open-mics` with `PLAN_LIMIT_EXCEEDED` and `scope: 'series'`.
+- **`max_events_per_series`: 50.** Lifetime cap: counts non-soft-deleted events (draft + published + past) across the series. Past events still count toward the cap — a long-tenured organizer who's run many free events eventually hits the wall, which is intentional conversion pressure. Enforced at `POST /open-mics/{id}/events` with `PLAN_LIMIT_EXCEEDED` and `scope: 'event'`.
+- **`max_event_capacity`: 50.** Caps the maximum `capacity` value the organizer can configure on an event (`capacity > 50` or unlimited capacity are rejected on event create/edit). Does NOT change the Milestone 2 rule that kiosk sign-ups are exempt from the organizer-set capacity but still count toward it. Enforced at `POST /events` and `PATCH /events/{id}` with `PLAN_LIMIT_EXCEEDED` and `scope: 'event_capacity'`.
+
+#### Reserved conversion-lever fields (shape only, not enforced until the underlying feature ships)
+
+These exist in the Plan shape so a future Pro plan can gate them with a one-line config change. In Phase 1 they are either boolean false, numeric zero, or a string literal; the API ignores them (because the gated features don't exist yet).
+
+- **`assistants_per_series`: 1.** Free tier allows one co-manager (beyond the owning organizer) per series; a future paid tier can raise this. Reserved for the deferred multi-admin collaboration feature — enforced when `SeriesAssistants` lands.
+- **`custom_branding_enabled`: false.** Reserved for the "Powered by Openmics" footer / watermark removal lever. Enforced when branding configuration ships.
+- **`custom_domain_enabled`: false.** Reserved for mapping an organizer-owned domain (e.g. `myopenmic.com`) to their series page. Highest-stickiness paid lever; typical top-tier offering in creator SaaS.
+- **`analytics_tier`: `'basic'`.** Reserved; today's dashboard effectively is "basic". Pro tier value will be `'full'` (referral funnel, repeat-performer analytics, time-of-day heat). Enforced when the richer analytics surface ships.
+- **`data_export_enabled`: false.** Reserved for CSV/JSON export of event registrations (classic Day-30 "I need my data" conversion moment).
+- **`bulk_media_download_enabled`: false.** Reserved for a ZIP-of-all-event-photos download.
+- **`calendar_invite_attachments_enabled`: false.** Reserved for real `.ics` attachments on performer confirmation emails (vs. the current plain-text body).
+- **`email_sender_customization_enabled`: false.** Reserved for a custom from-name on performer emails (brand consistency lever).
+- **`sms_reminders_enabled`: false.** Reserved for a Phase 2 Twilio-adapter SMS reminder sent to performers before their set.
+
+#### Explicitly NOT in the Plan
+
+- **Comments / likes / reactions per account.** These would be anti-abuse rate limits on performer actions, not organizer capability gates. Different concern, different owner. When commenting or reactions ship, add a dedicated "Platform rate limits" section to this document for per-account throughput caps that apply to **every** user regardless of tier. If paid tiers ever lift those limits, that'd be a separate `PerformerPlan` entity introduced then.
+- **Soft-delete recovery window differentiation.** Would conflict with the uniform 30-day retention decision above.
+- **Per-day event-create rate limits.** Users don't notice until it's too late to convert.
+- **Expanded MIME types in paid tiers (HEIC, AVIF, GIF).** Low signal; users don't know their phone's export format.
+
+### Media consent at kiosk
+
+Both kiosk flows ask the performer explicitly for `media_consent` on their own form with the toggle **pre-checked to TRUE**. This deliberately deviates from design doc §10.2's "organizer-kiosk defaults true without asking, kiosk-QR asks without a default" split in favor of a single consistent, auditable pattern across both kiosk surfaces. [media-gallery-design.md](../media-gallery-design.md) §10.2 should be reconciled to this record.
 
 ## Infrastructure
 

@@ -156,7 +156,7 @@ Profiles:
 
 Media:
 - `/media/:id` — Organizer-owned media detail view
-- `/media/upload` — Organizer media upload (requires an owning organizer profile or event context)
+- `/media/upload` — Organizer media upload (requires an owned open-mic series or event context; a registration may be selected to attribute event media)
 - `/media/:id/edit` — Edit organizer media metadata
 
 Performer media, comments, reviews, reactions, and messaging routes are later-phase features and are not exposed in the Phase 1 navigation or page controls.

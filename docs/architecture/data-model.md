@@ -404,10 +404,9 @@ Media
 ├── id (UUID)
 ├── media_type ("photo" | "video")
 ├── event_id (FK, nullable — set when media is attached to an event)
-├── performance_id (FK to Performances, nullable — attributes media to a specific performance)
-├── profile_owner_id (FK, nullable — Profiles entry; set for profile-only media)
-├── added_by_profile_id (FK — uploader and media owner; the uploader may delete their own media)
-├── added_by_role ("performer" | "organizer" — drives grouping/display on event pages)
+├── open_mic_id (FK, nullable — set for free-standing media uploaded directly to a series)
+├── registration_id (FK to Registrations, nullable — performer attribution for event media)
+├── added_by_profile_id (FK — organizer profile that uploaded the media)
 ├── source_url (S3 URL for photos, embedded video URL for videos)
 ├── mime_type (nullable), size_bytes (bigint, nullable)
 ├── width (nullable), height (nullable), duration_seconds (nullable — videos)
@@ -416,6 +415,7 @@ Media
 ├── platform_video_id (nullable — canonical ID on that platform)
 ├── caption (nullable)
 ├── created_at, updated_at, deleted_at, deleted_by_profile_id (FK, nullable), recovery_deadline
+├── deletion_reason (nullable — "organizer" | "consent_revocation")
 
 PendingS3Deletions (queue of S3 objects to delete; S3 is never deleted inline)
 ├── id (UUID)
@@ -433,7 +433,9 @@ PendingS3Deletions (queue of S3 objects to delete; S3 is never deleted inline)
 
 **Media source validation** (already settled in [decisions.md → Media](../decisions.md#media)): photos must be objects in the platform's own S3 media bucket via the upload-url flow; videos must link to an allowlisted host (`youtube.com`, `youtu.be`, `vimeo.com`). Arbitrary hosts are rejected.
 
-**Media ownership and organization moderation.** `added_by_profile_id` is the uploader/owner; `profile_owner_id` identifies the profile whose page owns profile-only media. The uploader may delete their own media. The organizer who owns the associated open-mic profile may edit or delete any media belonging to that organization. Organization scope is derived from the media's event, performance registration, or profile association.
+**Media ownership, attribution, and consent.** `added_by_profile_id` is always the organizer profile that uploaded the media. Exactly one of `event_id` or `open_mic_id` supplies its owning scope. `registration_id` is optional and may be set only for a registration belonging to `event_id`; it attributes the media to that performer independently of individual performance/set rows. Performer profile galleries are derived through the registration's adopted profile and never own media directly. The organizer who owns the associated event or open-mic series may edit or delete the media.
+
+Revoking a linked registration's media consent sets `deleted_at`, `recovery_deadline`, and `deletion_reason='consent_revocation'`. Restoring consent before the deadline automatically clears those fields only when the reason remains `consent_revocation`; organizer-deleted media is never restored by a consent change. After the deadline, the normal purge removes the bytes and consent restoration cannot recover them.
 
 ### Private messaging and notifications (post-MVP)
 
