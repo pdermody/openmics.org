@@ -1,0 +1,2418 @@
+﻿openapi: 3.0.3
+info:
+  title: Open Mic API
+  version: 1.0.0
+  description: Canonical API contract. All paths are relative to the /api base URL.
+servers:
+  - url: https://api.openmics.org/api
+    description: Production
+tags:
+  - name: Auth
+  - name: Accounts
+  - name: Profiles
+  - name: Handles
+  - name: Open Mics
+  - name: Events
+  - name: Registrations
+  - name: Performances
+  - name: Media
+  - name: Admin
+paths:
+  /openapi.json:
+    get:
+      tags:
+        - Auth
+      operationId: getOpenApiDocument
+      summary: Get the canonical OpenAPI document
+      responses:
+        "200":
+          description: OpenAPI document
+          content:
+            application/json:
+              schema:
+                type: object
+  /auth/sign-up:
+    post:
+      tags:
+        - Auth
+      operationId: signUp
+      requestBody:
+        $ref: "#/components/requestBodies/SignUp"
+      responses:
+        "202":
+          $ref: "#/components/responses/AccountResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+  /auth/sign-in:
+    post:
+      tags:
+        - Auth
+      operationId: signIn
+      requestBody:
+        $ref: "#/components/requestBodies/SignIn"
+      responses:
+        "200":
+          $ref: "#/components/responses/AccountResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/refresh-token:
+    post:
+      tags:
+        - Auth
+      operationId: refreshToken
+      requestBody:
+        $ref: "#/components/requestBodies/RefreshToken"
+      responses:
+        "200":
+          $ref: "#/components/responses/TokenResponse"
+  /auth/profile:
+    get:
+      tags:
+        - Auth
+      operationId: getAuthProfile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/AccountResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /me:
+    get:
+      tags:
+        - Accounts
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/AccountResponse"
+  /me/permissions:
+    get:
+      tags:
+        - Accounts
+      operationId: getMyPermissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProfileQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/PermissionResponse"
+  /accounts/{id}:
+    put:
+      tags:
+        - Accounts
+      operationId: updateAccount
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        $ref: "#/components/requestBodies/AccountUpdate"
+      responses:
+        "200":
+          $ref: "#/components/responses/AccountResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /accounts/{id}/profiles:
+    get:
+      tags:
+        - Accounts
+      operationId: listAccountProfiles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProfileListResponse"
+  /accounts/{id}/current-profile:
+    put:
+      tags:
+        - Accounts
+      operationId: setCurrentProfile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        $ref: "#/components/requestBodies/CurrentProfile"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProfileResponse"
+  /me/claimable-registrations:
+    get:
+      tags:
+        - Registrations
+      operationId: listClaimableRegistrations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/RegistrationListResponse"
+  /me/registrations:
+    get:
+      tags:
+        - Registrations
+      operationId: listMyRegistrations
+      description: Lists registrations owned by the given account-owned profile, across all events. Used to show "already registered" status.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          $ref: "#/components/responses/RegistrationListResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /profiles:
+    get:
+      tags:
+        - Profiles
+      operationId: listProfiles
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProfileListResponse"
+    post:
+      tags:
+        - Profiles
+      operationId: createProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/ProfileCreate"
+      responses:
+        "201":
+          $ref: "#/components/responses/ProfileResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          $ref: "#/components/responses/HandleConflict"
+  /profiles/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Profiles
+      operationId: getProfile
+      responses:
+        "200":
+          $ref: "#/components/responses/ProfileResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags:
+        - Profiles
+      operationId: deleteProfile
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Profile soft-deleted
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    patch:
+      tags:
+        - Profiles
+      operationId: updateProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/ProfileUpdate"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProfileResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /profiles/{id}/media:
+    get:
+      tags:
+        - Media
+      operationId: listProfileMedia
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/MediaListResponse"
+    post:
+      tags:
+        - Media
+      operationId: addProfileMedia
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        $ref: "#/components/requestBodies/MediaCreate"
+      responses:
+        "201":
+          $ref: "#/components/responses/MediaResponse"
+  /handles/check/{candidate}:
+    get:
+      tags:
+        - Handles
+      operationId: checkHandleAvailability
+      parameters:
+        - $ref: "#/components/parameters/Candidate"
+      responses:
+        "200":
+          $ref: "#/components/responses/AvailabilityResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+  /open-mics:
+    get:
+      tags:
+        - Open Mics
+      operationId: listOpenMics
+      parameters:
+        - $ref: "#/components/parameters/Q"
+        - $ref: "#/components/parameters/Country"
+        - $ref: "#/components/parameters/City"
+        - $ref: "#/components/parameters/Activity"
+        - $ref: "#/components/parameters/Tag"
+        - $ref: "#/components/parameters/Near"
+        - $ref: "#/components/parameters/Radius"
+        - $ref: "#/components/parameters/MinRating"
+        - $ref: "#/components/parameters/RegistrationMode"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          $ref: "#/components/responses/OpenMicListResponse"
+    post:
+      tags:
+        - Open Mics
+      operationId: createOpenMic
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/OpenMicCreate"
+      responses:
+        "201":
+          $ref: "#/components/responses/OpenMicResponse"
+        "409":
+          $ref: "#/components/responses/HandleConflict"
+  /open-mics/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Open Mics
+      operationId: getOpenMic
+      responses:
+        "200":
+          $ref: "#/components/responses/OpenMicResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags:
+        - Open Mics
+      operationId: deleteOpenMic
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Open mic soft-deleted
+    patch:
+      tags:
+        - Open Mics
+      operationId: updateOpenMic
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/OpenMicUpdate"
+      responses:
+        "200":
+          $ref: "#/components/responses/OpenMicResponse"
+  /open-mics/{id}/events:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Events
+      operationId: listOpenMicEvents
+      responses:
+        "200":
+          $ref: "#/components/responses/EventListResponse"
+    post:
+      tags:
+        - Events
+      operationId: createEvent
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/EventCreate"
+      responses:
+        "201":
+          $ref: "#/components/responses/EventResponse"
+  /open-mics/{id}/next-event:
+    get:
+      tags:
+        - Events
+      operationId: getNextEvent
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /events/upcoming:
+    get:
+      tags:
+        - Events
+      operationId: listUpcomingEvents
+      parameters:
+        - $ref: "#/components/parameters/Near"
+        - $ref: "#/components/parameters/Radius"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventListResponse"
+  /events/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Events
+      operationId: getEvent
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+    put:
+      tags:
+        - Events
+      operationId: updateEvent
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/EventUpdate"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+    delete:
+      tags:
+        - Events
+      operationId: deleteEvent
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Event soft-deleted
+  /events/{id}/registrations:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Registrations
+      operationId: listEventRegistrations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/RegistrationListResponse"
+    post:
+      tags:
+        - Registrations
+      operationId: createRegistration
+      requestBody:
+        $ref: "#/components/requestBodies/RegistrationCreate"
+      responses:
+        "201":
+          $ref: "#/components/responses/RegistrationResponse"
+        "409":
+          $ref: "#/components/responses/CapacityError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /events/{id}/media:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Media
+      operationId: listEventMedia
+      parameters:
+        - name: grouped_by
+          in: query
+          schema:
+            type: string
+            enum:
+              - added_by_role
+      responses:
+        "200":
+          $ref: "#/components/responses/MediaListResponse"
+    post:
+      tags:
+        - Media
+      operationId: addEventMedia
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/MediaCreate"
+      responses:
+        "201":
+          $ref: "#/components/responses/MediaResponse"
+  /registrations/edit:
+    get:
+      tags:
+        - Registrations
+      operationId: resolveRegistrationEditLink
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Registration and short-lived edit session established
+          headers:
+            Set-Cookie:
+              description: Secure, HttpOnly, SameSite=Lax edit-session cookie; raw token is
+                not retained.
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+            Referrer-Policy:
+              schema:
+                type: string
+                example: no-referrer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /registrations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Registrations
+      operationId: getRegistration
+      security:
+        - bearerAuth: []
+        - editSession: []
+      responses:
+        "200":
+          $ref: "#/components/responses/RegistrationResponse"
+    put:
+      tags:
+        - Registrations
+      operationId: updateRegistration
+      security:
+        - bearerAuth: []
+        - editSession: []
+      requestBody:
+        $ref: "#/components/requestBodies/RegistrationUpdate"
+      responses:
+        "200":
+          $ref: "#/components/responses/RegistrationResponse"
+  /registrations/{id}/rotate-edit-token:
+    post:
+      tags:
+        - Registrations
+      operationId: rotateRegistrationEditToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/RegistrationResponse"
+  /registrations/{id}/verify-email:
+    post:
+      tags:
+        - Registrations
+      operationId: verifyRegistrationEmail
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        $ref: "#/components/requestBodies/EmailVerification"
+      responses:
+        "200":
+          $ref: "#/components/responses/RegistrationResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+  /registrations/{id}/claim:
+    post:
+      tags:
+        - Registrations
+      operationId: claimRegistration
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        $ref: "#/components/requestBodies/RegistrationClaim"
+      responses:
+        "200":
+          $ref: "#/components/responses/RegistrationResponse"
+        "409":
+          $ref: "#/components/responses/ClaimConflict"
+  /registrations/{id}/performances:
+    get:
+      tags:
+        - Performances
+      operationId: listRegistrationPerformances
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/PerformanceListResponse"
+  /performances:
+    post:
+      tags:
+        - Performances
+      operationId: createPerformance
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/PerformanceCreate"
+      responses:
+        "201":
+          $ref: "#/components/responses/PerformanceResponse"
+  /performances/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      tags:
+        - Performances
+      operationId: updatePerformance
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/PerformanceUpdate"
+      responses:
+        "200":
+          $ref: "#/components/responses/PerformanceResponse"
+    delete:
+      tags:
+        - Performances
+      operationId: deletePerformance
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Performance deleted
+  /media:
+    post:
+      tags:
+        - Media
+      operationId: createMedia
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/MediaCreate"
+      responses:
+        "201":
+          $ref: "#/components/responses/MediaResponse"
+  /media/upload-url:
+    post:
+      tags:
+        - Media
+      operationId: createMediaUploadUrl
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/UploadUrl"
+      responses:
+        "200":
+          $ref: "#/components/responses/UploadUrlResponse"
+  /media/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Media
+      operationId: getMedia
+      responses:
+        "200":
+          $ref: "#/components/responses/MediaResponse"
+    put:
+      tags:
+        - Media
+      operationId: updateMedia
+      summary: Update media metadata
+      description: The uploader may update their media. The owning organizer may
+        update any media within the organization, including performer-uploaded
+        media. Uploader attribution is immutable.
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/MediaUpdate"
+      responses:
+        "200":
+          $ref: "#/components/responses/MediaResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      tags:
+        - Media
+      operationId: deleteMedia
+      description: The uploader may delete their own media. The owning organizer may
+        delete any media within the organization, including performer-uploaded
+        media.
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Media soft-deleted
+  /media/{id}/recover:
+    post:
+      tags:
+        - Media
+      operationId: recoverMedia
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/MediaResponse"
+  /admin/reserved-handles:
+    get:
+      tags:
+        - Admin
+      operationId: listReservedHandles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Tag"
+        - $ref: "#/components/parameters/Page"
+      responses:
+        "200":
+          $ref: "#/components/responses/HandleListResponse"
+    post:
+      tags:
+        - Admin
+      operationId: reserveHandle
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/HandleReservation"
+      responses:
+        "201":
+          $ref: "#/components/responses/HandleResponse"
+        "409":
+          $ref: "#/components/responses/HandleConflict"
+  /admin/reserved-handles/{handle}:
+    delete:
+      tags:
+        - Admin
+      operationId: releaseReservedHandle
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Reservation released
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    editSession:
+      type: apiKey
+      in: cookie
+      name: openmic_edit_session
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Candidate:
+      name: candidate
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    ProfileQuery:
+      name: profile
+      in: query
+      schema:
+        type: string
+        format: uuid
+    Q:
+      name: q
+      in: query
+      schema:
+        type: string
+    Country:
+      name: country
+      in: query
+      schema:
+        type: string
+    City:
+      name: city
+      in: query
+      schema:
+        type: string
+    Activity:
+      name: activity
+      in: query
+      schema:
+        $ref: "#/components/schemas/Activity"
+    Tag:
+      name: tag
+      in: query
+      schema:
+        type: string
+    Near:
+      name: near
+      in: query
+      description: Latitude and longitude as `lat,lng`.
+      schema:
+        type: string
+        pattern: ^-?[0-9.]+,-?[0-9.]+
+    Radius:
+      name: radius_km
+      in: query
+      schema:
+        type: number
+        minimum: 0
+    MinRating:
+      name: min_rating
+      in: query
+      schema:
+        type: number
+        minimum: 0
+        maximum: 5
+    RegistrationMode:
+      name: registration_mode
+      in: query
+      schema:
+        $ref: "#/components/schemas/RegistrationMode"
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    From:
+      name: from
+      in: query
+      schema:
+        type: string
+        format: date-time
+    To:
+      name: to
+      in: query
+      schema:
+        type: string
+        format: date-time
+  requestBodies:
+    SignUp:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SignUpRequest"
+    SignIn:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SignInRequest"
+    RefreshToken:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RefreshTokenRequest"
+    AccountUpdate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AccountUpdateRequest"
+    CurrentProfile:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CurrentProfileRequest"
+    ProfileCreate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProfileCreateRequest"
+    ProfileUpdate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProfileUpdateRequest"
+    OpenMicCreate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OpenMicCreateRequest"
+    OpenMicUpdate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OpenMicUpdateRequest"
+    EventCreate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/EventCreateRequest"
+    EventUpdate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/EventUpdateRequest"
+    RegistrationCreate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RegistrationCreateRequest"
+    RegistrationUpdate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RegistrationUpdateRequest"
+    RegistrationClaim:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RegistrationClaimRequest"
+    EmailVerification:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/EmailVerificationRequest"
+    PerformanceCreate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PerformanceCreateRequest"
+    PerformanceUpdate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PerformanceUpdateRequest"
+    MediaCreate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MediaCreateRequest"
+    MediaUpdate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MediaUpdateRequest"
+    UploadUrl:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UploadUrlRequest"
+    HandleReservation:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/HandleReservationRequest"
+  responses:
+    AccountResponse:
+      description: Account
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Account"
+    ProfileResponse:
+      description: Profile
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Profile"
+    OpenMicResponse:
+      description: Open mic
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OpenMic"
+    EventResponse:
+      description: Event
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Event"
+    RegistrationResponse:
+      description: Registration
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Registration"
+    PerformanceResponse:
+      description: Performance
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Performance"
+    MediaResponse:
+      description: Media
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Media"
+    HandleResponse:
+      description: Handle
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Handle"
+    PermissionResponse:
+      description: Permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PermissionSet"
+    AvailabilityResponse:
+      description: Availability
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Availability"
+    UploadUrlResponse:
+      description: Presigned upload
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UploadUrlResponse"
+    ProfileListResponse:
+      description: Profiles
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProfilePage"
+    OpenMicListResponse:
+      description: Open mics
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OpenMicPage"
+    EventListResponse:
+      description: Events
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/EventPage"
+    RegistrationListResponse:
+      description: Registrations
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RegistrationPage"
+    PerformanceListResponse:
+      description: Performances
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PerformancePage"
+    MediaListResponse:
+      description: Media
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MediaPage"
+    HandleListResponse:
+      description: Handles
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/Handle"
+    TokenResponse:
+      description: Access tokens
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TokenResponse"
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Permission denied
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    HandleConflict:
+      description: Handle unavailable
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/HandleConflictError"
+    CapacityError:
+      description: Capacity exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ClaimConflict:
+      description: Registration was already claimed by another account before this
+        request completed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: Too many registration submissions from this source; retry later.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    Id:
+      type: string
+      format: uuid
+    Timestamp:
+      type: string
+      format: date-time
+    Activity:
+      type: string
+      enum:
+        - singing
+        - poetry
+        - jam
+        - trad
+        - comedy
+        - storytelling
+        - other
+    ProfileVisibility:
+      type: string
+      enum:
+        - public
+        - unlisted
+        - private
+    OpenMicStatus:
+      type: string
+      enum:
+        - active
+        - paused
+        - ended
+        - draft
+    RegistrationMode:
+      type: string
+      enum:
+        - pre_only
+        - on_night_only
+        - both
+        - external
+    RegistrationChannel:
+      type: string
+      enum:
+        - organic
+        - shared_link
+        - email_reminder
+        - social_ad
+        - poster_qr
+        - kiosk
+        - prior
+    RegistrationVisibility:
+      type: string
+      enum:
+        - pending
+        - valid
+    MediaType:
+      type: string
+      enum:
+        - photo
+        - video
+    ErrorEnvelope:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+    HandleConflictError:
+      allOf:
+        - $ref: "#/components/schemas/ErrorEnvelope"
+        - type: object
+          properties:
+            holder_type:
+              type: string
+              enum:
+                - profile
+                - open_mic
+              nullable: true
+            holder_id:
+              allOf:
+                - $ref: "#/components/schemas/Id"
+              nullable: true
+    Account:
+      type: object
+      required:
+        - id
+        - email
+        - display_name
+        - plan
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        cognito_id:
+          type: string
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        city:
+          type: string
+          nullable: true
+        preferred_language:
+          type: string
+          nullable: true
+        current_profile_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        is_platform_admin:
+          type: boolean
+        plan:
+          type: string
+          enum:
+            - free
+            - pro
+        referred_by_profile_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        referred_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+    Profile:
+      type: object
+      required:
+        - id
+        - created_by_account_id
+        - profile_name
+        - visibility
+        - current_handle
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        created_by_account_id:
+          $ref: "#/components/schemas/Id"
+        current_handle:
+          type: string
+        profile_name:
+          type: string
+        profile_kind:
+          type: string
+          enum:
+            - organizer
+            - performer
+        bio:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+          description: Private contact phone for the profile owner and permitted organizers; never shown in public profile reads.
+        profile_image_url:
+          type: string
+          format: uri
+          nullable: true
+        theme_name:
+          type: string
+          nullable: true
+        visibility:
+          $ref: "#/components/schemas/ProfileVisibility"
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileLink"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+        deleted_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        recovery_deadline:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+    ProfileLink:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        profile_id:
+          $ref: "#/components/schemas/Id"
+        type:
+          type: string
+          enum:
+            - website
+            - instagram
+            - youtube
+            - tiktok
+            - twitter
+            - facebook
+            - spotify
+            - bandcamp
+            - email
+            - phone
+            - other
+        url:
+          type: string
+        label:
+          type: string
+          nullable: true
+        sequence:
+          type: integer
+    OpenMic:
+      type: object
+      required:
+        - id
+        - current_handle
+        - name
+        - status
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        owner_profile_id:
+          $ref: "#/components/schemas/Id"
+        current_handle:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        tags:
+          type: array
+          items:
+            type: string
+        venue_name:
+          type: string
+        address_line1:
+          type: string
+        address_line2:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+          nullable: true
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+          nullable: true
+        time_zone:
+          type: string
+          example: Europe/Dublin
+        schedule_summary:
+          type: string
+          nullable: true
+        schedule_details:
+          type: string
+          nullable: true
+        website:
+          type: string
+          format: uri
+          nullable: true
+        contact_email:
+          type: string
+          format: email
+          nullable: true
+        originals_only:
+          type: boolean
+        amplification_available:
+          type: boolean
+        age_policy:
+          type: string
+          enum:
+            - adults_only
+            - children_only
+            - both
+        registration_mode:
+          $ref: "#/components/schemas/RegistrationMode"
+        external_registration_url:
+          type: string
+          format: uri
+          nullable: true
+        entry_fee_amount:
+          type: number
+          nullable: true
+        entry_fee_currency:
+          type: string
+          nullable: true
+        entry_fee_note:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/OpenMicStatus"
+        rating_avg:
+          type: number
+          minimum: 0
+          maximum: 5
+        rating_count:
+          type: integer
+          minimum: 0
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+    Event:
+      type: object
+      required:
+        - id
+        - open_mic_id
+        - title
+        - starts_at
+        - time_zone
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        public_code:
+          type: string
+          pattern: "^[A-Z0-9]{10}$"
+          description: Short stable public identifier for URLs. The UUID id remains the internal identifier.
+        open_mic_id:
+          $ref: "#/components/schemas/Id"
+        title:
+          type: string
+        starts_at:
+          $ref: "#/components/schemas/Timestamp"
+        ends_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        time_zone:
+          type: string
+          example: Europe/Dublin
+        running:
+          type: boolean
+          nullable: true
+        registrations_closed_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        venue_name:
+          type: string
+        address_line1:
+          type: string
+        address_line2:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+          nullable: true
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+          nullable: true
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        tags:
+          type: array
+          items:
+            type: string
+        capacity:
+          type: integer
+          minimum: 1
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        rating_avg:
+          type: number
+          minimum: 0
+          maximum: 5
+          nullable: true
+        rating_count:
+          type: integer
+          minimum: 0
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+    Registration:
+      type: object
+      required:
+        - id
+        - event_id
+        - performer_name
+        - submission_channel
+        - organizer_supervised
+        - visibility_state
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        event_id:
+          $ref: "#/components/schemas/Id"
+        profile_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        performer_name:
+          type: string
+        performer_city:
+          type: string
+          nullable: true
+        contact_email:
+          type: string
+          format: email
+          nullable: true
+        contact_phone:
+          type: string
+          nullable: true
+        song_names:
+          type: array
+          items:
+            type: string
+        submission_channel:
+          $ref: "#/components/schemas/RegistrationChannel"
+        organizer_supervised:
+          type: boolean
+        referred_by_profile_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        media_consent:
+          type: boolean
+        media_consent_updated_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+          description: Set whenever media_consent changes. Revocation only blocks future
+            media publication under this registration; media already published
+            beforehand is not retroactively removed.
+        email_verified_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        verification_method:
+          type: string
+          enum:
+            - email
+            - organizer_kiosk
+            - authenticated_account
+          nullable: true
+        visibility_state:
+          $ref: "#/components/schemas/RegistrationVisibility"
+        claimed_by_account_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        claimed_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+        adopted_profile_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: Profile explicitly adopted by the claiming account as the public
+            attribution for this registration. Distinct from profile_id (set
+            only for authenticated self-serve registrations) and never set
+            without claimed_by_account_id.
+    Performance:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        registration_id:
+          $ref: "#/components/schemas/Id"
+        name:
+          type: string
+        activity:
+          $ref: "#/components/schemas/Activity"
+        sequence:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum:
+            - registered
+            - performed
+            - no_show
+            - cancelled
+        notes:
+          type: string
+          nullable: true
+    Media:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        media_type:
+          $ref: "#/components/schemas/MediaType"
+        event_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        profile_owner_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        added_by_profile_id:
+          $ref: "#/components/schemas/Id"
+        added_by_role:
+          type: string
+          enum:
+            - performer
+            - organizer
+        source_url:
+          type: string
+          format: uri
+          description: For media_type=photo, an object URL in the platform's own S3 media
+            bucket (via the upload-url flow). For media_type=video, a link on an
+            allowlisted host (youtube.com, youtu.be, or vimeo.com). Enforced
+            server-side; arbitrary hosts are rejected.
+        mime_type:
+          type: string
+          nullable: true
+        size_bytes:
+          type: integer
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+        thumbnail_url:
+          type: string
+          format: uri
+          nullable: true
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+    Handle:
+      type: object
+      properties:
+        handle:
+          type: string
+        entity_type:
+          type: string
+          enum:
+            - profile
+            - open_mic
+          nullable: true
+        profile_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        open_mic_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        status:
+          type: string
+          enum:
+            - current
+            - redirect
+            - quarantined
+            - reserved
+            - available
+            - tombstoned
+        redirects_to_handle:
+          type: string
+          nullable: true
+        redirect_expires_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        quarantine_expires_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        reserved_category:
+          type: string
+          nullable: true
+        reserved_reason:
+          type: string
+          nullable: true
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        retired_at:
+          allOf:
+            - $ref: "#/components/schemas/Timestamp"
+          nullable: true
+    PermissionSet:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items:
+            type: string
+    Availability:
+      type: object
+      required:
+        - available
+      properties:
+        available:
+          type: boolean
+        reason:
+          type: string
+          enum:
+            - reserved
+            - in_use
+            - invalid_format
+            - redirect
+            - quarantined
+            - tombstoned
+          nullable: true
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+    UploadUrlResponse:
+      type: object
+      properties:
+        upload_url:
+          type: string
+          format: uri
+        object_key:
+          type: string
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+    ProfilePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Profile"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    OpenMicPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenMic"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    EventPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    RegistrationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Registration"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    PerformancePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Performance"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    MediaPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Media"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    SignUpRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+    SignInRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+    AccountUpdateRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+        city:
+          type: string
+        preferred_language:
+          type: string
+    CurrentProfileRequest:
+      type: object
+      required:
+        - profile_id
+      properties:
+        profile_id:
+          $ref: "#/components/schemas/Id"
+    ProfileCreateRequest:
+      type: object
+      required:
+        - profile_name
+        - profile_kind
+      properties:
+        handle:
+          type: string
+        profile_name:
+          type: string
+        profile_kind:
+          type: string
+          enum:
+            - organizer
+            - performer
+        bio:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        visibility:
+          $ref: "#/components/schemas/ProfileVisibility"
+        theme_name:
+          type: string
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileLink"
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        handle:
+          type: string
+        profile_name:
+          type: string
+        profile_kind:
+          type: string
+          enum:
+            - organizer
+            - performer
+        bio:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        visibility:
+          $ref: "#/components/schemas/ProfileVisibility"
+        theme_name:
+          type: string
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileLink"
+    OpenMicCreateRequest:
+      type: object
+      required:
+        - name
+        - venue_name
+        - address_line1
+        - city
+        - country
+        - time_zone
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        handle:
+          type: string
+        venue_name:
+          type: string
+        address_line1:
+          type: string
+        address_line2:
+          type: string
+        postcode:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        time_zone:
+          type: string
+        website:
+          type: string
+          format: uri
+        contact_email:
+          type: string
+          format: email
+        schedule_summary:
+          type: string
+        schedule_details:
+          type: string
+        originals_only:
+          type: boolean
+        amplification_available:
+          type: boolean
+        age_policy:
+          type: string
+          enum:
+            - adults_only
+            - children_only
+            - both
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        tags:
+          type: array
+          items:
+            type: string
+        registration_mode:
+          $ref: "#/components/schemas/RegistrationMode"
+        external_registration_url:
+          type: string
+          format: uri
+        entry_fee_amount:
+          type: number
+          minimum: 0
+        entry_fee_currency:
+          type: string
+        entry_fee_note:
+          type: string
+    OpenMicUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        handle:
+          type: string
+        venue_name:
+          type: string
+        address_line1:
+          type: string
+        address_line2:
+          type: string
+        postcode:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        time_zone:
+          type: string
+        website:
+          type: string
+          format: uri
+        contact_email:
+          type: string
+          format: email
+        schedule_summary:
+          type: string
+        schedule_details:
+          type: string
+        originals_only:
+          type: boolean
+        amplification_available:
+          type: boolean
+        age_policy:
+          type: string
+          enum:
+            - adults_only
+            - children_only
+            - both
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        tags:
+          type: array
+          items:
+            type: string
+        registration_mode:
+          $ref: "#/components/schemas/RegistrationMode"
+        external_registration_url:
+          type: string
+          format: uri
+        entry_fee_amount:
+          type: number
+          minimum: 0
+        entry_fee_currency:
+          type: string
+        entry_fee_note:
+          type: string
+    EventCreateRequest:
+      type: object
+      required:
+        - title
+        - starts_at
+        - time_zone
+      properties:
+        title:
+          type: string
+        starts_at:
+          $ref: "#/components/schemas/Timestamp"
+        ends_at:
+          $ref: "#/components/schemas/Timestamp"
+        time_zone:
+          type: string
+        running:
+          type: boolean
+          nullable: true
+        registrations_closed_at:
+          $ref: "#/components/schemas/Timestamp"
+        capacity:
+          type: integer
+          minimum: 1
+        venue_name:
+          type: string
+          description: Part of the location snapshot. If provided, all location fields
+            (venue_name, address_line1, city, country, lat, lng) must be
+            provided together. If omitted, event inherits location from parent
+            open mic.
+        address_line1:
+          type: string
+        address_line2:
+          type: string
+        postcode:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        tags:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+        entry_fee_amount:
+          type: number
+          minimum: 0
+        entry_fee_currency:
+          type: string
+        entry_fee_note:
+          type: string
+    EventUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        starts_at:
+          $ref: "#/components/schemas/Timestamp"
+        ends_at:
+          $ref: "#/components/schemas/Timestamp"
+        time_zone:
+          type: string
+        running:
+          type: boolean
+          nullable: true
+        registrations_closed_at:
+          $ref: "#/components/schemas/Timestamp"
+        capacity:
+          type: integer
+          minimum: 1
+        venue_name:
+          type: string
+          description: Part of the location snapshot. If provided, all location fields
+            (venue_name, address_line1, city, country, lat, lng) must be
+            provided together. If omitted, event inherits location from parent
+            open mic.
+        address_line1:
+          type: string
+        address_line2:
+          type: string
+        postcode:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        tags:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+        entry_fee_amount:
+          type: number
+          minimum: 0
+        entry_fee_currency:
+          type: string
+        entry_fee_note:
+          type: string
+    RegistrationCreateRequest:
+      type: object
+      required:
+        - performer_name
+        - submission_channel
+        - organizer_supervised
+      properties:
+        profile_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          description: Required for authenticated self-serve registrations; must reference
+            a separate account-owned profile with profile_kind=performer.
+        performer_name:
+          type: string
+        performer_city:
+          type: string
+        contact_email:
+          type: string
+          format: email
+        contact_phone:
+          type: string
+        song_names:
+          type: array
+          items:
+            type: string
+        submission_channel:
+          $ref: "#/components/schemas/RegistrationChannel"
+        organizer_supervised:
+          type: boolean
+        referred_by_profile_id:
+          $ref: "#/components/schemas/Id"
+        media_consent:
+          type: boolean
+    RegistrationUpdateRequest:
+      type: object
+      properties:
+        performer_name:
+          type: string
+        performer_city:
+          type: string
+        song_names:
+          type: array
+          items:
+            type: string
+        media_consent:
+          type: boolean
+        adopted_profile_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: Registration owner may change or clear the adopted public
+            attribution after the initial claim.
+    RegistrationClaimRequest:
+      type: object
+      properties:
+        adopted_profile_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: An account-owned performer profile to adopt as the public
+            attribution for this registration. Omit or set null to claim without
+            adopting a public profile.
+        sync_public_fields:
+          type: boolean
+          description: If true and adopted_profile_id is set, update performer_name and
+            performer_city from the adopted profile for public event
+            attribution.
+        note:
+          type: string
+          nullable: true
+    EmailVerificationRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+    PerformanceCreateRequest:
+      type: object
+      required:
+        - registration_id
+        - name
+      properties:
+        registration_id:
+          $ref: "#/components/schemas/Id"
+        name:
+          type: string
+        activity:
+          $ref: "#/components/schemas/Activity"
+        sequence:
+          type: integer
+        status:
+          type: string
+          enum:
+            - registered
+            - performed
+            - no_show
+            - cancelled
+        notes:
+          type: string
+          nullable: true
+    PerformanceUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        activity:
+          allOf:
+            - $ref: "#/components/schemas/Activity"
+          nullable: true
+        sequence:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum:
+            - registered
+            - performed
+            - no_show
+            - cancelled
+        notes:
+          type: string
+          nullable: true
+    MediaCreateRequest:
+      type: object
+      required:
+        - media_type
+        - source_url
+      properties:
+        media_type:
+          $ref: "#/components/schemas/MediaType"
+        source_url:
+          type: string
+          format: uri
+          description: For media_type=photo, an object URL in the platform's own S3 media
+            bucket (via the upload-url flow). For media_type=video, a link on an
+            allowlisted host (youtube.com, youtu.be, or vimeo.com). Enforced
+            server-side; arbitrary hosts are rejected.
+        caption:
+          type: string
+        event_id:
+          $ref: "#/components/schemas/Id"
+        profile_owner_id:
+          $ref: "#/components/schemas/Id"
+    MediaUpdateRequest:
+      type: object
+      properties:
+        caption:
+          type: string
+        source_url:
+          type: string
+          format: uri
+          description: Subject to the same host-allowlist policy as
+            MediaCreateRequest.source_url.
+        profile_owner_id:
+          $ref: "#/components/schemas/Id"
+    UploadUrlRequest:
+      type: object
+      required:
+        - media_type
+        - mime_type
+      properties:
+        media_type:
+          $ref: "#/components/schemas/MediaType"
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+    HandleReservationRequest:
+      type: object
+      required:
+        - handle
+        - category
+        - reason
+      properties:
+        handle:
+          type: string
+        category:
+          type: string
+        reason:
+          type: string

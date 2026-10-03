@@ -3,6 +3,9 @@ info:
   title: Open Mic API
   version: 1.0.0
   description: Canonical API contract. All paths are relative to the /api base URL.
+    The public media deep-link page (`/media/:mediaId`) is intentionally not part of
+    this document — like the `/@:handle` vanity resolver it is served outside `/api`
+    as server-rendered SPA HTML with Open Graph tags, not as a JSON operation.
 servers:
   - url: https://api.openmics.org/api
     description: Production
@@ -213,28 +216,44 @@ paths:
       tags:
         - Media
       operationId: listProfileMedia
-      description: Lists event media attributed to registrations that currently adopt this performer profile. Media cannot be uploaded directly to a profile.
+      description: Lists event media attributed to registrations that currently adopt this performer profile. Media cannot be uploaded directly to a profile. Returns an empty page when the profile owner has turned off `show_gig_media`; a private or deleted profile behaves like GET /profiles/{id} (404).
       parameters:
         - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/MediaTypeFilter"
+        - $ref: "#/components/parameters/MediaSort"
+        - $ref: "#/components/parameters/MediaSeed"
+        - $ref: "#/components/parameters/MediaAnchor"
+        - $ref: "#/components/parameters/MediaCursor"
+        - $ref: "#/components/parameters/MediaLimit"
       responses:
         "200":
           $ref: "#/components/responses/MediaListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /open-mics/{id}/media:
     get:
       tags:
         - Media
       operationId: listOpenMicMedia
-      description: Lists free-standing media uploaded to this open-mic series together with visible media from its published events.
+      description: Lists free-standing media uploaded to this open-mic series together with visible media from its published events. Hidden while the series itself is not publicly visible.
       parameters:
         - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/MediaTypeFilter"
+        - $ref: "#/components/parameters/MediaSort"
+        - $ref: "#/components/parameters/MediaSeed"
+        - $ref: "#/components/parameters/MediaAnchor"
+        - $ref: "#/components/parameters/MediaCursor"
+        - $ref: "#/components/parameters/MediaLimit"
       responses:
         "200":
           $ref: "#/components/responses/MediaListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
     post:
       tags:
         - Media
       operationId: addOpenMicMedia
-      description: Adds free-standing media directly to an open-mic series. Series media cannot carry performer attribution.
+      description: Adds free-standing media directly to an open-mic series. Series media cannot carry performer attribution (`registration_id` is rejected). `open_mic_id` in the body, when present, must match the path.
       security:
         - bearerAuth: []
       parameters:
@@ -244,6 +263,41 @@ paths:
       responses:
         "201":
           $ref: "#/components/responses/MediaResponse"
+        "400":
+          $ref: "#/components/responses/MediaBadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/MediaConflict"
+  /open-mics/{id}/featured-media:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags:
+        - Media
+      operationId: listFeaturedMedia
+      description: Lists this series' pinned featured media in the organizer's manual order. Empty when nothing is pinned or when the series is not publicly visible; pins to media that is no longer visible are dropped from the response.
+      responses:
+        "200":
+          $ref: "#/components/responses/FeaturedMediaResponse"
+    put:
+      tags:
+        - Media
+      operationId: replaceFeaturedMedia
+      description: Atomically replaces this series' featured pins with the given ordered list. Owner-authenticated. Every id must reference visible media scoped to this series or one of its events; hidden, soft-deleted, or consent-revoked media is rejected with `MEDIA_FEATURED_INVALID`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/FeaturedMediaUpdate"
+      responses:
+        "200":
+          $ref: "#/components/responses/FeaturedMediaResponse"
+        "400":
+          $ref: "#/components/responses/MediaBadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /handles/check/{candidate}:
     get:
       tags:
@@ -339,6 +393,8 @@ paths:
       responses:
         "201":
           $ref: "#/components/responses/OpenMicResponse"
+        "403":
+          $ref: "#/components/responses/PlanLimitExceeded"
         "409":
           $ref: "#/components/responses/HandleConflict"
   /me/open-mics:
@@ -412,6 +468,8 @@ paths:
       responses:
         "201":
           $ref: "#/components/responses/EventResponse"
+        "403":
+          $ref: "#/components/responses/PlanLimitExceeded"
   /open-mics/{id}/next-event:
     get:
       tags:
@@ -528,6 +586,8 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/EventResponse"
+        "403":
+          $ref: "#/components/responses/PlanLimitExceeded"
     delete:
       tags:
         - Events
@@ -655,13 +715,24 @@ paths:
       tags:
         - Media
       operationId: listEventMedia
+      description: Lists visible media for this event. Public only while the event is published in an active series; media staged on a draft event stays hidden until publication.
+      parameters:
+        - $ref: "#/components/parameters/MediaTypeFilter"
+        - $ref: "#/components/parameters/MediaSort"
+        - $ref: "#/components/parameters/MediaSeed"
+        - $ref: "#/components/parameters/MediaAnchor"
+        - $ref: "#/components/parameters/MediaCursor"
+        - $ref: "#/components/parameters/MediaLimit"
       responses:
         "200":
           $ref: "#/components/responses/MediaListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
     post:
       tags:
         - Media
       operationId: addEventMedia
+      description: Adds media to this event (photos via `object_key` from the upload-url flow, videos via an allowlisted `video_url`). Organizer-owner only. `event_id` in the body, when present, must match the path.
       security:
         - bearerAuth: []
       requestBody:
@@ -669,6 +740,12 @@ paths:
       responses:
         "201":
           $ref: "#/components/responses/MediaResponse"
+        "400":
+          $ref: "#/components/responses/MediaBadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/MediaConflict"
   /registrations/edit:
     get:
       tags:
@@ -831,6 +908,7 @@ paths:
       tags:
         - Media
       operationId: createMedia
+      description: Commits an upload (photo) or registers a video link. Exactly one of `event_id` / `open_mic_id` must be set; `registration_id` is only valid on event media whose registration currently holds media consent.
       security:
         - bearerAuth: []
       requestBody:
@@ -838,11 +916,18 @@ paths:
       responses:
         "201":
           $ref: "#/components/responses/MediaResponse"
+        "400":
+          $ref: "#/components/responses/MediaBadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/MediaConflict"
   /media/upload-url:
     post:
       tags:
         - Media
       operationId: createMediaUploadUrl
+      description: Reserves a photo upload slot and returns a short-lived (15 minute) presigned PUT URL with a server-generated `tmp/{accountId}/{uuid}.{ext}` object key bound to the declared Content-Type and maximum Content-Length. Photos only; `media_type=video` is rejected with `MEDIA_UPLOAD_INVALID`.
       security:
         - bearerAuth: []
       requestBody:
@@ -850,6 +935,10 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/UploadUrlResponse"
+        "400":
+          $ref: "#/components/responses/MediaBadRequest"
+        "409":
+          $ref: "#/components/responses/MediaConflict"
   /media/{id}:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -857,15 +946,18 @@ paths:
       tags:
         - Media
       operationId: getMedia
+      description: Public read. Hidden media (soft-deleted, consent-revoked, or on a non-public event/series) returns 404 `MEDIA_HIDDEN`; unknown ids return 404 `MEDIA_NOT_FOUND`. The owning organizer (or a platform admin) still receives the row, including soft-deleted rows inside their recovery window.
       responses:
         "200":
           $ref: "#/components/responses/MediaResponse"
+        "404":
+          $ref: "#/components/responses/MediaNotFound"
     patch:
       tags:
         - Media
       operationId: updateMedia
       summary: Update media metadata
-      description: The organizer who owns the associated event or open-mic series may update the media. Uploader attribution is immutable.
+      description: The organizer who owns the associated event or open-mic series may update the media. Uploader attribution is immutable. Only `caption` and `registration_id` are editable; `media_type` and the media source are immutable and rejected when present.
       security:
         - bearerAuth: []
       requestBody:
@@ -873,23 +965,34 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/MediaResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/MediaNotFound"
+        "409":
+          $ref: "#/components/responses/MediaConflict"
     delete:
       tags:
         - Media
       operationId: deleteMedia
-      description: The organizer who owns the associated event or open-mic series may soft-delete the media.
+      description: The organizer who owns the associated event or open-mic series may soft-delete the media. The row enters the standard 30-day recovery window with `deletion_reason=organizer`; its bytes are purged from object storage only after the window elapses.
       security:
         - bearerAuth: []
       responses:
         "204":
           description: Media soft-deleted
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/MediaNotFound"
   /media/{id}/recover:
     post:
       tags:
         - Media
       operationId: recoverMedia
+      description: Restores a soft-deleted media item within its 30-day recovery window, preserving its original `created_at`. Owner-authenticated. Returns 410 `MEDIA_RECOVERY_EXPIRED` once the window has elapsed; media deleted with `deletion_reason=consent_revocation` is restored by restoring the registration's consent, not through this endpoint.
       security:
         - bearerAuth: []
       parameters:
@@ -897,6 +1000,28 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/MediaResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/MediaNotFound"
+        "410":
+          $ref: "#/components/responses/MediaGone"
+  /me/media/recently-deleted:
+    get:
+      tags:
+        - Media
+      operationId: listRecentlyDeletedMedia
+      description: Organizer-authenticated. Lists media soft-deleted within the recovery window across every series and event the caller owns, grouped by owning series/event, newest deletions first.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/MediaCursor"
+        - $ref: "#/components/parameters/MediaLimit"
+      responses:
+        "200":
+          $ref: "#/components/responses/RecentlyDeletedMediaResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /admin/reserved-handles:
     get:
       tags:
@@ -1084,6 +1209,58 @@ components:
       schema:
         type: string
         format: date-time
+    MediaTypeFilter:
+      name: type
+      in: query
+      description: Media type filter; defaults to `all`.
+      schema:
+        type: string
+        enum:
+          - all
+          - photo
+          - video
+        default: all
+    MediaSort:
+      name: sort
+      in: query
+      description: "`newest` (default) orders by creation time; `shuffle` is a stable
+        random order for the supplied `seed`; `most_liked` is accepted for forward
+        compatibility and currently behaves like `newest` until reactions ship."
+      schema:
+        type: string
+        enum:
+          - newest
+          - shuffle
+          - most_liked
+        default: newest
+    MediaSeed:
+      name: seed
+      in: query
+      description: Optional integer seed stabilizing `sort=shuffle` within a session.
+      schema:
+        type: integer
+    MediaAnchor:
+      name: anchor
+      in: query
+      description: Media id to center the page on (deep-link support). Returns a window
+        around the anchor with both `prev_cursor` and `next_cursor` populated.
+      schema:
+        $ref: "#/components/schemas/Id"
+    MediaCursor:
+      name: cursor
+      in: query
+      description: Opaque keyset cursor from a previous response's `next_cursor` or
+        `prev_cursor`.
+      schema:
+        type: string
+    MediaLimit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 24
   requestBodies:
     AccountUpdate:
       required: true
@@ -1181,6 +1358,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/MediaUpdateRequest"
+    FeaturedMediaUpdate:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FeaturedMediaUpdateRequest"
     UploadUrl:
       required: true
       content:
@@ -1360,11 +1543,23 @@ components:
           schema:
             $ref: "#/components/schemas/PerformancePage"
     MediaListResponse:
-      description: Media
+      description: A page of media with opaque keyset cursors in both directions
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/MediaPage"
+            $ref: "#/components/schemas/MediaListResponse"
+    FeaturedMediaResponse:
+      description: Featured media in the organizer's manual order
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FeaturedMediaListResponse"
+    RecentlyDeletedMediaResponse:
+      description: Soft-deleted media across the caller's series and events, grouped by owner
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RecentlyDeletedMediaListResponse"
     HandleListResponse:
       description: Handles
       content:
@@ -1464,6 +1659,48 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
+    MediaBadRequest:
+      description: "`error.code` is `MEDIA_UPLOAD_INVALID` (MIME type or size outside
+        the plan rules), `MEDIA_SOURCE_POLICY` (video host not allowlisted, or the
+        object key is not a valid pending upload in the platform media bucket), or
+        `MEDIA_FEATURED_INVALID` (featured list references unknown, hidden,
+        soft-deleted, consent-revoked, or out-of-scope media)."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    MediaNotFound:
+      description: "`error.code` is `MEDIA_NOT_FOUND` when no such media exists, or
+        `MEDIA_HIDDEN` when it exists but is hidden from the caller (soft-deleted,
+        consent-revoked, or its event/series is not publicly visible)."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    MediaConflict:
+      description: "`error.code` is `MEDIA_QUOTA_EXCEEDED` (with `error.details.scope`
+        = `event` or `account`) when a plan media quota is hit, or
+        `MEDIA_CONSENT_REVOKED` when the target registration's media consent is revoked."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    MediaGone:
+      description: "`error.code` is `MEDIA_RECOVERY_EXPIRED` once the 30-day recovery
+        window has elapsed."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    PlanLimitExceeded:
+      description: "`error.code` is `PLAN_LIMIT_EXCEEDED` with `error.details.scope` =
+        `series` (max series per organizer reached), `event` (max events per series
+        reached), or `event_capacity` (capacity above the plan maximum, or unlimited
+        capacity, which the default plan rejects)."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
   schemas:
     Id:
       type: string
@@ -1538,10 +1775,10 @@ components:
             message:
               type: string
             details:
-              type: array
-              items:
-                type: object
-                additionalProperties: true
+              nullable: true
+              description: Machine-readable extras specific to `code` — validation field
+                errors for VALIDATION_ERROR, or a `scope` discriminator for
+                PLAN_LIMIT_EXCEEDED / MEDIA_QUOTA_EXCEEDED.
     HandleConflictError:
       allOf:
         - $ref: "#/components/schemas/ErrorEnvelope"
@@ -1651,6 +1888,10 @@ components:
           nullable: true
         visibility:
           $ref: "#/components/schemas/ProfileVisibility"
+        show_gig_media:
+          type: boolean
+          description: Defaults to true. Controls only the derived media gallery on this
+            profile's public page; event and series galleries are unaffected.
         links:
           type: array
           items:
@@ -2120,6 +2361,81 @@ components:
           type: string
           format: uri
           nullable: true
+          description: Photos leave this null (renditions cover display); videos carry
+            the provider-CDN thumbnail derived from video_platform + platform_video_id.
+        width:
+          type: integer
+          nullable: true
+          description: Intrinsic pixel width of the original photo. Null until the
+            renditions pipeline reports back; always null for videos.
+        height:
+          type: integer
+          nullable: true
+          description: Intrinsic pixel height of the original photo (same timing as `width`).
+        duration_seconds:
+          type: integer
+          nullable: true
+          description: Videos only; null when the provider does not expose a duration.
+        video_platform:
+          type: string
+          enum:
+            - youtube
+            - vimeo
+          nullable: true
+          description: Set for media_type=video only.
+        platform_video_id:
+          type: string
+          nullable: true
+          description: Canonical video ID on `video_platform`.
+        alt_text:
+          type: string
+          description: Always present. The substituted caption when one resolves,
+            otherwise a server-derived fallback (e.g. `Photo from {event_name}`). Used
+            as photo alt text and in social unfurl output.
+        attribution:
+          type: object
+          nullable: true
+          description: Performer attribution display values. Null for free-standing
+            media. When the linked registration currently adopts a live performer
+            profile, the display name/handle come from that profile; otherwise the
+            publish-time registration snapshot is shown.
+          properties:
+            performer_name:
+              type: string
+            performer_city:
+              type: string
+              nullable: true
+            profile_id:
+              allOf:
+                - $ref: "#/components/schemas/Id"
+              nullable: true
+            profile_handle:
+              type: string
+              nullable: true
+              description: Set when attribution resolves to a live adopted profile; the
+                performer name links to `/@handle`.
+        caption_context:
+          type: object
+          description: Substitution values for client-side caption rendering and
+            localized default captions (the raw `caption` template may contain
+            `{performer_name}`, `{performer_city}`, `{event_name}`, `{event_date}`
+            tokens).
+          properties:
+            event_name:
+              type: string
+              nullable: true
+            event_starts_at:
+              allOf:
+                - $ref: "#/components/schemas/Timestamp"
+              nullable: true
+            event_time_zone:
+              type: string
+              nullable: true
+            series_name:
+              type: string
+              nullable: true
+        renditions:
+          $ref: "#/components/schemas/MediaRenditions"
         created_at:
           $ref: "#/components/schemas/Timestamp"
     Handle:
@@ -2296,15 +2612,88 @@ components:
             $ref: "#/components/schemas/Performance"
         pagination:
           $ref: "#/components/schemas/Pagination"
-    MediaPage:
+    MediaListResponse:
       type: object
       properties:
         items:
           type: array
           items:
             $ref: "#/components/schemas/Media"
-        pagination:
-          $ref: "#/components/schemas/Pagination"
+        prev_cursor:
+          type: string
+          nullable: true
+          description: Opaque keyset cursor towards newer items; null at the start of the list.
+        next_cursor:
+          type: string
+          nullable: true
+          description: Opaque keyset cursor towards older items; null at the end of the list.
+    MediaRendition:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        width:
+          type: integer
+        height:
+          type: integer
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+    MediaRenditions:
+      type: object
+      nullable: true
+      description: Named photo renditions (`thumb` 400px, `grid` 800px, `lightbox`
+        2048px short side — all webp — plus `original`). Null until the renditions
+        pipeline has processed the upload, and always null for videos; clients fall
+        back to `source_url` / `thumbnail_url`.
+      properties:
+        thumb:
+          $ref: "#/components/schemas/MediaRendition"
+        grid:
+          $ref: "#/components/schemas/MediaRendition"
+        lightbox:
+          $ref: "#/components/schemas/MediaRendition"
+        original:
+          $ref: "#/components/schemas/MediaRendition"
+    FeaturedMediaListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Media"
+          description: Featured items in the organizer's manual order.
+    RecentlyDeletedMediaGroup:
+      type: object
+      properties:
+        open_mic_id:
+          $ref: "#/components/schemas/Id"
+        open_mic_name:
+          type: string
+        event_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        event_title:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Media"
+    RecentlyDeletedMediaListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecentlyDeletedMediaGroup"
+          description: Soft-deleted media grouped by owning series/event, newest deletions first.
+        next_cursor:
+          type: string
+          nullable: true
     AccountUpdateRequest:
       type: object
       properties:
@@ -2348,6 +2737,9 @@ components:
           nullable: true
         visibility:
           $ref: "#/components/schemas/ProfileVisibility"
+        show_gig_media:
+          type: boolean
+          description: Defaults to true when omitted.
         theme_name:
           type: string
         color_mode:
@@ -2378,6 +2770,10 @@ components:
           nullable: true
         visibility:
           $ref: "#/components/schemas/ProfileVisibility"
+        show_gig_media:
+          type: boolean
+          description: "Profile-page gallery toggle (\"Show my gig photos on my
+            profile\"). Does not affect event or series galleries."
         theme_name:
           type: string
           nullable: true
@@ -2584,6 +2980,10 @@ components:
         capacity:
           type: integer
           minimum: 1
+          description: Plan-capped. The default plan rejects values above 50 — and
+            rejects unlimited capacity (capacity omitted) — with PLAN_LIMIT_EXCEEDED
+            (scope `event_capacity`). Kiosk sign-ups remain exempt from the configured
+            capacity while still counting toward it.
         venue_name:
           type: string
           description: Part of the location snapshot. If provided, all location fields
@@ -2646,6 +3046,9 @@ components:
         capacity:
           type: integer
           minimum: 1
+          description: Plan-capped. The default plan rejects values above 50 — and
+            rejects clearing capacity to unlimited — with PLAN_LIMIT_EXCEEDED (scope
+            `event_capacity`).
         venue_name:
           type: string
           description: Part of the location snapshot. If provided, all location fields
@@ -2863,22 +3266,60 @@ components:
           type: string
           nullable: true
     MediaCreateRequest:
+      oneOf:
+        - $ref: "#/components/schemas/PhotoMediaCreateRequest"
+        - $ref: "#/components/schemas/VideoMediaCreateRequest"
+      discriminator:
+        propertyName: media_type
+        mapping:
+          photo: "#/components/schemas/PhotoMediaCreateRequest"
+          video: "#/components/schemas/VideoMediaCreateRequest"
+    PhotoMediaCreateRequest:
       type: object
       required:
         - media_type
-        - source_url
+        - object_key
       properties:
         media_type:
-          $ref: "#/components/schemas/MediaType"
-        source_url:
           type: string
-          format: uri
-          description: For media_type=photo, an object URL in the platform's own S3 media
-            bucket (via the upload-url flow). For media_type=video, a link on an
-            allowlisted host (youtube.com, youtu.be, or vimeo.com). Enforced
-            server-side; arbitrary hosts are rejected.
+          enum:
+            - photo
+        object_key:
+          type: string
+          description: Server-generated object key returned by POST /media/upload-url (a
+            `tmp/{accountId}/{uuid}.{ext}` key). The server validates the object, moves
+            it to its canonical `original/{mediaId}.{ext}` location, and composes
+            `source_url` from the plan-bound media bucket. Client-supplied source URLs
+            are not accepted for photos.
         caption:
           type: string
+          maxLength: 500
+        event_id:
+          $ref: "#/components/schemas/Id"
+        open_mic_id:
+          $ref: "#/components/schemas/Id"
+        registration_id:
+          $ref: "#/components/schemas/Id"
+    VideoMediaCreateRequest:
+      type: object
+      required:
+        - media_type
+        - video_url
+      properties:
+        media_type:
+          type: string
+          enum:
+            - video
+        video_url:
+          type: string
+          format: uri
+          description: Link on an allowlisted host (youtube.com, youtu.be, or
+            vimeo.com). The server extracts `video_platform` and `platform_video_id` and
+            composes `source_url` plus the provider thumbnail; arbitrary hosts are
+            rejected with `MEDIA_SOURCE_POLICY`.
+        caption:
+          type: string
+          maxLength: 500
         event_id:
           $ref: "#/components/schemas/Id"
         open_mic_id:
@@ -2887,19 +3328,33 @@ components:
           $ref: "#/components/schemas/Id"
     MediaUpdateRequest:
       type: object
+      description: Partial update. `media_type` and the media source are immutable and
+        are not accepted here.
       properties:
         caption:
           type: string
-        source_url:
-          type: string
-          format: uri
-          description: Subject to the same host-allowlist policy as
-            MediaCreateRequest.source_url.
+          nullable: true
+          maxLength: 500
+          description: May contain `{performer_name}`, `{performer_city}`,
+            `{event_name}`, `{event_date}` tokens, substituted server-side for display,
+            alt text, and OG output.
         registration_id:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
           description: Changes or removes performer attribution. The registration must belong to the media's event and have media consent.
+    FeaturedMediaUpdateRequest:
+      type: object
+      required:
+        - media_ids
+      properties:
+        media_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/Id"
+          description: Ordered replacement list. Every id must reference visible media
+            scoped to this series or one of its events; hidden, soft-deleted, or
+            consent-revoked media is rejected with `MEDIA_FEATURED_INVALID`.
     UploadUrlRequest:
       type: object
       required:

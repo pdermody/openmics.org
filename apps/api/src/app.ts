@@ -13,6 +13,14 @@ import { checkHandleAvailability, resolveCurrentHandle } from './handles/reposit
 import { handlesRoutes, type HandlesPluginOptions } from './handles/routes.js';
 import { createGeocodingService } from './geocoding/service.js';
 import { geocodingRoutes, type GeocodingPluginOptions } from './geocoding/routes.js';
+import { createMediaConsentHooks } from './media/consent.js';
+import {
+  createMediaStorageAdapter,
+  createRenditionsQueueAdapter,
+  type MediaStorageAdapter,
+  type RenditionsQueueAdapter,
+} from './media/index.js';
+import { mediaRoutes } from './media/routes.js';
 import { eventsRoutes } from './events/routes.js';
 import { openMicsRoutes } from './open-mics/routes.js';
 import { profilesRoutes } from './profiles/routes.js';
@@ -29,6 +37,8 @@ export type BuildAppOptions = {
   geocoding?: GeocodingPluginOptions;
   authVerifier?: AuthVerifier;
   emailAdapter?: EmailAdapter;
+  mediaStorage?: MediaStorageAdapter;
+  renditionsQueue?: RenditionsQueueAdapter;
 };
 
 // Real Cognito verification is only used once a user pool and app client are actually
@@ -74,6 +84,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const config = { ...loadConfig(), ...options.config };
   const app = Fastify({ logger: options.logger ?? config.environment !== 'test' });
   const emailAdapter = options.emailAdapter ?? createEmailAdapter(config);
+  const mediaStorage = options.mediaStorage ?? createMediaStorageAdapter(config);
+  const renditionsQueue = options.renditionsQueue ?? createRenditionsQueueAdapter(config);
+  const mediaConsent = createMediaConsentHooks({
+    bucket: config.mediaBucket ?? 'local',
+    cdnBaseUrl: config.mediaCdnBaseUrl,
+  });
 
   const pool = options.db ?? createPool(config);
   if (!options.db) app.addHook('onClose', async () => pool.end());
@@ -121,10 +137,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.register(profilesRoutes, { pool, prefix: '/api' });
   app.register(openMicsRoutes, { pool, prefix: '/api' });
   app.register(eventsRoutes, { pool, streamTokenSecret: config.streamTokenSecret, prefix: '/api' });
-  app.register(registrationsRoutes, { pool, emailAdapter, appBaseUrl: config.appBaseUrl, streamTokenSecret: config.streamTokenSecret, prefix: '/api' });
+  app.register(registrationsRoutes, { pool, emailAdapter, appBaseUrl: config.appBaseUrl, streamTokenSecret: config.streamTokenSecret, mediaConsent, prefix: '/api' });
   app.register(performancesRoutes, { pool, prefix: '/api' });
   app.register(accountsRoutes, { pool, prefix: '/api' });
-  app.register(spaRoutes);
+  app.register(mediaRoutes, { pool, config, storage: mediaStorage, renditionsQueue, prefix: '/api' });
+  app.register(spaRoutes, { pool, config });
 
   return app;
 }

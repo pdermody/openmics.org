@@ -5,6 +5,7 @@ import type { Pool } from 'pg';
 import { withTransaction } from '../db.js';
 import type { EmailAdapter } from '../email/index.js';
 import { AppError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../errors.js';
+import type { MediaConsentHooks } from '../media/consent.js';
 import { findEventById, findEventByIdOrPublicCode } from '../events/repository.js';
 import { notifyRoster, verifyKioskRegistrationToken } from '../events/roster-stream.js';
 import { findOpenMicById } from '../open-mics/repository.js';
@@ -23,7 +24,7 @@ import {
 } from './repository.js';
 import { claimRegistrationSchema, createRegistrationSchema, updateRegistrationSchema, verifyEmailSchema } from './validation.js';
 
-export type RegistrationsPluginOptions = { pool: Pool; emailAdapter: EmailAdapter; appBaseUrl: string; streamTokenSecret: string };
+export type RegistrationsPluginOptions = { pool: Pool; emailAdapter: EmailAdapter; appBaseUrl: string; streamTokenSecret: string; mediaConsent: MediaConsentHooks };
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -87,7 +88,7 @@ async function assertRegistrationAccess(pool: Pool, request: FastifyRequest, reg
   return registration;
 }
 
-export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions> = async (app, { pool, emailAdapter, appBaseUrl, streamTokenSecret }) => {
+export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions> = async (app, { pool, emailAdapter, appBaseUrl, streamTokenSecret, mediaConsent }) => {
   app.post<{ Params: { id: string } }>(
     '/events/:id/registrations',
     { preHandler: app.authenticateOptional },
@@ -329,7 +330,26 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
         }
       }
       const changes = { ...parsed.data, media_consent_updated_at: undefined };
-      const updated = await updateRegistration(pool, registration.id, changes);
+      const consentChanging =
+        parsed.data.media_consent !== undefined && parsed.data.media_consent !== registration.media_consent;
+
+      let updated;
+      if (!consentChanging) {
+        updated = await updateRegistration(pool, registration.id, changes);
+      } else {
+        // Retroactive media consent (decisions.md → Guest Registrations): the flag flip
+        // and its media side-effects (soft-delete + purge enqueue + Featured pin removal
+        // on revocation; restore + dequeue on restoration) commit atomically.
+        updated = await withTransaction(pool, async (client) => {
+          const row = await updateRegistration(client, registration.id, changes);
+          if (parsed.data.media_consent === false) {
+            await mediaConsent.applyRevocation(client, registration.id);
+          } else {
+            await mediaConsent.applyRestoration(client, registration.id);
+          }
+          return row;
+        });
+      }
       reply.send(serializeRegistration(updated!));
       void notifyRoster(pool, updated!.event_id, 'registration.updated', { registration_id: updated!.id }).catch((error) =>
         app.log.error({ error }, 'Failed to publish roster notification'),

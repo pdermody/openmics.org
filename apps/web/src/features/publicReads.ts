@@ -49,6 +49,7 @@ export type Profile = {
   bio: string | null
   profile_image_url: string | null
   visibility: string
+  show_gig_media?: boolean
 }
 
 type OpenMicPage = { items: OpenMic[]; pagination: { page: number; page_size: number; total: number } }

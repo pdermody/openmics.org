@@ -149,7 +149,7 @@ export async function findRegistrationsByProfileId(client: Queryable, profileId:
 }
 
 export async function updateRegistration(
-  pool: Pool,
+  pool: Queryable,
   id: string,
   changes: Partial<Record<string, unknown>>,
 ): Promise<RegistrationRow | null> {
