@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, DoorOpen, Eye, Lock, LockOpen, MapPin, Pencil } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, DoorOpen, Eye, Image, ImagePlus, Lock, LockOpen, MapPin, Pencil } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
 import { ActionMenu } from '../components/ActionMenu'
 import { EventManagementActions } from '../components/EventManagementActions'
@@ -25,6 +25,8 @@ import {
   type RosterRegistration,
 } from '../features/organizer'
 import { isRegistrationClosed } from '../features/publicReads'
+import { canAttributeMedia } from '../features/media'
+import { RegistrationMediaUploadModal } from '../components/media/RegistrationMediaUploadModal'
 import type { ColorMode, ThemeId } from '../theme'
 import { Modal, ReadState, Required, RequiredFieldsNote, SiteHeader } from './shared'
 
@@ -74,10 +76,21 @@ function useIsWideScreen(): boolean {
 
 // Registration details, shown in every column (including Performed) via a real modal so it's
 // never clipped by the roster board's scroll container.
-function RegistrationDetailsModal({ registration, onClose }: { registration: RosterRegistration; onClose: () => void }) {
+function RegistrationDetailsModal({ registration, onClose, onEdit, onAddMedia }: {
+  registration: RosterRegistration
+  onClose: () => void
+  onEdit: () => void
+  onAddMedia: () => void
+}) {
   const { t } = useTranslation()
   const info = provenanceOf(registration)
+  const canAddMedia = canAttributeMedia(registration)
   return <Modal title={`Registration details for ${registration.performer_name}`} onClose={onClose}>
+    <div className="registration-details-actions">
+      <button type="button" className="quiet-button icon-button" onClick={onEdit} aria-label={t('edit')} title={t('edit')}><Pencil size={17} aria-hidden="true" /></button>
+      <button type="button" className="quiet-button icon-button" onClick={onAddMedia} disabled={!canAddMedia} aria-label={t('mediaAdd')} title={t('mediaAdd')} aria-describedby={!canAddMedia ? `media-eligibility-${registration.id}` : undefined}><ImagePlus size={17} aria-hidden="true" /></button>
+    </div>
+    {!canAddMedia && <p id={`media-eligibility-${registration.id}`} className="field-hint">{t(registration.media_consent ? 'mediaRegistrationNotEligible' : 'mediaRegistrationNeedsConsent')}</p>}
     <span className={`roster-badge roster-badge-${info.key}`}>{info.label}</span>
     <dl>
       {registration.performer_city && <><dt>{t('city')}</dt><dd>{registration.performer_city}</dd></>}
@@ -167,6 +180,7 @@ function PendingRegistrationRow({ eventId, registration }: { eventId: string; re
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [mediaOpen, setMediaOpen] = useState(false)
 
   return <li className="roster-pending-row">
     <span className="performer-card-name">{registration.performer_name}</span>
@@ -174,8 +188,9 @@ function PendingRegistrationRow({ eventId, registration }: { eventId: string; re
       <button type="button" className="link-button" onClick={() => setDetailsOpen(true)}>{t('details')}</button>
       <button type="button" className="link-button" onClick={() => setEditOpen(true)}>{t('edit')}</button>
     </span>
-    {detailsOpen && <RegistrationDetailsModal registration={registration} onClose={() => setDetailsOpen(false)} />}
+    {detailsOpen && <RegistrationDetailsModal registration={registration} onClose={() => setDetailsOpen(false)} onEdit={() => { setDetailsOpen(false); setEditOpen(true) }} onAddMedia={() => { if (canAttributeMedia(registration)) { setDetailsOpen(false); setMediaOpen(true) } }} />}
     {editOpen && <RegistrationEditModal eventId={eventId} registration={registration} onClose={() => setEditOpen(false)} />}
+    {mediaOpen && <RegistrationMediaUploadModal eventId={eventId} registration={registration} onClose={() => setMediaOpen(false)} />}
   </li>
 }
 
@@ -207,6 +222,7 @@ export function PerformerCard({
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [mediaOpen, setMediaOpen] = useState(false)
 
   const columnIndex = PERFORMANCE_BOARD_STATUSES.indexOf(status)
   const isMainColumn = columnIndex !== -1
@@ -295,8 +311,9 @@ export function PerformerCard({
 
     <CardMenu label={`More actions for ${registration.performer_name}`} items={menuItems} />
 
-    {detailsOpen && <RegistrationDetailsModal registration={registration} onClose={() => setDetailsOpen(false)} />}
+    {detailsOpen && <RegistrationDetailsModal registration={registration} onClose={() => setDetailsOpen(false)} onEdit={() => { setDetailsOpen(false); setEditOpen(true) }} onAddMedia={() => { if (canAttributeMedia(registration)) { setDetailsOpen(false); setMediaOpen(true) } }} />}
     {editOpen && <RegistrationEditModal eventId={eventId} registration={registration} onClose={() => setEditOpen(false)} />}
+    {mediaOpen && <RegistrationMediaUploadModal eventId={eventId} registration={registration} onClose={() => setMediaOpen(false)} />}
     {deleteConfirmOpen && <Modal title={isOnlyPerformance ? 'Delete registration?' : 'Delete this performance?'} onClose={() => setDeleteConfirmOpen(false)}>
       <p>
         {isOnlyPerformance
@@ -409,7 +426,7 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
   return <main className="app" data-theme={theme} data-mode={mode}>
     <SiteHeader />
     <section className="dashboard-page">
-      <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId }}>← Back to events</Link>
+      <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId }}>{t('backToEvents')}</Link>
       <div className="eyebrow">{t('eventOperations')}</div>
       <h1>{event.data?.title ?? 'Event roster'}</h1>
       {/* Roster is reached from several places (dashboard, kiosk, direct links) — always show
@@ -419,6 +436,7 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
         <span className="event-meta"><MapPin size={15} /> {event.data.venue_name}, {event.data.city}</span>
       </p>}
       {event.data && isOrganizer && <div className="dashboard-series-card-actions">
+        <Link className="quiet-button" to="/dashboard/series/$seriesId/events/$eventId/media" params={{ seriesId, eventId }}><Image size={17} aria-hidden="true" /> {t('mediaManageLink')}</Link>
         <Link className="quiet-button" to="/dashboard/series/$seriesId/events/$eventId/kiosk" params={{ seriesId, eventId }}><DoorOpen size={17} /> {t('openKiosk')}</Link>
         {supportsOnlineRegistration && <button type="button" className="quiet-button" onClick={() => setRegistrationsClosed.mutate(!isClosed)} disabled={setRegistrationsClosed.isPending}>{isClosed ? <LockOpen size={17} /> : <Lock size={17} />} {isClosed ? t('reopenRegistrations') : t('stopRegistrations')}</button>}
         <EventManagementActions openMicId={seriesId} eventId={eventId} onDeleted={() => void navigate({ to: '/dashboard' })} navigationItems={[{ label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/events/$eventId', params: { eventId: event.data?.public_code ?? eventId } }) }, { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/edit', params: { seriesId, eventId } }) }, { label: t('copyLink'), onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${eventId}/register`) }, { label: t('downloadQr'), onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${eventId}/register`, event.data?.public_code ?? eventId) }]} />

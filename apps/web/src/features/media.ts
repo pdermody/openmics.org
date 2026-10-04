@@ -1,6 +1,11 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../api/client'
+import type { RosterRegistration } from './organizer'
+
+export function canAttributeMedia(registration: Pick<RosterRegistration, 'visibility_state' | 'media_consent'>): boolean {
+  return registration.visibility_state === 'valid' && registration.media_consent
+}
 
 // Mirrors openapi.yaml → Media.
 export type MediaRendition = { url: string; width: number; height: number; mime_type: string; size_bytes: number }

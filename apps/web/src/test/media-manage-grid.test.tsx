@@ -3,10 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { MediaManageGrid } from '../components/media/MediaManageGrid'
+import type { MediaManageGridProps } from '../components/media/MediaManageGrid'
 import { mediaItem } from './media-fixtures'
 import { renderWithProviders } from './render'
 
-function renderGrid(itemOverrides: Parameters<typeof mediaItem>[0] = {}, handlers: { onOpen?: ReturnType<typeof vi.fn>; onEditCaption?: ReturnType<typeof vi.fn> } = {}) {
+function renderGrid(itemOverrides: Parameters<typeof mediaItem>[0] = {}, handlers: Partial<Pick<MediaManageGridProps, 'onOpen' | 'onEditCaption'>> = {}) {
   const item = mediaItem({ alt_text: 'Stage shot', ...itemOverrides })
   const props = {
     items: [item],
@@ -66,5 +67,17 @@ describe('MediaManageGrid', () => {
     // image area is a fixed 3/2 box the thumbnail fits inside (letterboxed, not cropped).
     expect(tile.style.position).toBe('')
     expect(button).toHaveClass('media-manage-tile-main')
+  })
+
+  it('keeps gallery-tile attribution editable independently of the upload queue', async () => {
+    const user = userEvent.setup()
+    const item = mediaItem()
+    const onChangeAttribution = vi.fn()
+    renderWithProviders(<MediaManageGrid items={[item]} attributionOptions={[{ id: 'registration-1', performer_name: 'Ava' }]} onOpen={vi.fn()} onEditCaption={vi.fn()} onChangeAttribution={onChangeAttribution} onSoftDelete={vi.fn()} bulkDelete={vi.fn()} />)
+    const select = screen.getByRole('combobox', { name: 'Performer' })
+    await user.selectOptions(select, 'registration-1')
+    expect(onChangeAttribution).toHaveBeenLastCalledWith(item, 'registration-1')
+    await user.selectOptions(select, '')
+    expect(onChangeAttribution).toHaveBeenLastCalledWith(item, null)
   })
 })

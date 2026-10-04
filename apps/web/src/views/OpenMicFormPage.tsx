@@ -319,8 +319,8 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
     <SiteHeader />
     <section className="dashboard-page">
       {isEdit
-        ? <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId: seriesId ?? '' }}>← Back to series</Link>
-        : <Link className="back-link" to="/dashboard">← Back to dashboard</Link>}
+        ? <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId: seriesId ?? '' }}>{t('backToSeries')}</Link>
+        : <Link className="back-link" to="/dashboard">{t('backToDashboard')}</Link>}
       <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{isEdit ? t('editSeriesTitle', { name: existing.data?.name ?? t('openMicSeries') }) : t('createSeriesTitle')}</h1>
       <form className="registration-form series-form" onSubmit={handleSubmit(onSubmit)} noValidate>

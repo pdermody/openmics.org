@@ -112,6 +112,8 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 ### E) Organizer-owned content
 
 - Organizers can add photos and video links to their open-mic series and events, including through a registration shortcut that attributes event media to that registration. They cannot upload media directly to organizer profiles.
+- The event roster links to event media management. Registration details provide icon-only edit and add-media actions; the add-media dialog fixes attribution to that event registration and requires a valid registration with media consent, not a claimed performer account.
+- Completed photo uploads in event media management allow changing or clearing performer attribution without uploading the photo again. Closing a roster upload dialog confirms cancellation of unfinished uploads; already saved media remains, and a commit already in progress may still finish.
 - Organizer content is clearly attributed and shown in a labelled section on public pages.
 - Organizers can edit or soft-delete their content and recover it during the configured retention period.
 - Performer content upload is deferred. Performer profile galleries are derived from event media attributed to registrations that have adopted the profile; they are not a direct upload target.

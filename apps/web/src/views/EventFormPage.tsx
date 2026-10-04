@@ -322,7 +322,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   return <main className="app" data-theme={theme} data-mode={mode}>
     <SiteHeader />
     <section className="dashboard-page">
-      <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId }}>← Back to {openMic.data?.name ?? 'series'}</Link>
+      <Link className="back-link" to="/dashboard/series/$seriesId" params={{ seriesId }}>{openMic.data?.name ? t('backToNamedSeries', { series: openMic.data.name }) : t('backToSeries')}</Link>
       <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{isEdit ? t('editEventTitle', { name: existing.data?.title ?? t('eventDetail') }) : t('newEventTitle', { name: openMic.data?.name ?? t('openMicSeries') })}</h1>
       <form className="registration-form series-form" onSubmit={handleSubmit(onSubmit, focusFirstError)} noValidate>

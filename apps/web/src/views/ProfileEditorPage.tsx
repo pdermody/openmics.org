@@ -57,7 +57,7 @@ export function ProfileEditorPage({ profileId, theme, mode }: { profileId: strin
   return <main className="app" data-theme={theme} data-mode={mode}>
     <SiteHeader />
     <section className="registration-page profile-editor">
-      <Link className="back-link" to="/profiles/$profileId" params={{ profileId }}>← Back to profile</Link>
+      <Link className="back-link" to="/profiles/$profileId" params={{ profileId }}>{t('backToProfile')}</Link>
       <div className="eyebrow">{t('profileSettings')}</div>
       <h1>{t('editProfile')} {profile.profile_name}</h1>
       <form className="registration-form" onSubmit={handleSubmit(onSubmit)} noValidate>

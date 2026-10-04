@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { friendlyApiErrorMessage } from '../api/client'
-import { flattenMediaPages, useMediaList, useRecentlyDeletedMedia, useRecoverMedia, useSoftDeleteMedia, useUpdateMedia, type MediaItem } from '../features/media'
+import { canAttributeMedia, flattenMediaPages, useMediaList, useRecentlyDeletedMedia, useRecoverMedia, useSoftDeleteMedia, useUpdateMedia, type MediaItem } from '../features/media'
 import { useEventRoster, useOrganizerProfile } from '../features/organizer'
 import { usePublicEvent, usePublicOpenMic } from '../features/publicReads'
 import { CaptionEditor } from '../components/media/CaptionEditor'
@@ -54,7 +54,7 @@ export function EventMediaManagePage({ seriesId, eventId, theme, mode }: { serie
   // Attribution picker: this event's registrations only, verified + kiosk provenance,
   // consent-holding (revoked rows are rejected by the API anyway — design §8.3).
   const attributable = useMemo(
-    () => (roster.data ?? []).filter((registration) => registration.visibility_state === 'valid' && registration.media_consent),
+    () => (roster.data ?? []).filter(canAttributeMedia),
     [roster.data],
   )
 

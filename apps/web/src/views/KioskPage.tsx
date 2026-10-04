@@ -229,7 +229,7 @@ function KioskLock({
 
   if (effectivePhase === 'loading' && backupPinStatus.isError) return <div className="kiosk-lock-screen">
     <ReadState message={friendlyApiErrorMessage(backupPinStatus.error, 'We could not load this kiosk\'s settings.')} retry={() => void backupPinStatus.refetch()} />
-    <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>← Back to roster</Link>
+    <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>{t('mediaBackToRoster')}</Link>
   </div>
 
   if (effectivePhase === 'loading') return <div className="kiosk-lock-screen"><ReadState message="Loading kiosk settings…" /></div>
@@ -244,7 +244,7 @@ function KioskLock({
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="primary-button kiosk-submit" type="submit" disabled={setBackupPin.isPending}>{t('saveBackupPin')}</button>
     </form>
-    <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>← Back to roster</Link>
+    <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>{t('mediaBackToRoster')}</Link>
   </div>
 
   if (effectivePhase === 'exit-gate') return <div className="kiosk-lock-screen kiosk-exit-gate">
@@ -341,7 +341,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   if (!isOrganizer) return <div className="app kiosk-page" data-theme={theme} data-mode={mode}>
     <header className="topbar kiosk-topbar"><span className="brand" aria-label={t('openMicHome')}><span className="brand-mark"><Sparkles size={17} /></span><span>{t('kioskBrand')}</span></span></header>
     <section className="kiosk-body">
-      <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>← Back to roster</Link>
+      <Link className="back-link" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId, eventId }}>{t('mediaBackToRoster')}</Link>
       {!context.account.data && <ReadState message={t('signInKiosk')} />}
       {context.account.data && <ReadState message="Select an organizer profile to run the kiosk." />}
     </section>
@@ -431,5 +431,4 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
     </KioskLock>
   </div>
 }
-
 

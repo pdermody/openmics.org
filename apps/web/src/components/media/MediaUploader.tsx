@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ImagePlus, Link2, X } from 'lucide-react'
+import { useForm, useWatch } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 
-import { putToPresignedUrl, useCommitMedia, useCreateUploadUrl } from '../../features/media'
+import { friendlyApiErrorMessage } from '../../api/client'
+import { putToPresignedUrl, useCommitMedia, useCreateUploadUrl, useUpdateMedia } from '../../features/media'
 import { fetchVideoTitle } from '../../features/video-metadata'
 import { Modal } from '../../views/shared'
 
@@ -27,7 +31,33 @@ type UploadRow = {
   error?: string
   controller: AbortController
   registrationId: string
+  mediaId?: string
+  attributionPending?: boolean
+  attributionError?: string
 }
+
+const videoSchema = z.object({
+  url: z.string().trim().refine((value) => parseVideoLink(value) !== null),
+  caption: z.string().max(500),
+  registrationId: z.string(),
+})
+type VideoForm = z.infer<typeof videoSchema>
+
+export type MediaUploaderHandle = {
+  hasUnfinishedWork: () => boolean
+  cancelUnfinished: () => void
+}
+
+type MediaUploaderProps = {
+  registrations?: UploadableRegistration[]
+  onCommitted?: () => void
+  inlineVideo?: boolean
+  uploadsDisabled?: boolean
+  ref?: Ref<MediaUploaderHandle>
+} & (
+  | { eventId: string; openMicId?: never; fixedRegistration?: UploadableRegistration }
+  | { openMicId: string; eventId?: never; fixedRegistration?: never }
+)
 
 function validateFile(file: File): 'type' | 'size' | null {
   const name = file.name.toLowerCase()
@@ -37,12 +67,7 @@ function validateFile(file: File): 'type' | 'size' | null {
   return null
 }
 
-export function MediaUploader({ eventId, openMicId, registrations, onCommitted }: {
-  eventId?: string
-  openMicId?: string
-  registrations?: UploadableRegistration[]
-  onCommitted?: () => void
-}) {
+export function MediaUploader({ eventId, openMicId, registrations, fixedRegistration, onCommitted, inlineVideo = false, uploadsDisabled = false, ref }: MediaUploaderProps) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<UploadRow[]>([])
@@ -50,16 +75,22 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
   // synchronously (React state updates are not flushed until the next render, so reading
   // via a setState updater inside runUpload returned undefined and the upload never ran).
   const rowsRef = useRef<UploadRow[]>([])
+  const mounted = useRef(false)
+  const uploadsAllowed = useRef(!uploadsDisabled)
   const [batchRegistrationId, setBatchRegistrationId] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
   const createUploadUrl = useCreateUploadUrl()
   const commitMedia = useCommitMedia()
+  const updateMedia = useUpdateMedia()
+  const videoPending = useRef(false)
 
   // Video link form (§8.4 "+ Add video")
   const [videoFormOpen, setVideoFormOpen] = useState(false)
-  const [videoUrl, setVideoUrl] = useState('')
-  const [videoCaption, setVideoCaption] = useState('')
-  const [videoRegistrationId, setVideoRegistrationId] = useState('')
+  const videoForm = useForm<VideoForm>({
+    resolver: zodResolver(videoSchema),
+    defaultValues: { url: '', caption: '', registrationId: '' },
+  })
+  const videoUrl = useWatch({ control: videoForm.control, name: 'url' })
   const [videoError, setVideoError] = useState('')
   const videoPreviewId = parseVideoLink(videoUrl)
   // Keyed by video so a stale in-flight fetch can never apply to a newer URL. Remembers
@@ -68,12 +99,32 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
   const prefillState = useRef({ key: '', title: '' })
 
   function onVideoUrlChange(rawUrl: string) {
-    setVideoUrl(rawUrl)
+    videoForm.setValue('url', rawUrl)
     const link = parseVideoLink(rawUrl)
     prefillState.current = link ? { key: `${link.platform}:${link.id}`, title: prefillState.current.title } : { key: '', title: '' }
   }
 
-  const attributionEnabled = Boolean(eventId && registrations)
+  const attributionEnabled = Boolean(eventId && registrations && !fixedRegistration)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      for (const row of rowsRef.current) {
+        row.controller.abort()
+        URL.revokeObjectURL(row.previewUrl)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    uploadsAllowed.current = !uploadsDisabled
+    if (uploadsDisabled) {
+      for (const row of rowsRef.current) {
+        if (row.status === 'queued' || row.status === 'uploading') row.controller.abort()
+      }
+    }
+  }, [uploadsDisabled])
 
   // Caption prefill from the provider's oEmbed title (design §8.4): fires once per resolved
   // URL (keyed by the primitive video id, since parseVideoLink returns a fresh object each
@@ -86,16 +137,18 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
     if (!link) return
     const timer = setTimeout(() => {
       void fetchVideoTitle(link).then((title) => {
-        if (!title || prefillState.current.key !== videoKey) return
+        if (!mounted.current || !title || prefillState.current.key !== videoKey) return
         const previousTitle = prefillState.current.title
         prefillState.current = { key: videoKey, title: title.slice(0, 500) }
-        setVideoCaption((current) => (current && current !== previousTitle ? current : prefillState.current.title))
+        const current = videoForm.getValues('caption')
+        if (!current || current === previousTitle) videoForm.setValue('caption', prefillState.current.title)
       })
     }, 400)
     return () => clearTimeout(timer)
   }, [videoKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function addFiles(fileList: FileList | File[]) {
+    if (uploadsDisabled) return
     const nextRows: UploadRow[] = []
     for (const file of Array.from(fileList)) {
       const invalid = validateFile(file)
@@ -107,7 +160,7 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
         status: invalid ? 'error' : 'queued',
         error: invalid ? t(invalid === 'type' ? 'mediaUploadInvalidType' : 'mediaUploadTooLarge') : undefined,
         controller: new AbortController(),
-        registrationId: batchRegistrationId,
+        registrationId: fixedRegistration?.id ?? batchRegistrationId,
       })
     }
     setRowsAndRef((current) => [...current, ...nextRows])
@@ -118,7 +171,7 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
 
   function setRowsAndRef(updater: (current: UploadRow[]) => UploadRow[]) {
     rowsRef.current = updater(rowsRef.current)
-    setRows(rowsRef.current)
+    if (mounted.current) setRows(rowsRef.current)
   }
 
   function updateRow(localId: string, patch: Partial<UploadRow>) {
@@ -135,73 +188,108 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
     try {
       updateRow(localId, { status: 'uploading', progress: 0, error: undefined })
       const reservation = await createUploadUrl.mutateAsync({ media_type: 'photo', mime_type: row.file.type, size_bytes: row.file.size })
-      if (row.controller.signal.aborted) return
+      if (row.controller.signal.aborted) {
+        updateRow(localId, { status: 'cancelled' })
+        return
+      }
+      if (!uploadsAllowed.current) {
+        updateRow(localId, { status: 'error', error: t('mediaRegistrationNotEligible') })
+        return
+      }
       await putToPresignedUrl(reservation.upload_url, row.file, {
         signal: row.controller.signal,
         onProgress: (fraction) => updateRow(localId, { progress: fraction }),
       })
-      if (row.controller.signal.aborted) return
+      if (row.controller.signal.aborted) {
+        updateRow(localId, { status: 'cancelled' })
+        return
+      }
       updateRow(localId, { status: 'committing' })
-      await commitMedia.mutateAsync({
+      const registrationId = readRow(localId)?.registrationId
+      const committed = await commitMedia.mutateAsync({
         media_type: 'photo',
         object_key: reservation.object_key,
         ...(eventId ? { event_id: eventId } : {}),
         ...(openMicId ? { open_mic_id: openMicId } : {}),
-        ...(row.registrationId ? { registration_id: row.registrationId } : {}),
+        ...(registrationId ? { registration_id: registrationId } : {}),
       })
-      updateRow(localId, { status: 'done', progress: 1 })
-      onCommitted?.()
+      updateRow(localId, { status: 'done', progress: 1, mediaId: committed.id, registrationId: committed.registration_id ?? '' })
+      if (mounted.current) onCommitted?.()
     } catch (error) {
-      if (row.controller.signal.aborted || (error as DOMException).name === 'AbortError') {
+      if (row.controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
         updateRow(localId, { status: 'cancelled' })
       } else {
-        updateRow(localId, { status: 'error', error: t('mediaUploadFailed') })
+        updateRow(localId, { status: 'error', error: friendlyApiErrorMessage(error, t('mediaUploadFailed')) })
       }
     }
   }
 
   function cancelRow(row: UploadRow) {
+    if (row.status === 'committing' || row.status === 'done') return
     row.controller.abort()
-    if (row.status === 'queued') updateRow(row.localId, { status: 'cancelled' })
+    updateRow(row.localId, { status: 'cancelled' })
   }
+
+  useImperativeHandle(ref, () => ({
+    hasUnfinishedWork: () => videoPending.current || rowsRef.current.some((row) => ['queued', 'uploading', 'committing'].includes(row.status)),
+    cancelUnfinished: () => {
+      for (const row of rowsRef.current) {
+        if (row.status === 'queued' || row.status === 'uploading') cancelRow(row)
+      }
+    },
+  }))
 
   function cancelAll() {
     for (const row of rows) {
-      if (row.status === 'queued' || row.status === 'uploading' || row.status === 'committing') cancelRow(row)
+      if (row.status === 'queued' || row.status === 'uploading') cancelRow(row)
     }
   }
 
-  async function submitVideo(event: React.FormEvent) {
-    event.preventDefault()
+  async function changeAttribution(row: UploadRow, registrationId: string) {
+    if (!row.mediaId || readRow(row.localId)?.attributionPending || fixedRegistration) return
+    updateRow(row.localId, { attributionPending: true, attributionError: undefined })
+    try {
+      const updated = await updateMedia.mutateAsync({ id: row.mediaId, registration_id: registrationId || null })
+      updateRow(row.localId, { registrationId: updated.registration_id ?? '', attributionPending: false })
+    } catch (error) {
+      updateRow(row.localId, { attributionPending: false, attributionError: friendlyApiErrorMessage(error, t('mediaAttributionFailed')) })
+    }
+  }
+
+  async function submitVideo(values: VideoForm) {
+    if (videoPending.current) return
     setVideoError('')
-    if (!videoPreviewId) {
-      setVideoError(t('mediaVideoInvalidUrl'))
+    if (uploadsDisabled) {
+      setVideoError(t('mediaRegistrationNotEligible'))
       return
     }
+    videoPending.current = true
     try {
       await commitMedia.mutateAsync({
         media_type: 'video',
-        video_url: videoUrl.trim(),
-        caption: videoCaption.trim() || undefined,
+        video_url: values.url,
+        caption: values.caption.trim() || undefined,
         ...(eventId ? { event_id: eventId } : {}),
         ...(openMicId ? { open_mic_id: openMicId } : {}),
-        ...(videoRegistrationId ? { registration_id: videoRegistrationId } : {}),
+        ...((fixedRegistration?.id ?? values.registrationId) ? { registration_id: fixedRegistration?.id ?? values.registrationId } : {}),
       })
+      if (!mounted.current) return
       setVideoFormOpen(false)
-      setVideoUrl('')
-      setVideoCaption('')
-      setVideoRegistrationId('')
+      videoForm.reset()
       prefillState.current = { key: '', title: '' }
       onCommitted?.()
-    } catch {
-      setVideoError(t('mediaVideoAddFailed'))
+    } catch (error) {
+      if (mounted.current) setVideoError(friendlyApiErrorMessage(error, t('mediaVideoAddFailed')))
+    } finally {
+      videoPending.current = false
     }
   }
 
-  const activeCount = rows.filter((row) => row.status === 'queued' || row.status === 'uploading' || row.status === 'committing').length
+  const activeCount = rows.filter((row) => row.status === 'queued' || row.status === 'uploading').length
 
   return (
     <div className="media-uploader">
+      {fixedRegistration && <p className="field-hint">{t('mediaFixedPerformer', { performer: fixedRegistration.performer_name })}</p>}
       {attributionEnabled && (
         <label className="media-uploader-attribution">
           <span>{t('mediaAttributeAllTo')}</span>
@@ -230,6 +318,7 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
           ref={fileInputRef}
           type="file"
           multiple
+          disabled={uploadsDisabled}
           accept={ALLOWED_MIME_TYPES.join(',')}
           className="visually-hidden"
           aria-label={t('mediaChoosePhotos')}
@@ -240,19 +329,20 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
         />
         <ImagePlus size={28} aria-hidden="true" />
         <p>{t('mediaDropzoneHint')}</p>
-        <button type="button" className="primary-button" onClick={() => fileInputRef.current?.click()}>{t('mediaChoosePhotos')}</button>
-        <button type="button" className="secondary-button" onClick={() => setVideoFormOpen(true)}>
+        <button type="button" className="primary-button" disabled={uploadsDisabled} onClick={() => fileInputRef.current?.click()}>{t('mediaChoosePhotos')}</button>
+        <button type="button" className="secondary-button" disabled={uploadsDisabled} onClick={() => setVideoFormOpen(true)}>
           <Link2 size={15} aria-hidden="true" /> {t('mediaAddVideo')}
         </button>
       </div>
 
       {videoFormOpen && (
-        <Modal title={t('mediaAddVideo')} onClose={() => setVideoFormOpen(false)}>
-          <form className="media-video-form" onSubmit={submitVideo}>
+        <VideoFormPresentation inline={inlineVideo} title={t('mediaAddVideo')} onClose={() => { if (!videoForm.formState.isSubmitting) setVideoFormOpen(false) }}>
+          <form className="media-video-form" onSubmit={(event) => { void videoForm.handleSubmit(submitVideo)(event) }}>
             <label>
               <span>{t('mediaVideoUrlLabel')}</span>
-              <input type="url" value={videoUrl} onChange={(event) => onVideoUrlChange(event.target.value)} placeholder={t('mediaVideoUrlPlaceholder')} required />
+              <input type="url" {...videoForm.register('url')} onChange={(event) => onVideoUrlChange(event.target.value)} placeholder={t('mediaVideoUrlPlaceholder')} required />
             </label>
+            {videoForm.formState.errors.url && <p className="form-error" role="alert">{t('mediaVideoInvalidUrl')}</p>}
             {videoPreviewId && (
               <img
                 className="media-video-preview"
@@ -262,12 +352,12 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
             )}
             <label>
               <span>{t('mediaCaptionLabel')}</span>
-              <input value={videoCaption} maxLength={500} onChange={(event) => setVideoCaption(event.target.value)} />
+              <input {...videoForm.register('caption')} maxLength={500} />
             </label>
             {attributionEnabled && (
               <label>
                 <span>{t('mediaAttributionLabel')}</span>
-                <select value={videoRegistrationId} onChange={(event) => setVideoRegistrationId(event.target.value)}>
+                <select {...videoForm.register('registrationId')}>
                   <option value="">{t('mediaNoPerformer')}</option>
                   {registrations!.map((registration) => (
                     <option key={registration.id} value={registration.id}>
@@ -279,11 +369,11 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
             )}
             {videoError && <p className="form-error" role="alert">{videoError}</p>}
             <div className="modal-actions">
-              <button type="submit" className="primary-button" disabled={commitMedia.isPending}>{t('mediaAddVideoSubmit')}</button>
-              <button type="button" className="secondary-button" onClick={() => setVideoFormOpen(false)}>{t('cancel')}</button>
+              <button type="submit" className="primary-button" disabled={commitMedia.isPending || uploadsDisabled}>{t('mediaAddVideoSubmit')}</button>
+              <button type="button" className="secondary-button" disabled={commitMedia.isPending} onClick={() => setVideoFormOpen(false)}>{t('cancel')}</button>
             </div>
           </form>
-        </Modal>
+        </VideoFormPresentation>
       )}
 
       {rows.length > 0 && (
@@ -302,8 +392,11 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
                     <select
                       value={row.registrationId}
                       aria-label={t('mediaAttributionLabel')}
-                      disabled={row.status === 'done' || row.status === 'uploading' || row.status === 'committing'}
-                      onChange={(event) => updateRow(row.localId, { registrationId: event.target.value })}
+                      disabled={row.attributionPending || row.status === 'uploading' || row.status === 'committing'}
+                      onChange={(event) => {
+                        if (row.status === 'done') void changeAttribution(row, event.target.value)
+                        else updateRow(row.localId, { registrationId: event.target.value })
+                      }}
                     >
                       <option value="">{t('mediaNoPerformer')}</option>
                       {registrations!.map((registration) => (
@@ -317,11 +410,13 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
                     <progress value={row.status === 'committing' ? 1 : row.progress} max={1} aria-label={t('mediaUploadProgress', { name: row.file.name })} />
                   )}
                   {row.status === 'error' && <span className="form-error" role="alert">{row.error}</span>}
+                  {row.attributionPending && <span role="status">{t('mediaAttributionSaving')}</span>}
+                  {row.attributionError && <span className="form-error" role="alert">{row.attributionError}</span>}
                   {row.status === 'done' && <span className="form-success" role="status">{t('mediaUploadDone')}</span>}
                   {row.status === 'cancelled' && <span className="field-hint">{t('mediaUploadCancelled')}</span>}
                 </div>
                 <div className="media-upload-row-actions">
-                  {(row.status === 'queued' || row.status === 'uploading' || row.status === 'committing') && (
+                  {(row.status === 'queued' || row.status === 'uploading') && (
                     <button type="button" className="quiet-button icon-button" onClick={() => cancelRow(row)} aria-label={t('mediaCancelUpload', { name: row.file.name })}><X size={15} /></button>
                   )}
                   {row.status === 'error' && (
@@ -335,6 +430,10 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
       )}
     </div>
   )
+}
+
+function VideoFormPresentation({ inline, title, onClose, children }: { inline: boolean; title: string; onClose: () => void; children: React.ReactNode }) {
+  return inline ? <section aria-label={title}>{children}</section> : <Modal title={title} onClose={onClose}>{children}</Modal>
 }
 
 /** Client-side mirror of the API video host allowlist for instant feedback (the server

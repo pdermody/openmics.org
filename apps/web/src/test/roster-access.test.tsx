@@ -21,6 +21,7 @@ describe('EventRosterPage access state', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Sign in to manage this event\'s roster.')
     expect(screen.queryByRole('button', { name: 'Stop registrations' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open kiosk' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Manage media' })).not.toBeInTheDocument()
   })
 
   it.each(['on_night_only', 'external'] as const)('hides registration controls for %s series', async (registrationMode) => {
@@ -77,5 +78,6 @@ describe('EventRosterPage access state', () => {
     renderWithProviders(<EventRosterPage seriesId="series-1" eventId="event-1" theme="venue" mode="light" />)
 
     expect(await screen.findByRole('button', { name: 'Stop registrations' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Manage media' })).toHaveAttribute('href', '/dashboard/series/series-1/events/event-1/media')
   })
 })

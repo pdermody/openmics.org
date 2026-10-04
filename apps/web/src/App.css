@@ -9,6 +9,10 @@
 .app::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(circle at 85% 8%, color-mix(in srgb, var(--soft-accent) 35%, transparent), transparent 27rem); }
 /* The footer reuses .app for theming but must not paint the page glow. */
 .footer.app::before { content: none; }
+/* Keep plain links themed without overriding component-specific link colors. */
+.app :where(a[href]) { color: var(--accent); text-decoration-color: currentColor; text-underline-offset: .15em; }
+.app :where(a[href]:hover) { color: var(--ink); }
+.app :where(a.primary-button, a.quiet-button, a.secondary-button, a.follow-button) { text-decoration: none; }
 /* Themed scrollbars: without this, browsers fall back to a fixed light-chrome scrollbar that
    clashes with dark themes (light track, gray thumb regardless of the page's own colors). */
 .app { scrollbar-color: var(--line) var(--surface); scrollbar-width: thin; }
@@ -453,7 +457,13 @@ html.media-lightbox-open { overflow-x: clip; }
 /* Upload zone */
 .media-uploader { margin-top: 6px; }
 .media-uploader-attribution { display: grid; gap: 4px; max-width: 360px; margin-bottom: 10px; font-size: .88rem; }
-.media-uploader-attribution select, .media-video-form select { min-height: 40px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); padding: 6px 8px; }
+.media-uploader-attribution select, .media-video-form select, .media-upload-row-main select { min-height: 40px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); padding: 6px 8px; font: inherit; max-width: 100%; }
+.media-upload-row-main select { width: 100%; min-width: 0; cursor: pointer; }
+.media-upload-row-main select:disabled { cursor: wait; color: var(--muted); opacity: .7; }
+.media-upload-row-main select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.registration-details-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.registration-details-actions .icon-button { min-width: 40px; min-height: 40px; }
+.media-upload-close-confirmation { margin-bottom: 16px; }
 .media-dropzone { border: 2px dashed var(--line); border-radius: 14px; padding: 30px 18px; display: grid; place-items: center; gap: 10px; text-align: center; color: var(--muted); background: color-mix(in srgb, var(--surface) 70%, transparent); }
 .media-dropzone.drag-over { border-color: var(--accent); background: color-mix(in srgb, var(--soft-accent) 26%, var(--surface)); }
 .media-video-form { display: grid; gap: 12px; max-width: 560px; margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }

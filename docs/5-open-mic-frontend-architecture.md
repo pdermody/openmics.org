@@ -368,6 +368,8 @@ Every `fetch` response is also inspected for `X-Quota-<Dimension>-Used` / `-Limi
 
 - Radix headless primitives ship with correct ARIA and keyboard behavior.
 - All interactive elements reachable by keyboard; focus rings visible.
+- Plain links within themed surfaces use the selected theme's accent colour, remain underlined, and use the theme's ink colour on hover. Component-specific navigation, card-title, and button-link styles take precedence; keyboard focus uses the shared theme focus ring.
+- Text link labels omit decorative arrow characters, including back links and public gallery links. Functional directional controls, such as roster movement and lightbox navigation, retain their icons.
 - Colour contrast ≥ WCAG AA in every theme (see `Profiles.theme_name`).
 - Media (photos, videos) uses provided `caption` for `alt` where present; falls back to a sensible default.
 - SSE-driven roster updates on the event-operations page announce new registrations politely (`aria-live="polite"`).

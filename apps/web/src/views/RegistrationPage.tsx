@@ -235,7 +235,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
     <main className="app" data-theme={theme} data-mode={mode}>
       <SiteHeader />
       <section className="registration-page">
-        <Link className="back-link" to="/events/$eventId" params={{ eventId: eventCode }}>← Back to event</Link>
+        <Link className="back-link" to="/events/$eventId" params={{ eventId: eventCode }}>{t('backToEvent')}</Link>
         {event.isPending && <ReadState message={t('loading')} />}
         {event.isError && <ReadState message={t('eventLoadError')} retry={() => void event.refetch()} />}
         {event.data && <>
@@ -283,4 +283,3 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
     </main>
   )
 }
-
