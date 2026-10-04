@@ -1,2 +1,0 @@
-# Shell scripts must keep LF endings — the LocalStack container init hook fails on CRLF.
-*.sh text eol=lf
