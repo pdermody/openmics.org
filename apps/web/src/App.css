@@ -324,8 +324,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline
 .media-tile:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .media-tile-caption { position: absolute; inset-inline: 0; bottom: 0; padding: 22px 10px 8px; background: linear-gradient(transparent, rgba(0, 0, 0, .72)); color: #fff; font-size: .8rem; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .18s ease, transform .18s ease; }
 /* Touch devices + the organizer manage grid: caption sits below the image on the tile's
-   own surface, so it needs a solid readable background instead of the overlay gradient. */
-.media-tile-caption.static, .media-manage-tile .media-tile-caption { position: static; background: var(--surface); color: inherit; padding: 6px 8px; font-size: .82rem; white-space: normal; }
+   own surface, so it needs a solid readable background instead of the overlay gradient.
+   color must be var(--ink), not inherit: inside a <button> it picked up the unthemed
+   system color (black on the dark surface in dark mode). */
+.media-tile-caption.static, .media-manage-tile .media-tile-caption { position: static; background: var(--surface); color: var(--ink); padding: 6px 8px; font-size: .82rem; white-space: normal; }
 .media-tile-play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, .28); }
 .media-tile-play svg { background: rgba(0, 0, 0, .55); border-radius: 999px; padding: 10px; width: 44px; height: 44px; }
 .media-tile-skeleton { background: var(--surface-2); border-radius: 10px; animation: media-shimmer 1.4s ease-in-out infinite; }
@@ -354,15 +356,21 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline
 }
 
 /* Lightbox */
-.media-lightbox-backdrop { position: fixed; inset: 0; background: rgba(10, 12, 11, .82); z-index: 60; }
+.media-lightbox-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .95); z-index: 60; }
 .media-lightbox { position: fixed; inset: 0; z-index: 61; display: flex; flex-direction: column; color: #f5f2ea; overscroll-behavior: contain; outline: none; }
 .media-lightbox-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; position: relative; z-index: 3; background: rgba(10, 12, 11, .55); backdrop-filter: blur(6px); }
 .media-lightbox-position { font-size: .85rem; color: rgba(245, 242, 234, .75); }
 .media-lightbox-actions { display: flex; align-items: center; gap: 6px; }
 .media-lightbox-actions .quiet-button { color: #f5f2ea; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 .media-lightbox-actions .social-button { color: rgba(245, 242, 234, .6); }
-.media-lightbox-body { flex: 1; display: flex; align-items: center; min-height: 0; position: relative; }
-.media-lightbox-media { flex: 1; display: grid; place-items: center; min-height: 0; min-width: 0; overflow: hidden; touch-action: pinch-zoom; }
+/* Keep the default cross-axis stretch: with align-items:center the media container sized to
+   the image's natural height, so the img's max-height:100% never resolved and tall images
+   overflowed top+bottom, center-cropped by the viewport (§6.2). */
+.media-lightbox-body { flex: 1; display: flex; min-height: 0; position: relative; }
+/* Flex, not grid: in a grid with an auto (content-sized) implicit row the img's percentage
+   max-height has no definite track to resolve against and is ignored; a flex container's
+   cross size is definite here, so max-height:100% actually constrains the image. */
+.media-lightbox-media { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; overflow: hidden; touch-action: pinch-zoom; }
 /* Constrain by both axes so portrait/tall images fit the available height instead of
    overflowing and being center-cropped by the overflow:hidden container (§6.2). */
 .media-lightbox-media img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; user-select: none; }
@@ -378,7 +386,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline
 .media-caption { margin: 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .media-caption.expanded { display: block; }
 .media-caption .link-button { color: #f0b48f; margin-left: 6px; }
-.media-lightbox-organizer { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.media-lightbox-organizer { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Organizer controls sit on the lightbox's dark chrome in both color modes. */
+.media-lightbox-organizer .quiet-button { color: #f5f2ea; border-color: rgba(245, 242, 234, .4); }
+.media-lightbox-organizer select { min-height: 40px; border: 1px solid rgba(245, 242, 234, .4); border-radius: 6px; background: rgba(0, 0, 0, .5); color: #f5f2ea; padding: 4px 6px; max-width: 100%; }
 /* Modal action rows (edit caption / confirm delete) had no gap between their buttons. */
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 4px; }
 .media-toast { margin: 8px 0 0; color: #b9e3c8; }
@@ -394,7 +405,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline
 .media-manage-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
 .media-manage-tile.selected { outline: 3px solid var(--focus); }
 .media-manage-tile-main { position: relative; border: 0; padding: 0; background: var(--surface-2); cursor: pointer; aspect-ratio: 3 / 2; }
-.media-manage-tile-main img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Fit, don't crop — same as the public gallery tiles (§5.2). */
+.media-manage-tile-main img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .media-manage-tile-actions { display: flex; align-items: center; gap: 6px; padding: 8px; flex-wrap: wrap; }
 .media-manage-tile-actions select { min-height: 36px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); padding: 4px 6px; max-width: 100%; }
 .media-manage-tile-actions .quiet-button { min-height: 36px; }

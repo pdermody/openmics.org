@@ -30,6 +30,8 @@ export type MediaManageGridProps = {
   /** Series scope enables the Pin-to-Featured action. */
   featuredIds?: Set<string>
   onToggleFeatured?: (item: MediaItem) => void
+  /** Tile click outside selection mode: opens the lightbox with organizer actions (§6.4). */
+  onOpen: (item: MediaItem) => void
   onEditCaption: (item: MediaItem) => void
   onChangeAttribution: (item: MediaItem, registrationId: string | null) => void
   onSoftDelete: (item: MediaItem) => void
@@ -40,7 +42,7 @@ export type MediaManageGridProps = {
 // The organizer manage grid (design §8.4): same masonry feel as the public gallery, a
 // persistent per-tile toolbar (touch-sized targets), and an explicit selection mode —
 // identical for mouse, keyboard, and touch (no long-press, no hover dependency).
-export function MediaManageGrid({ items, attributionOptions, featuredIds, onToggleFeatured, onEditCaption, onChangeAttribution, onSoftDelete, bulkDelete, bulkAttribute }: MediaManageGridProps) {
+export function MediaManageGrid({ items, attributionOptions, featuredIds, onToggleFeatured, onOpen, onEditCaption, onChangeAttribution, onSoftDelete, bulkDelete, bulkAttribute }: MediaManageGridProps) {
   const { t } = useTranslation()
   const [selectionMode, setSelectionMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -100,15 +102,17 @@ export function MediaManageGrid({ items, attributionOptions, featuredIds, onTogg
               <button
                 type="button"
                 className="media-manage-tile-main"
-                onClick={() => (selectionMode ? toggleSelect(item.id) : onEditCaption(item))}
+                onClick={() => (selectionMode ? toggleSelect(item.id) : onOpen(item))}
                 aria-pressed={selectionMode ? selected.has(item.id) : undefined}
                 aria-label={item.alt_text}
               >
                 {src && <img src={src} alt="" loading="lazy" />}
                 {item.media_type === 'video' && <span className="media-tile-play" aria-hidden="true"><Play size={22} /></span>}
-                {caption && <span className="media-tile-caption static">{caption}</span>}
                 {selectionMode && <span className="media-select-mark" aria-hidden="true">{selected.has(item.id) ? '✓' : ''}</span>}
               </button>
+              {/* Static caption below the image. It must live OUTSIDE the aspect-ratio-locked
+                  button: inside, it overflowed onto the action row below. */}
+              {caption && <span className="media-tile-caption static">{caption}</span>}
               {!selectionMode && (
                 <div className="media-manage-tile-actions">
                   <button type="button" className="quiet-button" onClick={() => onEditCaption(item)}>{t('mediaEditCaption')}</button>

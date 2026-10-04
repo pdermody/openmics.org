@@ -11,6 +11,7 @@ import { resolveCaption } from '../features/media-captions'
 import { captionValuesOf, MediaGallery, tileImageSource } from '../components/media/MediaGallery'
 import { FeaturedStrip } from '../components/media/FeaturedStrip'
 import { CaptionEditor } from '../components/media/CaptionEditor'
+import { Lightbox } from '../components/media/Lightbox'
 import { MediaManageGrid, sortManageItems, type ManageSort } from '../components/media/MediaManageGrid'
 import { MediaUploader } from '../components/media/MediaUploader'
 import { Modal, ReadState, SiteHeader, type ThemeProps } from './shared'
@@ -30,6 +31,7 @@ export function SeriesMediaManagePage({ seriesId, theme, mode }: { seriesId: str
   const [editingCaption, setEditingCaption] = useState<MediaItem | null>(null)
   const [captionDraft, setCaptionDraft] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState<MediaItem | null>(null)
+  const [viewingId, setViewingId] = useState<string | null>(null)
 
   const list = useMediaList({ kind: 'open-mic', id: seriesId }, { type: typeFilter, sort: 'newest' })
   const items = useMemo(() => sortManageItems(flattenMediaPages(list.data), manageSort), [list.data, manageSort])
@@ -41,6 +43,19 @@ export function SeriesMediaManagePage({ seriesId, theme, mode }: { seriesId: str
   const recentlyDeleted = useRecentlyDeletedMedia(tab === 'deleted')
 
   const featuredIds = useMemo(() => new Set((featured.data?.items ?? []).map((item) => item.id)), [featured.data])
+
+  // Lightbox over the loaded (manage-sorted) window (design §6.4 organizer actions).
+  const viewingIndex = viewingId ? items.findIndex((item) => item.id === viewingId) : -1
+  const viewingItem = viewingIndex >= 0 ? items[viewingIndex] : null
+  const navigateViewing = (direction: 'prev' | 'next' | 'first' | 'last') => {
+    if (viewingIndex < 0) return
+    const target = direction === 'prev' ? viewingIndex - 1
+      : direction === 'next' ? viewingIndex + 1
+        : direction === 'first' ? 0
+          : items.length - 1
+    if (target < 0 || target >= items.length) return
+    setViewingId(items[target].id)
+  }
 
   const ownsSeries = Boolean(openMic.data && activeProfile && openMic.data.owner_profile_id === activeProfile.id)
 
@@ -148,6 +163,7 @@ export function SeriesMediaManagePage({ seriesId, theme, mode }: { seriesId: str
                 items={items}
                 featuredIds={featuredIds}
                 onToggleFeatured={toggleFeatured}
+                onOpen={(item) => setViewingId(item.id)}
                 onEditCaption={(item) => { setEditingCaption(item); setCaptionDraft(item.caption ?? '') }}
                 onChangeAttribution={() => undefined}
                 onSoftDelete={(item) => setConfirmingDelete(item)}
@@ -162,6 +178,28 @@ export function SeriesMediaManagePage({ seriesId, theme, mode }: { seriesId: str
           </>
         )}
       </section>
+
+      {viewingItem && (
+        <Lightbox
+          item={viewingItem}
+          position={{ index: viewingIndex, total: items.length }}
+          onClose={() => setViewingId(null)}
+          onNavigate={navigateViewing}
+          hasPrev={viewingIndex > 0}
+          hasNext={viewingIndex < items.length - 1}
+          organizerActions={(
+            <>
+              {/* The caption/delete modals layer UNDER the lightbox (z 40 < 61), so the
+                  lightbox closes when they open. */}
+              <button type="button" className="quiet-button" onClick={() => { setEditingCaption(viewingItem); setCaptionDraft(viewingItem.caption ?? ''); setViewingId(null) }}>{t('mediaEditCaption')}</button>
+              <button type="button" className="quiet-button" aria-pressed={featuredIds.has(viewingItem.id)} onClick={() => toggleFeatured(viewingItem)}>
+                {featuredIds.has(viewingItem.id) ? t('mediaUnpinFeatured') : t('mediaPinFeatured')}
+              </button>
+              <button type="button" className="quiet-button danger" onClick={() => { setConfirmingDelete(viewingItem); setViewingId(null) }}>{t('mediaSoftDelete')}</button>
+            </>
+          )}
+        />
+      )}
 
       {editingCaption && (
         <Modal title={t('mediaEditCaption')} onClose={() => setEditingCaption(null)}>

@@ -7,6 +7,7 @@ import { flattenMediaPages, useMediaList, useRecentlyDeletedMedia, useRecoverMed
 import { useEventRoster, useOrganizerProfile } from '../features/organizer'
 import { usePublicEvent, usePublicOpenMic } from '../features/publicReads'
 import { CaptionEditor } from '../components/media/CaptionEditor'
+import { Lightbox } from '../components/media/Lightbox'
 import { MediaGallery } from '../components/media/MediaGallery'
 import { MediaManageGrid, sortManageItems, type ManageSort } from '../components/media/MediaManageGrid'
 import { MediaUploader } from '../components/media/MediaUploader'
@@ -28,6 +29,7 @@ export function EventMediaManagePage({ seriesId, eventId, theme, mode }: { serie
   const [editingCaption, setEditingCaption] = useState<MediaItem | null>(null)
   const [captionDraft, setCaptionDraft] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState<MediaItem | null>(null)
+  const [viewingId, setViewingId] = useState<string | null>(null)
 
   const list = useMediaList({ kind: 'event', id: eventId }, { type: typeFilter, sort: 'newest' })
   const items = useMemo(() => sortManageItems(flattenMediaPages(list.data), manageSort), [list.data, manageSort])
@@ -35,6 +37,19 @@ export function EventMediaManagePage({ seriesId, eventId, theme, mode }: { serie
   const softDeleteMedia = useSoftDeleteMedia()
   const recoverMedia = useRecoverMedia()
   const recentlyDeleted = useRecentlyDeletedMedia(tab === 'deleted')
+
+  // Lightbox over the loaded (manage-sorted) window (design §6.4 organizer actions).
+  const viewingIndex = viewingId ? items.findIndex((item) => item.id === viewingId) : -1
+  const viewingItem = viewingIndex >= 0 ? items[viewingIndex] : null
+  const navigateViewing = (direction: 'prev' | 'next' | 'first' | 'last') => {
+    if (viewingIndex < 0) return
+    const target = direction === 'prev' ? viewingIndex - 1
+      : direction === 'next' ? viewingIndex + 1
+        : direction === 'first' ? 0
+          : items.length - 1
+    if (target < 0 || target >= items.length) return
+    setViewingId(items[target].id)
+  }
 
   // Attribution picker: this event's registrations only, verified + kiosk provenance,
   // consent-holding (revoked rows are rejected by the API anyway — design §8.3).
@@ -113,6 +128,7 @@ export function EventMediaManagePage({ seriesId, eventId, theme, mode }: { serie
               <MediaManageGrid
                 items={items}
                 attributionOptions={attributable}
+                onOpen={(item) => setViewingId(item.id)}
                 onEditCaption={(item) => { setEditingCaption(item); setCaptionDraft(item.caption ?? '') }}
                 onChangeAttribution={(item, registrationId) => updateMedia.mutate({ id: item.id, registration_id: registrationId })}
                 onSoftDelete={(item) => setConfirmingDelete(item)}
@@ -128,6 +144,37 @@ export function EventMediaManagePage({ seriesId, eventId, theme, mode }: { serie
           </>
         )}
       </section>
+
+      {viewingItem && (
+        <Lightbox
+          item={viewingItem}
+          position={{ index: viewingIndex, total: items.length }}
+          onClose={() => setViewingId(null)}
+          onNavigate={navigateViewing}
+          hasPrev={viewingIndex > 0}
+          hasNext={viewingIndex < items.length - 1}
+          organizerActions={(
+            <>
+              {/* The caption/delete modals layer UNDER the lightbox (z 40 < 61), so the
+                  lightbox closes when they open. */}
+              <button type="button" className="quiet-button" onClick={() => { setEditingCaption(viewingItem); setCaptionDraft(viewingItem.caption ?? ''); setViewingId(null) }}>{t('mediaEditCaption')}</button>
+              <select
+                value={viewingItem.registration_id ?? ''}
+                aria-label={t('mediaAttributionLabel')}
+                onChange={(change) => updateMedia.mutate({ id: viewingItem.id, registration_id: change.target.value || null })}
+              >
+                <option value="">{t('mediaNoPerformer')}</option>
+                {attributable.map((registration) => (
+                  <option key={registration.id} value={registration.id}>
+                    {registration.performer_name}{registration.performer_city ? ` · ${registration.performer_city}` : ''}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="quiet-button danger" onClick={() => { setConfirmingDelete(viewingItem); setViewingId(null) }}>{t('mediaSoftDelete')}</button>
+            </>
+          )}
+        />
+      )}
 
       {editingCaption && (
         <Modal title={t('mediaEditCaption')} onClose={() => setEditingCaption(null)}>

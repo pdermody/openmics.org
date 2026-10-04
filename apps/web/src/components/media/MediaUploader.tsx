@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ImagePlus, Link2, X } from 'lucide-react'
 
 import { putToPresignedUrl, useCommitMedia, useCreateUploadUrl } from '../../features/media'
+import { fetchVideoTitle } from '../../features/video-metadata'
 
 // The file picker is the universal upload path (camera capture + photo library on phones
 // and tablets); drag-and-drop is a pointer enhancement, never the only path (§8.2).
@@ -60,8 +61,38 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
   const [videoRegistrationId, setVideoRegistrationId] = useState('')
   const [videoError, setVideoError] = useState('')
   const videoPreviewId = parseVideoLink(videoUrl)
+  // Keyed by video so a stale in-flight fetch can never apply to a newer URL. Remembers
+  // the last title it autofilled, so a later URL change only replaces an untouched
+  // autofilled caption — never one the organizer typed or edited.
+  const prefillState = useRef({ key: '', title: '' })
+
+  function onVideoUrlChange(rawUrl: string) {
+    setVideoUrl(rawUrl)
+    const link = parseVideoLink(rawUrl)
+    prefillState.current = link ? { key: `${link.platform}:${link.id}`, title: prefillState.current.title } : { key: '', title: '' }
+  }
 
   const attributionEnabled = Boolean(eventId && registrations)
+
+  // Caption prefill from the provider's oEmbed title (design §8.4): fires once per resolved
+  // URL (keyed by the primitive video id, since parseVideoLink returns a fresh object each
+  // render), debounced, straight from the browser (no API round-trip). A null title (unknown
+  // video, provider unreachable) simply leaves the field as-is.
+  const videoKey = videoPreviewId ? `${videoPreviewId.platform}:${videoPreviewId.id}` : null
+  useEffect(() => {
+    if (!videoKey) return
+    const link = parseVideoLink(videoUrl)
+    if (!link) return
+    const timer = setTimeout(() => {
+      void fetchVideoTitle(link).then((title) => {
+        if (!title || prefillState.current.key !== videoKey) return
+        const previousTitle = prefillState.current.title
+        prefillState.current = { key: videoKey, title: title.slice(0, 500) }
+        setVideoCaption((current) => (current && current !== previousTitle ? current : prefillState.current.title))
+      })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [videoKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function addFiles(fileList: FileList | File[]) {
     const nextRows: UploadRow[] = []
@@ -159,6 +190,7 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
       setVideoUrl('')
       setVideoCaption('')
       setVideoRegistrationId('')
+      prefillState.current = { key: '', title: '' }
       onCommitted?.()
     } catch {
       setVideoError(t('mediaVideoAddFailed'))
@@ -217,7 +249,7 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
         <form className="media-video-form" onSubmit={submitVideo}>
           <label>
             <span>{t('mediaVideoUrlLabel')}</span>
-            <input type="url" value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} placeholder={t('mediaVideoUrlPlaceholder')} required />
+            <input type="url" value={videoUrl} onChange={(event) => onVideoUrlChange(event.target.value)} placeholder={t('mediaVideoUrlPlaceholder')} required />
           </label>
           {videoPreviewId && (
             <img

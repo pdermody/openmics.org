@@ -120,17 +120,28 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
   // ------------------------------------------------------------------
   // Balanced masonry layout
   // ------------------------------------------------------------------
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const [containerWidth, setContainerWidth] = useState(0)
+  // Callback ref + state mirror: the masonry element is swapped between the skeleton and
+  // loaded renders (and again on every filter change). A mount-only effect on a plain ref
+  // would keep observing the detached node — the width then stayed 0 and every tile rendered
+  // visibility:hidden whenever the data load raced the observer's first delivery.
+  const [masonryNode, setMasonryNode] = useState<HTMLDivElement | null>(null)
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node
+    setMasonryNode(node)
+  }, [])
   useLayoutEffect(() => {
-    const element = containerRef.current
-    if (!element) return
+    if (!masonryNode) return
+    // Synchronous measurement too: the RO initial delivery is async and is dropped entirely
+    // when the observed node was replaced before it fired.
+    setContainerWidth(masonryNode.getBoundingClientRect().width)
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) setContainerWidth(entry.contentRect.width)
     })
-    observer.observe(element)
+    observer.observe(masonryNode)
     return () => observer.disconnect()
-  }, [])
+  }, [masonryNode])
 
   const layout = useMemo(() => {
     if (containerWidth <= 0) return { positions: [] as Array<{ left: number; top: number; width: number; height: number }>, height: 0 }
@@ -257,7 +268,7 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
       {featuredStrip && typeFilter === 'all' ? featuredStrip(openLightbox) : null}
 
       {query.isPending && (
-        <div className="media-masonry" ref={containerRef} aria-busy="true">
+        <div className="media-masonry" ref={setContainerRef} aria-busy="true">
           {Array.from({ length: 8 }, (_, index) => (
             <div key={index} className="media-tile media-tile-skeleton" style={{ position: 'relative', aspectRatio: '3 / 2' }} />
           ))}
@@ -278,7 +289,7 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
       )}
 
       {!query.isPending && !query.isError && items.length > 0 && (
-        <div className="media-masonry" ref={containerRef} style={{ position: 'relative', height: layout.height || undefined }}>
+        <div className="media-masonry" ref={setContainerRef} style={{ position: 'relative', height: layout.height || undefined }}>
           {items.map((item, index) => {
             const position = layout.positions[index]
             const caption = resolveCaption(item.caption, captionValuesOf(item), scope.kind === 'open-mic' ? 'long' : 'short')
