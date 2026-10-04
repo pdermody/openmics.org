@@ -55,6 +55,9 @@ export const mediaListQuerySchema = z.object({
   anchor: z.string().uuid().optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(50).default(24),
+  // Series galleries set this to keep Featured pins out of the masonry (they render in
+  // the strip above it). Ignored by event/profile lists — featured is a series concept.
+  exclude_featured: z.enum(['true', 'false']).optional(),
 });
 export type MediaListQueryInput = z.infer<typeof mediaListQuerySchema>;
 

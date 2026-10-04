@@ -244,6 +244,7 @@ paths:
         - $ref: "#/components/parameters/MediaAnchor"
         - $ref: "#/components/parameters/MediaCursor"
         - $ref: "#/components/parameters/MediaLimit"
+        - $ref: "#/components/parameters/MediaExcludeFeatured"
       responses:
         "200":
           $ref: "#/components/responses/MediaListResponse"
@@ -1253,6 +1254,17 @@ components:
         `prev_cursor`.
       schema:
         type: string
+    MediaExcludeFeatured:
+      name: exclude_featured
+      in: query
+      description: When `true`, media pinned to the series' Featured strip are excluded
+        from the page (series galleries render them once, in the strip above the grid).
+        Only meaningful on `GET /open-mics/{id}/media`.
+      schema:
+        type: string
+        enum:
+          - "true"
+          - "false"
     MediaLimit:
       name: limit
       in: query

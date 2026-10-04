@@ -1,8 +1,8 @@
 ---
+name: deploy-prod
 description: Build, migrate, and deploy OpenMic to production (openmics.org).
-agent: agent
+disable-model-invocation: true
 ---
-
 Deploy the current checkout to production. Target: AWS profile `openmic`, account `163742164398`, region `eu-west-1`, environment `prod`, domain `openmics.org`.
 
 Run every AWS and CDK command with these variables, and never pipe CDK or AWS output through a pager:

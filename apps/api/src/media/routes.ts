@@ -65,6 +65,7 @@ import {
   updateMediaSchema,
   uploadUrlRequestSchema,
   type CreateMediaInput,
+  type MediaListQueryInput,
 } from './validation.js';
 
 export type MediaPluginOptions = {
@@ -86,7 +87,7 @@ export const mediaRoutes: FastifyPluginAsync<MediaPluginOptions> = async (app, {
   const plan = planForConfig(config);
   const mediaBucket = config.mediaBucket ?? 'local';
 
-  function parseListQuery(raw: unknown): MediaListQuery {
+  function parseListQuery(raw: unknown): MediaListQueryInput {
     const parsed = mediaListQuerySchema.safeParse(raw);
     if (!parsed.success) throw new ValidationError('Invalid media list query', parsed.error.flatten());
     return parsed.data;
@@ -403,7 +404,11 @@ export const mediaRoutes: FastifyPluginAsync<MediaPluginOptions> = async (app, {
     const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic || openMic.deleted_at) throw new NotFoundError('Open mic not found');
     const canManage = await canManageSeries(openMic.owner_profile_id, request.account);
-    sendListPage(reply, await listOpenMicMedia(pool, openMic.id, { ...query, includePubliclyHidden: canManage }));
+    sendListPage(reply, await listOpenMicMedia(pool, openMic.id, {
+      ...query,
+      includePubliclyHidden: canManage,
+      excludeFeaturedForOpenMicId: query.exclude_featured === 'true' ? openMic.id : undefined,
+    }));
   });
 
   app.get<{ Params: { id: string } }>('/profiles/:id/media', { preHandler: app.authenticateOptional }, async (request, reply) => {

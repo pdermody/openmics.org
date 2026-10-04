@@ -56,4 +56,15 @@ describe('MediaManageGrid', () => {
     // Inside the button it overflowed the fixed 3:2 box onto the action row.
     expect(caption.closest('button')).toBeNull()
   })
+
+  it('lays tiles out as uniform letterboxed tiles (fit, no crop)', () => {
+    renderGrid({ width: 1200, height: 800 })
+
+    const button = screen.getByRole('button', { name: 'Stage shot' })
+    const tile = button.closest('li') as HTMLElement
+    // Uniform grid: the tile is a normal grid item (not absolutely positioned), and the
+    // image area is a fixed 3/2 box the thumbnail fits inside (letterboxed, not cropped).
+    expect(tile.style.position).toBe('')
+    expect(button).toHaveClass('media-manage-tile-main')
+  })
 })

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Clock3, Eye, Image, MapPin, Pencil, Settings2 } from 'lucide-react'
+import { Clock3, Image, MapPin, Pencil, Settings2 } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,8 +32,10 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   const parentOpenMic = usePublicOpenMic(kind === 'event' ? event.data?.open_mic_id : undefined)
   const accountContext = useAccountContext()
   const activeProfile = accountContext.profiles.data?.items.find((profileItem) => profileItem.id === accountContext.account.data?.current_profile_id)
-  const ownsOpenMic = Boolean(openMic.data && accountContext.profiles.data?.items.some((profileItem) => profileItem.id === openMic.data?.owner_profile_id))
-  const ownsEvent = Boolean(parentOpenMic.data && accountContext.profiles.data?.items.some((profileItem) => profileItem.id === parentOpenMic.data?.owner_profile_id))
+  // Owner actions require the ACTIVE profile to own the series — checking `.some()` across
+  // all account profiles leaked them to performer profiles sharing the account (403 on use).
+  const ownsOpenMic = Boolean(openMic.data && activeProfile?.id === openMic.data?.owner_profile_id)
+  const ownsEvent = Boolean(parentOpenMic.data && activeProfile?.id === parentOpenMic.data?.owner_profile_id)
   const needsPerformerProfile = Boolean(accountContext.account.data) && activeProfile?.profile_kind !== 'performer'
   const registeredEventIds = useMyRegisteredEventIds()
   const isRegisteredForEvent = kind === 'event' && Boolean(event.data) && registeredEventIds.has(event.data!.id)
@@ -94,13 +96,11 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
           </div>
           <div className="detail-actions">
             {kind === 'open-mic' && ownsOpenMic && <>
-              <Link className="quiet-button icon-button" to="/open-mics/$openMicId" params={{ openMicId: openMic.data?.current_handle ?? openMic.data?.id ?? '' }} aria-label={t('view')} title={t('view')}><Eye size={17} /></Link>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/edit" params={{ seriesId: openMic.data?.id ?? '' }} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></Link>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId" params={{ seriesId: openMic.data?.id ?? '' }} aria-label={t('manage')} title={t('manage')}><Settings2 size={17} /></Link>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/media" params={{ seriesId: openMic.data?.id ?? '' }} aria-label={t('mediaManageLink')} title={t('mediaManageLink')}><Image size={17} /></Link>
             </>}
             {kind === 'event' && ownsEvent && <>
-              <Link className="quiet-button icon-button" to="/events/$eventId" params={{ eventId: event.data?.public_code ?? '' }} aria-label={t('view')} title={t('view')}><Eye size={17} /></Link>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/events/$eventId/edit" params={{ seriesId: parentOpenMic.data?.id ?? '', eventId: event.data?.id ?? '' }} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></Link>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/events/$eventId/roster" params={{ seriesId: parentOpenMic.data?.id ?? '', eventId: event.data?.id ?? '' }} aria-label={t('manage')} title={t('manage')}><Settings2 size={17} /></Link>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/events/$eventId/media" params={{ seriesId: parentOpenMic.data?.id ?? '', eventId: event.data?.id ?? '' }} aria-label={t('mediaManageLink')} title={t('mediaManageLink')}><Image size={17} /></Link>
@@ -159,7 +159,13 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
             <MediaGallery
               scope={{ kind: 'open-mic', id: openMic.data.id }}
               initialOpenId={search.get('media')}
-              featuredStrip={(openLightbox) => <FeaturedStrip items={featured.data?.items ?? []} onOpen={openLightbox} />}
+              featuredItems={featured.data?.items ?? []}
+              featuredStrip={(openLightbox) => (
+                <FeaturedStrip
+                  items={featured.data?.items ?? []}
+                  onOpen={openLightbox}
+                />
+              )}
             />
           )}
           {showProfileGallery && profile.data && (

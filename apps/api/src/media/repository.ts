@@ -332,6 +332,11 @@ export type MediaListQuery = {
    * findRecentlyDeletedMediaForAccount.
    */
   includePubliclyHidden?: boolean;
+  /**
+   * Series galleries only: drop rows pinned to that series' Featured strip so the
+   * masonry shows them exactly once (the strip renders them above the grid).
+   */
+  excludeFeaturedForOpenMicId?: string;
 };
 
 export type MediaListPage = {
@@ -367,6 +372,10 @@ function buildListQuery(scopeWhere: string, scopeParams: unknown[], query: Media
   if (query.type !== 'all') {
     params.push(query.type);
     conditions.push(`m.media_type = $${params.length}`);
+  }
+  if (query.excludeFeaturedForOpenMicId) {
+    params.push(query.excludeFeaturedForOpenMicId);
+    conditions.push(`NOT EXISTS (SELECT 1 FROM open_mic_featured_media f WHERE f.open_mic_id = $${params.length} AND f.media_id = m.id)`);
   }
   // The shuffle key is a per-row md5 over (id, seed): deterministic within a session,
   // reshuffled on refresh when the client picks a new seed (design §11.1).

@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { MediaGallery } from '../components/media/MediaGallery'
 import { mediaItem } from './media-fixtures'
@@ -66,5 +66,84 @@ describe('MediaGallery', () => {
     renderWithProviders(<MediaGallery scope={{ kind: 'profile', id: 'profile-1' }} hideTypeFilter />)
     await screen.findByRole('button', { name: 'Profile photo' })
     expect(screen.queryByRole('button', { name: 'Photos' })).toBeNull()
+  })
+})
+
+describe('MediaGallery with Featured strip (series scope)', () => {
+  // The gallery persists type/sort to BOTH localStorage and the URL (?type=…). The setup
+  // hook clears storage but not window.location, so reset it or the strip stays hidden.
+  beforeEach(() => window.history.replaceState(null, '', '/'))
+
+  const SERIES_ID = 'series-1'
+  // Built per test: mediaItem's alt-text counter is shared across the file.
+  const featured = () => [
+    mediaItem({ id: 'f1', alt_text: 'Featured one', open_mic_id: SERIES_ID }),
+    mediaItem({ id: 'f2', alt_text: 'Featured two', open_mic_id: SERIES_ID }),
+  ]
+  const grid = () => [mediaItem({ id: 'g1', alt_text: 'Grid photo', open_mic_id: SERIES_ID })]
+
+  function seriesHandlers(assertParam?: (request: Request) => void) {
+    return http.get(`/api/open-mics/${SERIES_ID}/media`, ({ request }) => {
+      assertParam?.(request)
+      return HttpResponse.json({ items: grid(), prev_cursor: null, next_cursor: null })
+    })
+  }
+
+  function strip(openLightbox: (mediaId: string) => void) {
+    return (
+      <div>
+        {featured().map((item) => (
+          <button key={item.id} type="button" onClick={() => openLightbox(item.id)}>{item.alt_text}</button>
+        ))}
+      </div>
+    )
+  }
+
+  it('requests the grid without featured pins when the strip is shown (§5.1)', async () => {
+    const seen: (string | null)[] = []
+    server.use(seriesHandlers((request) => seen.push(new URL(request.url).searchParams.get('exclude_featured'))))
+    renderWithProviders(
+      <MediaGallery scope={{ kind: 'open-mic', id: SERIES_ID }} featuredItems={featured()} featuredStrip={strip} />,
+    )
+    await screen.findByRole('button', { name: 'Grid photo' })
+    expect(seen).toContain('true')
+  })
+
+  it('navigates from the last featured item into the grid and back (no wrap)', async () => {
+    const user = userEvent.setup()
+    server.use(seriesHandlers())
+    renderWithProviders(
+      <MediaGallery scope={{ kind: 'open-mic', id: SERIES_ID }} featuredItems={featured()} featuredStrip={strip} />,
+    )
+    await screen.findByRole('button', { name: 'Grid photo' })
+
+    // Open the second featured item — position counts the combined list.
+    await user.click(screen.getByRole('button', { name: 'Featured two' }))
+    expect(await screen.findByRole('dialog', { name: 'Featured two' })).toBeInTheDocument()
+    expect(screen.getByText('2 of 3')).toBeInTheDocument()
+
+    // Next crosses into the grid; then the boundary stops navigation.
+    await user.click(screen.getByRole('button', { name: 'Next media' }))
+    expect(await screen.findByRole('dialog', { name: 'Grid photo' })).toBeInTheDocument()
+    expect(screen.getByText('3 of 3')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next media' })).toBeNull()
+
+    // Previous crosses back into the featured items.
+    await user.click(screen.getByRole('button', { name: 'Previous media' }))
+    expect(await screen.findByRole('dialog', { name: 'Featured two' })).toBeInTheDocument()
+  })
+
+  it('grid-opened lightbox can navigate backwards into the featured items', async () => {
+    const user = userEvent.setup()
+    server.use(seriesHandlers())
+    renderWithProviders(
+      <MediaGallery scope={{ kind: 'open-mic', id: SERIES_ID }} featuredItems={featured()} featuredStrip={strip} />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Grid photo' }))
+    expect(await screen.findByRole('dialog', { name: 'Grid photo' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Previous media' }))
+    expect(await screen.findByRole('dialog', { name: 'Featured two' })).toBeInTheDocument()
+    expect(screen.getByText('2 of 3')).toBeInTheDocument()
   })
 })

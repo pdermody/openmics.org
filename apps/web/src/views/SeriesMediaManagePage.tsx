@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { ArrowDown, ArrowUp, Play } from 'lucide-react'
+import { ArrowDown, ArrowUp, Play, StarOff } from 'lucide-react'
 
 import { friendlyApiErrorMessage } from '../api/client'
 import { flattenMediaPages, useFeaturedMedia, useMediaList, useRecentlyDeletedMedia, useRecoverMedia, useReplaceFeaturedMedia, useSoftDeleteMedia, useUpdateMedia, type MediaItem } from '../features/media'
@@ -119,7 +119,13 @@ export function SeriesMediaManagePage({ seriesId, theme, mode }: { seriesId: str
         ) : previewMode ? (
           <MediaGallery
             scope={{ kind: 'open-mic', id: seriesId }}
-            featuredStrip={(openLightbox) => <FeaturedStrip items={featured.data?.items ?? []} onOpen={openLightbox} />}
+            featuredItems={featured.data?.items ?? []}
+            featuredStrip={(openLightbox) => (
+              <FeaturedStrip
+                items={featured.data?.items ?? []}
+                onOpen={openLightbox}
+              />
+            )}
           />
         ) : (
           <>
@@ -263,7 +269,7 @@ function FeaturedEditor({ items, onMove, onReorder, onRemove, saving }: {
             <span className="media-featured-editor-actions">
               <button type="button" className="quiet-button icon-button" disabled={index === 0} onClick={() => onMove(item, -1)} aria-label={t('mediaFeaturedMoveUp')}><ArrowUp size={15} /></button>
               <button type="button" className="quiet-button icon-button" disabled={index === items.length - 1} onClick={() => onMove(item, 1)} aria-label={t('mediaFeaturedMoveDown')}><ArrowDown size={15} /></button>
-              <button type="button" className="quiet-button" onClick={() => onRemove(item)}>{t('mediaUnpinFeatured')}</button>
+              <button type="button" className="quiet-button icon-button" onClick={() => onRemove(item)} aria-label={t('mediaUnpinFeatured')} title={t('mediaUnpinFeatured')}><StarOff size={15} /></button>
             </span>
           </li>
         ))}

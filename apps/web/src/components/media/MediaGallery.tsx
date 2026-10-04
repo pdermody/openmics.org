@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Play } from 'lucide-react'
 
 import { flattenMediaPages, useMediaList, type MediaItem, type MediaScope, type MediaSort, type MediaTypeFilter } from '../../features/media'
 import { resolveCaption, type CaptionValues } from '../../features/media-captions'
 import { Lightbox } from './Lightbox'
+import { useMasonry } from './useMasonry'
 
 // JS-balanced masonry (design §5.1): items are assigned to the currently-shortest column
 // in code and absolutely positioned, so visual order, DOM order, and the active sort all
 // agree — a pure CSS multi-column layout is ruled out because it fills column-major.
 const MIN_TILE_WIDTH = 240
-const GAP = 12
 
 /** Effective tile aspect ratio (h/w): intrinsic dims for photos (capped per §5.1), 16:9 for videos. */
 export function tileAspectRatio(item: MediaItem): number {
@@ -64,12 +64,15 @@ export type MediaGalleryProps = {
   hideTypeFilter?: boolean
   /** Series pages render the Featured strip above the grid (hidden while a filter is active). */
   featuredStrip?: (openLightbox: (mediaId: string) => void) => React.ReactNode
+  /** Series pages pass the Featured pins so the lightbox navigates featured → grid as one
+      continuous list (§6.6); the grid fetch excludes them to avoid showing them twice. */
+  featuredItems?: MediaItem[]
   /** Optional organizer toolbar rendered inside the lightbox for owned media. */
   renderLightboxOrganizerActions?: (item: MediaItem, close: () => void) => React.ReactNode
   canManageItem?: (item: MediaItem) => boolean
 }
 
-export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, featuredStrip, renderLightboxOrganizerActions, canManageItem }: MediaGalleryProps) {
+export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, featuredStrip, featuredItems, renderLightboxOrganizerActions, canManageItem }: MediaGalleryProps) {
   const { t } = useTranslation()
   // URL query wins on mount and is written back to localStorage; localStorage seeds the
   // default otherwise (design §11.1). Mount-time read via window.location (not the
@@ -111,52 +114,40 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
     }
   }, [sort, shuffleSeed]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const query = useMediaList(scope, { type: typeFilter, sort, seed: sort === 'shuffle' ? shuffleSeed : undefined, anchor: initialOpenId ?? undefined })
+  const query = useMediaList(scope, {
+    type: typeFilter,
+    sort,
+    seed: sort === 'shuffle' ? shuffleSeed : undefined,
+    anchor: initialOpenId ?? undefined,
+    // Featured pins render in the strip, not the masonry — but only while the strip is
+    // visible ('all' filter); filtering rejoins them so Photos shows every photo (§11.4).
+    excludeFeatured: typeFilter === 'all' && featuredItems !== undefined,
+  })
   const items = useMemo(() => flattenMediaPages(query.data), [query.data])
+
+  // One continuous lightbox sequence: Featured pins first (manual order), then the grid.
+  // The filter defensively dedupes — when a type filter is active the grid re-includes
+  // featured items (exclusion off), and indexOf resolves them at their strip position.
+  const navItems = useMemo(() => {
+    if (!featuredItems || featuredItems.length === 0) return items
+    const featuredIds = new Set(featuredItems.map((item) => item.id))
+    return [...featuredItems, ...items.filter((item) => !featuredIds.has(item.id))]
+  }, [featuredItems, items])
 
   // Reshuffle on refresh is a feature; a fresh page load generates a new seed in useState.
   const reShuffle = () => setShuffleSeed(Math.floor(Math.random() * 2 ** 31))
 
   // ------------------------------------------------------------------
-  // Balanced masonry layout
+  // Balanced masonry layout (shared engine; public tiles are image-only height)
   // ------------------------------------------------------------------
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const [containerWidth, setContainerWidth] = useState(0)
-  // Callback ref + state mirror: the masonry element is swapped between the skeleton and
-  // loaded renders (and again on every filter change). A mount-only effect on a plain ref
-  // would keep observing the detached node — the width then stayed 0 and every tile rendered
-  // visibility:hidden whenever the data load raced the observer's first delivery.
-  const [masonryNode, setMasonryNode] = useState<HTMLDivElement | null>(null)
+  const tileHeight = useCallback((index: number, columnWidth: number) => columnWidth * tileAspectRatio(items[index]), [items])
+  const { ref: setMasonryRef, layout } = useMasonry(items.length, tileHeight)
+  // Keep containerRef in sync for scroll-into-view on lightbox close.
   const setContainerRef = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
-    setMasonryNode(node)
-  }, [])
-  useLayoutEffect(() => {
-    if (!masonryNode) return
-    // Synchronous measurement too: the RO initial delivery is async and is dropped entirely
-    // when the observed node was replaced before it fired.
-    setContainerWidth(masonryNode.getBoundingClientRect().width)
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) setContainerWidth(entry.contentRect.width)
-    })
-    observer.observe(masonryNode)
-    return () => observer.disconnect()
-  }, [masonryNode])
-
-  const layout = useMemo(() => {
-    if (containerWidth <= 0) return { positions: [] as Array<{ left: number; top: number; width: number; height: number }>, height: 0 }
-    const columnCount = Math.max(1, Math.floor((containerWidth + GAP) / (MIN_TILE_WIDTH + GAP)))
-    const columnWidth = (containerWidth - GAP * (columnCount - 1)) / columnCount
-    const heights = new Array<number>(columnCount).fill(0)
-    const positions = items.map((item) => {
-      const column = heights.indexOf(Math.min(...heights))
-      const height = columnWidth * tileAspectRatio(item)
-      const position = { left: column * (columnWidth + GAP), top: heights[column], width: columnWidth, height }
-      heights[column] += height + GAP
-      return position
-    })
-    return { positions, height: Math.max(0, ...heights) - GAP }
-  }, [items, containerWidth])
+    setMasonryRef(node)
+  }, [setMasonryRef])
 
   // ------------------------------------------------------------------
   // Hybrid infinite scroll: two auto-pages, then explicit Load more (§11.3)
@@ -185,14 +176,15 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
   // ------------------------------------------------------------------
   const [openId, setOpenId] = useState<string | null>(null)
   const tileRefs = useRef(new Map<string, HTMLButtonElement>())
-  const openItem = items.find((item) => item.id === openId) ?? null
+  const openItem = navItems.find((item) => item.id === openId) ?? null
 
-  // Deep-link: open the lightbox once the anchor window has loaded.
+  // Deep-link: open the lightbox once the anchor window has loaded. Checks the combined
+  // nav list — a deep-linked Featured pin is excluded from the grid window (§5.1).
   useEffect(() => {
-    if (initialOpenId && !query.isPending && items.some((item) => item.id === initialOpenId)) {
+    if (initialOpenId && !query.isPending && navItems.some((item) => item.id === initialOpenId)) {
       setOpenId(initialOpenId)
     }
-  }, [initialOpenId, query.isPending, items])
+  }, [initialOpenId, query.isPending, navItems])
 
   const openLightbox = useCallback((mediaId: string) => setOpenId(mediaId), [])
 
@@ -206,22 +198,23 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
   }, [openId])
 
   // Prefetch the next page as the lightbox approaches the loaded edge (±1 page rule).
-  const openIndex = openItem ? items.indexOf(openItem) : -1
+  const openIndex = openItem ? navItems.indexOf(openItem) : -1
+  const openGridIndex = openItem ? items.indexOf(openItem) : -1
   useEffect(() => {
-    if (openIndex >= 0 && openIndex >= items.length - 3 && query.hasNextPage && !query.isFetchingNextPage) {
+    if (openGridIndex >= 0 && openGridIndex >= items.length - 3 && query.hasNextPage && !query.isFetchingNextPage) {
       void query.fetchNextPage()
     }
-  }, [openIndex, items.length, query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage])
+  }, [openGridIndex, items.length, query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage])
 
   const navigateLightbox = useCallback((direction: 'prev' | 'next' | 'first' | 'last') => {
     if (openIndex < 0) return
     const target = direction === 'prev' ? openIndex - 1
       : direction === 'next' ? openIndex + 1
         : direction === 'first' ? 0
-          : items.length - 1
-    if (target < 0 || target >= items.length) return
-    setOpenId(items[target].id)
-  }, [openIndex, items])
+          : navItems.length - 1
+    if (target < 0 || target >= navItems.length) return
+    setOpenId(navItems[target].id)
+  }, [openIndex, navItems])
 
   // ------------------------------------------------------------------
   // Render
@@ -283,8 +276,9 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
       )}
 
       {/* A filter (photo/video) or sort can legitimately yield zero items while the section
-          stays mounted (e.g. a Featured strip is present). Show a hint instead of vanishing. */}
-      {!query.isPending && !query.isError && items.length === 0 && featuredStrip && (
+          stays mounted (e.g. a Featured strip is present). Show a hint instead of vanishing.
+          When everything is featured the strip already says it all — suppress the hint. */}
+      {!query.isPending && !query.isError && items.length === 0 && featuredStrip && (typeFilter !== 'all' || (featuredItems?.length ?? 0) === 0) && (
         <p className="media-gallery-empty field-hint">{t('mediaEmptyFiltered')}</p>
       )}
 
@@ -338,11 +332,11 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
       {openItem && (
         <Lightbox
           item={openItem}
-          position={{ index: openIndex, total: items.length }}
+          position={{ index: openIndex, total: navItems.length }}
           onClose={closeLightbox}
           onNavigate={navigateLightbox}
           hasPrev={openIndex > 0}
-          hasNext={openIndex >= 0 && (openIndex < items.length - 1 || Boolean(query.hasNextPage))}
+          hasNext={openIndex >= 0 && (openIndex < navItems.length - 1 || Boolean(query.hasNextPage))}
           organizerActions={renderLightboxOrganizerActions && canManageItem?.(openItem) ? renderLightboxOrganizerActions(openItem, closeLightbox) : undefined}
         />
       )}

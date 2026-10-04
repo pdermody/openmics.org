@@ -63,20 +63,22 @@ function scopePath(scope: MediaScope): string {
 
 export const mediaKeys = {
   all: ['media'] as const,
-  list: (scope: MediaScope, type: MediaTypeFilter, sort: MediaSort, seed?: number) =>
-    [...mediaKeys.all, 'list', scope.kind, scope.id, type, sort, seed] as const,
+  list: (scope: MediaScope, type: MediaTypeFilter, sort: MediaSort, seed?: number, excludeFeatured?: boolean) =>
+    [...mediaKeys.all, 'list', scope.kind, scope.id, type, sort, seed, excludeFeatured] as const,
   item: (id: string | undefined) => [...mediaKeys.all, 'item', id] as const,
   featured: (openMicId: string | undefined) => [...mediaKeys.all, 'featured', openMicId] as const,
   recentlyDeleted: () => [...mediaKeys.all, 'recently-deleted'] as const,
 }
 
-export function useMediaList(scope: MediaScope, options: { type: MediaTypeFilter; sort: MediaSort; seed?: number; anchor?: string; enabled?: boolean }) {
-  const { type, sort, seed, anchor, enabled = true } = options
+export function useMediaList(scope: MediaScope, options: { type: MediaTypeFilter; sort: MediaSort; seed?: number; anchor?: string; enabled?: boolean; excludeFeatured?: boolean }) {
+  const { type, sort, seed, anchor, enabled = true, excludeFeatured = false } = options
   return useInfiniteQuery({
-    queryKey: mediaKeys.list(scope, type, sort, seed),
+    queryKey: mediaKeys.list(scope, type, sort, seed, excludeFeatured),
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ type, sort, limit: '24' })
       if (sort === 'shuffle' && seed !== undefined) params.set('seed', String(seed))
+      // Series galleries keep Featured pins out of the masonry (strip above the grid).
+      if (excludeFeatured && scope.kind === 'open-mic') params.set('exclude_featured', 'true')
       if (pageParam) params.set('cursor', pageParam as string)
       else if (anchor) params.set('anchor', anchor)
       return api<MediaListPage>(`${scopePath(scope)}?${params.toString()}`)

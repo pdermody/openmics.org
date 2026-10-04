@@ -68,3 +68,35 @@ describe('DetailPage event registration action', () => {
     expect(screen.queryByRole('link', { name: 'Register for this event' })).not.toBeInTheDocument()
   })
 })
+
+describe('DetailPage owner action gating', () => {
+  const seriesWithOwner = { ...openMic, owner_profile_id: 'organizer-profile' }
+
+  function signInAsPerformer() {
+    // Active profile is a performer; the account also owns the organizer profile that owns
+    // the series — the buttons must key off the ACTIVE profile, not any account profile.
+    window.localStorage.setItem('openmic-simulated-auth-token', 'performer-token')
+    server.use(
+      http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
+      http.get('/api/me', () => HttpResponse.json({ id: 'account-1', email: 'p@example.test', current_profile_id: 'performer-profile' })),
+      http.get('/api/accounts/account-1/profiles', () => HttpResponse.json({ items: [
+        { id: 'performer-profile', profile_name: 'Performer', profile_kind: 'performer' },
+        { id: 'organizer-profile', profile_name: 'Organizer', profile_kind: 'organizer' },
+      ] })),
+      http.get('/api/me/permissions', () => HttpResponse.json({ permissions: ['profiles:manage'] })),
+      http.get('/api/open-mics/STAGE', () => HttpResponse.json(seriesWithOwner)),
+      http.get('/api/open-mics/open-mic-1/media', () => HttpResponse.json({ items: [], prev_cursor: null, next_cursor: null })),
+      http.get('/api/open-mics/open-mic-1/featured-media', () => HttpResponse.json({ items: [] })),
+    )
+  }
+
+  it('hides owner actions from a performer whose account owns the series via another profile', async () => {
+    signInAsPerformer()
+    renderWithProviders(<DetailPage kind="open-mic" id="STAGE" theme="venue" mode="light" />)
+
+    expect(await screen.findByRole('heading', { name: 'Friday Stage' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Manage' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Manage media' })).not.toBeInTheDocument()
+  })
+})

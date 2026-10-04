@@ -4,6 +4,7 @@ import { ImagePlus, Link2, X } from 'lucide-react'
 
 import { putToPresignedUrl, useCommitMedia, useCreateUploadUrl } from '../../features/media'
 import { fetchVideoTitle } from '../../features/video-metadata'
+import { Modal } from '../../views/shared'
 
 // The file picker is the universal upload path (camera capture + photo library on phones
 // and tablets); drag-and-drop is a pointer enhancement, never the only path (§8.2).
@@ -240,44 +241,49 @@ export function MediaUploader({ eventId, openMicId, registrations, onCommitted }
         <ImagePlus size={28} aria-hidden="true" />
         <p>{t('mediaDropzoneHint')}</p>
         <button type="button" className="primary-button" onClick={() => fileInputRef.current?.click()}>{t('mediaChoosePhotos')}</button>
-        <button type="button" className="secondary-button" onClick={() => setVideoFormOpen((open) => !open)}>
+        <button type="button" className="secondary-button" onClick={() => setVideoFormOpen(true)}>
           <Link2 size={15} aria-hidden="true" /> {t('mediaAddVideo')}
         </button>
       </div>
 
       {videoFormOpen && (
-        <form className="media-video-form" onSubmit={submitVideo}>
-          <label>
-            <span>{t('mediaVideoUrlLabel')}</span>
-            <input type="url" value={videoUrl} onChange={(event) => onVideoUrlChange(event.target.value)} placeholder={t('mediaVideoUrlPlaceholder')} required />
-          </label>
-          {videoPreviewId && (
-            <img
-              className="media-video-preview"
-              src={videoPreviewId.platform === 'youtube' ? `https://i.ytimg.com/vi/${videoPreviewId.id}/hqdefault.jpg` : `https://vumbnail.com/${videoPreviewId.id}.jpg`}
-              alt=""
-            />
-          )}
-          <label>
-            <span>{t('mediaCaptionLabel')}</span>
-            <input value={videoCaption} maxLength={500} onChange={(event) => setVideoCaption(event.target.value)} />
-          </label>
-          {attributionEnabled && (
+        <Modal title={t('mediaAddVideo')} onClose={() => setVideoFormOpen(false)}>
+          <form className="media-video-form" onSubmit={submitVideo}>
             <label>
-              <span>{t('mediaAttributionLabel')}</span>
-              <select value={videoRegistrationId} onChange={(event) => setVideoRegistrationId(event.target.value)}>
-                <option value="">{t('mediaNoPerformer')}</option>
-                {registrations!.map((registration) => (
-                  <option key={registration.id} value={registration.id}>
-                    {registration.performer_name}{registration.performer_city ? ` · ${registration.performer_city}` : ''}
-                  </option>
-                ))}
-              </select>
+              <span>{t('mediaVideoUrlLabel')}</span>
+              <input type="url" value={videoUrl} onChange={(event) => onVideoUrlChange(event.target.value)} placeholder={t('mediaVideoUrlPlaceholder')} required />
             </label>
-          )}
-          {videoError && <p className="form-error" role="alert">{videoError}</p>}
-          <button type="submit" className="primary-button" disabled={commitMedia.isPending}>{t('mediaAddVideoSubmit')}</button>
-        </form>
+            {videoPreviewId && (
+              <img
+                className="media-video-preview"
+                src={videoPreviewId.platform === 'youtube' ? `https://i.ytimg.com/vi/${videoPreviewId.id}/hqdefault.jpg` : `https://vumbnail.com/${videoPreviewId.id}.jpg`}
+                alt=""
+              />
+            )}
+            <label>
+              <span>{t('mediaCaptionLabel')}</span>
+              <input value={videoCaption} maxLength={500} onChange={(event) => setVideoCaption(event.target.value)} />
+            </label>
+            {attributionEnabled && (
+              <label>
+                <span>{t('mediaAttributionLabel')}</span>
+                <select value={videoRegistrationId} onChange={(event) => setVideoRegistrationId(event.target.value)}>
+                  <option value="">{t('mediaNoPerformer')}</option>
+                  {registrations!.map((registration) => (
+                    <option key={registration.id} value={registration.id}>
+                      {registration.performer_name}{registration.performer_city ? ` · ${registration.performer_city}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {videoError && <p className="form-error" role="alert">{videoError}</p>}
+            <div className="modal-actions">
+              <button type="submit" className="primary-button" disabled={commitMedia.isPending}>{t('mediaAddVideoSubmit')}</button>
+              <button type="button" className="secondary-button" onClick={() => setVideoFormOpen(false)}>{t('cancel')}</button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {rows.length > 0 && (
