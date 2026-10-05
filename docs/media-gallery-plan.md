@@ -2,9 +2,11 @@
 
 Implement `media-gallery-design.md` across API, web, and infra. Execution and deployment happen on other machines. Resource identifiers supplied at deploy time.
 
-**TL;DR.** The design doc's open shape questions have been settled (see "Confirmed decisions" below) and the Phase 0 prerequisite numbers — Plan quotas plus kiosk `media_consent` behavior — are now recorded in [docs/decisions.md](docs/decisions.md). Implementation is ten phases spanning contract → schema → infra → storage adapter → routes → rendition Lambda → server-rendered OG → frontend → tests → verification. Deployment is strictly ordered because the API Docker image bakes in `apps/web/dist/index.html` for OG injection, and the dedicated `media.openmics.org` subdomain requires its ACM SAN to be issued before the MediaStack can bind the certificate.
+**TL;DR.** The design doc's open shape questions have been settled (see "Confirmed decisions" below) and the Phase 0 prerequisite numbers — Plan quotas plus kiosk `media_consent` behavior — are now recorded in [docs/decisions.md](decisions.md). Implementation is ten phases spanning contract → schema → infra → storage adapter → routes → rendition Lambda → server-rendered OG → frontend → tests → verification. Deployment is strictly ordered because the API Docker image bakes in `apps/web/dist/index.html` for OG injection, and the dedicated `media.openmics.org` subdomain requires its ACM SAN to be issued before the MediaStack can bind the certificate.
 
 ## Confirmed decisions (from Q&A)
+
+- Public browsing now follows [decisions.md](decisions.md#public-series-events-and-media-browsing): series Events/Photos/Videos, event and performer Photos/Videos, no public All option, explicit empty tabs, series-only featured strips, and paused-parent media hidden publicly. The organizer API and management filters remain unchanged.
 
 - Prereqs settled first in `docs/decisions.md`; user supplies the numbers.
 - Renditions: new SQS queue + Lambda consumer (mirrors email pattern).
@@ -20,7 +22,7 @@ Implement `media-gallery-design.md` across API, web, and infra. Execution and de
 ## Discrepancies flagged (not source-document conflicts, just codebase gaps)
 
 1. `openapi.yaml` `Media` schema missing dimension fields needed by design §5.2 and §13.2.
-2. [apps/api/src/spa-routes.ts](apps/api/src/spa-routes.ts) currently returns a hardcoded placeholder HTML, not the real built SPA. Must bake `apps/web/dist/index.html` into the API image for OG injection.
+2. [apps/api/src/spa-routes.ts](../apps/api/src/spa-routes.ts) currently returns a hardcoded placeholder HTML, not the real built SPA. Must bake `apps/web/dist/index.html` into the API image for OG injection.
 3. CloudFront today only forwards `/api/*` to the ALB; `/media/*` goes to S3. A new `/media/*` behavior on the main distribution is required for OG-stamped SPA responses.
 4. No media S3 bucket exists; `openmic-media-{env}` is new. Media bytes are served from a dedicated `media.openmics.org` subdomain backed by its own CloudFront distribution (not from the main site).
 5. `Profiles.show_gig_media` and the three new tables don't exist yet. (`Registrations.media_consent_updated_at` turned out to exist already — migration `004`; see Phase 2.)
@@ -29,7 +31,7 @@ Implement `media-gallery-design.md` across API, web, and infra. Execution and de
 
 ## Phase 0 — Prerequisite decisions
 
-Status: **recorded in [docs/decisions.md](docs/decisions.md)** on 2026-10-01 (media quotas, delivery, kiosk) and 2026-10-02 (capacity caps + reserved conversion fields). Phase 0 is done; implementation may proceed.
+Status: **recorded in [docs/decisions.md](decisions.md)** on 2026-10-01 (media quotas, delivery, kiosk) and 2026-10-02 (capacity caps + reserved conversion fields). Phase 0 is done; implementation may proceed.
 
 The `DEFAULT_PLAN` object has been broadened beyond media (overriding design §8.5's "narrowly scoped" wording). Values the API's `DEFAULT_PLAN` must mirror:
 
@@ -78,7 +80,7 @@ Run `npm run check:links` after doc edits.
 
 ## Phase 1 — Contract alignment (OpenAPI)
 
-Edit [openapi.yaml](openapi.yaml):
+Edit [openapi.yaml](../openapi.yaml):
 
 - Extend `Media` with `width` (int, nullable), `height` (int, nullable), `duration_seconds` (int, nullable), `video_platform` (enum: `youtube` | `vimeo`, nullable), `platform_video_id` (string, nullable), `renditions` object with `thumb` / `grid` / `lightbox` / `original` each having `url`, `width`, `height`, `mime_type`, `size_bytes`. Add `alt_text` field (derived server-side if omitted).
 - Extend `MediaCreateRequest` as a discriminated union on `media_type`: photo commits carry the server-generated `object_key` returned by `/media/upload-url` (client-supplied `source_url` is dropped; the server composes it from the plan-bound bucket); video commits carry `video_url`, validated by the source policy (host allowlist, platform + id extraction). Exactly one of `object_key` / `video_url` is required per variant.
@@ -100,10 +102,10 @@ Validate:
 
 ## Phase 2 — Database schema (new migrations)
 
-Under [apps/api/migrations/](apps/api/migrations/). Numbers follow `018_kiosk_qr_registrations.cjs`.
+Under [apps/api/migrations/](../apps/api/migrations). Numbers follow `018_kiosk_qr_registrations.cjs`.
 
 - `019_media_tables.cjs`
-  - `Media` table matching what was the Post-MVP appendix in [docs/architecture/data-model.md](docs/architecture/data-model.md) (promoted back into the Phase 1 schema section by this slice) with the extra columns from Phase 1 (`width`, `height`, `duration_seconds`, `video_platform`, `platform_video_id`, `alt_text`, `renditions jsonb`), plus denormalized attribution snapshot columns `performer_name_snapshot`, `performer_city_snapshot` (nullable, captured on insert when `registration_id` set).
+  - `Media` table matching what was the Post-MVP appendix in [docs/architecture/data-model.md](architecture/data-model.md) (promoted back into the Phase 1 schema section by this slice) with the extra columns from Phase 1 (`width`, `height`, `duration_seconds`, `video_platform`, `platform_video_id`, `alt_text`, `renditions jsonb`), plus denormalized attribution snapshot columns `performer_name_snapshot`, `performer_city_snapshot` (nullable, captured on insert when `registration_id` set).
   - CHECK: either `event_id` set XOR `open_mic_id` set.
   - CHECK: `registration_id` not set when `open_mic_id` set and `event_id` null (series-scope media is always free-standing).
   - CHECK: `media_type='video' → source_url present AND video_platform IN ('youtube','vimeo')`; `media_type='photo' → source_url present` (host validated in app layer).
@@ -112,7 +114,7 @@ Under [apps/api/migrations/](apps/api/migrations/). Numbers follow `018_kiosk_qr
 - ~~`020_registration_media_consent_updated_at.cjs`~~ — **dropped:** `Registrations.media_consent_updated_at` already exists (migration `004_registration_policy.cjs`), is maintained by `updateRegistration`, and is now a pure audit field (decisions.md → Guest Registrations: revocation is retroactive, so no grandfathering backfill is needed).
 - `020_profile_show_gig_media.cjs` — add `show_gig_media boolean NOT NULL DEFAULT TRUE` to `Profiles`.
 
-Promote the Media / PendingS3Deletions / OpenMicFeaturedMedia schema sections from the Post-MVP appendix of [docs/architecture/data-model.md](docs/architecture/data-model.md) back into the Phase 1 schema section as part of this slice (per FEATURE-PLAN §6A step 1).
+Promote the Media / PendingS3Deletions / OpenMicFeaturedMedia schema sections from the Post-MVP appendix of [docs/architecture/data-model.md](architecture/data-model.md) back into the Phase 1 schema section as part of this slice (per FEATURE-PLAN §6A step 1).
 
 Verify by running against the testcontainers suite: `npm run test:integration`.
 
@@ -120,7 +122,7 @@ Verify by running against the testcontainers suite: `npm run test:integration`.
 
 ## Phase 3 — Infra (CDK) scaffolding
 
-Convention: each bounded concern = one stack class under [infra/lib/](infra/lib/), wired in [infra/bin/infra.ts](infra/bin/infra.ts). Resource identifiers (bucket name, distribution ID, hosted zone) supplied at deploy time via existing CDK context + env (`OPENMIC_ENVIRONMENT`, `domainName`).
+Convention: each bounded concern = one stack class under [infra/lib/](../infra/lib), wired in [infra/bin/infra.ts](../infra/bin/infra.ts). Resource identifiers (bucket name, distribution ID, hosted zone) supplied at deploy time via existing CDK context + env (`OPENMIC_ENVIRONMENT`, `domainName`).
 
 ### S3 object layout
 
@@ -159,17 +161,17 @@ renditions/{mediaId}/lightbox.webp                  sharp-generated, 2048px shor
 
 ### Updates
 
-- [infra/lib/certificate-stack.ts](infra/lib/certificate-stack.ts): add `media.openmics.org` (and the per-env `media-${env}.openmics.org`) to the ACM certificate's SAN list (us-east-1).
-- [infra/lib/api-stack.ts](infra/lib/api-stack.ts):
+- [infra/lib/certificate-stack.ts](../infra/lib/certificate-stack.ts): add `media.openmics.org` (and the per-env `media-${env}.openmics.org`) to the ACM certificate's SAN list (us-east-1).
+- [infra/lib/api-stack.ts](../infra/lib/api-stack.ts):
   - Accept `mediaBucket`, `mediaCdnBaseUrl`, `renditionsQueue` from props.
   - Grant task role `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on the bucket's ARN + `/*`.
   - Grant task role `sqs:SendMessage` on the renditions queue.
   - New container env: `MEDIA_BUCKET`, `MEDIA_CDN_BASE_URL` (= `https://media.openmics.org`), `MEDIA_RENDITIONS_QUEUE_URL`, `MEDIA_PRESIGN_EXPIRY_SECONDS`, `MEDIA_RENDITIONS_CALLBACK_SECRET` (from Secrets Manager).
-  - Dockerfile update ([apps/api/Dockerfile](apps/api/Dockerfile)): add a build stage that copies `apps/web/dist/index.html` into the API image at `/app/public/index.html`. API reads it at startup. This adds a hard build-order dependency — the API image CANNOT be built before the web app.
-- [infra/lib/frontend-stack.ts](infra/lib/frontend-stack.ts):
+  - Dockerfile update ([apps/api/Dockerfile](../apps/api/Dockerfile)): add a build stage that copies `apps/web/dist/index.html` into the API image at `/app/public/index.html`. API reads it at startup. This adds a hard build-order dependency — the API image CANNOT be built before the web app.
+- [infra/lib/frontend-stack.ts](../infra/lib/frontend-stack.ts):
   - Add additional behavior `/media/*` → `LoadBalancerV2Origin(apiLoadBalancer)` with custom cache policy (`s-maxage=3600`, `max-age=0`), `OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER`. Allows `GET`/`HEAD` only.
   - Do NOT add a `/photos/*` behavior — media is served from `media.openmics.org`, not from the main distribution.
-- [infra/bin/infra.ts](infra/bin/infra.ts): instantiate `MediaStack` after `NetworkStack` + `DatabaseStack` + `CertificateStack`, before `ApiStack`. Pass `mediaBucket`, `mediaCdnBaseUrl`, and `renditionsQueue` to `ApiStack`.
+- [infra/bin/infra.ts](../infra/bin/infra.ts): instantiate `MediaStack` after `NetworkStack` + `DatabaseStack` + `CertificateStack`, before `ApiStack`. Pass `mediaBucket`, `mediaCdnBaseUrl`, and `renditionsQueue` to `ApiStack`.
 
 Validate: `cd infra && npm run build && npm run synth`.
 
@@ -193,7 +195,7 @@ Unit tests cover each.
 
 ## Phase 5 — API: media routes
 
-Create `apps/api/src/media/routes.ts` and `apps/api/src/media/repository.ts`. Register under `/api` in [apps/api/src/app.ts](apps/api/src/app.ts) after existing routes, before `spaRoutes`.
+Create `apps/api/src/media/routes.ts` and `apps/api/src/media/repository.ts`. Register under `/api` in [apps/api/src/app.ts](../apps/api/src/app.ts) after existing routes, before `spaRoutes`.
 
 Routes (owner-auth unless stated):
 
@@ -233,7 +235,7 @@ Error envelope follows the existing `errors.ts` shape.
 `infra/lib/lambda/media-renditions/index.ts`:
 
 - SQS event handler. For each record, download `original/{mediaId}.{ext}` from the media bucket.
-- Generate variants with `sharp`: `thumb` (max 400px short side), `grid` (max 800px), `lightbox` (max 2048px). Preserve aspect ratio. All renditions are written as WebP regardless of source format (JPEG / PNG / WebP are the only accepted inputs per [docs/decisions.md](docs/decisions.md) → "Media quotas").
+- Generate variants with `sharp`: `thumb` (max 400px short side), `grid` (max 800px), `lightbox` (max 2048px). Preserve aspect ratio. All renditions are written as WebP regardless of source format (JPEG / PNG / WebP are the only accepted inputs per [docs/decisions.md](decisions.md) → "Media quotas").
 - Upload each to `renditions/{mediaId}/{variant}.{ext}`.
 - Call back into the API via internal `POST /api/internal/media/{id}/renditions-complete` with signed shared secret (`MEDIA_RENDITIONS_CALLBACK_SECRET`), passing the renditions metadata. API persists `renditions` jsonb and `width`/`height` on the row.
 - On failure, SQS retries up to 3 times then DLQs. Media row keeps `renditions = null`; frontend falls back to the original URL via `srcset`.
@@ -244,7 +246,7 @@ Local fake for tests: synchronous processing or `fs`-based.
 
 ## Phase 7 — Server-rendered OG injection on `/media/:mediaId`
 
-Edit [apps/api/src/spa-routes.ts](apps/api/src/spa-routes.ts):
+Edit [apps/api/src/spa-routes.ts](../apps/api/src/spa-routes.ts):
 
 - Read `apps/web/dist/index.html` from `/app/public/index.html` at startup (baked in by Dockerfile). Fall back to the current placeholder in dev.
 - Add handler `GET /media/:mediaId` (registered BEFORE the catch-all) that:
@@ -264,14 +266,14 @@ Unit tests cover: injection for visible media, fallback for hidden media, fallba
 
 ### 8.1 Routes & state
 
-- [apps/web/src/App.tsx](apps/web/src/App.tsx) (TanStack Router): add `/media/:mediaId` route. On mount, fetch media + its owning event/series, redirect browser URL to `/events/{slug}/{eventCode}?media={mediaId}` (or series equivalent) so the lightbox opens on top of the natural context. If owning context fails, render a bare lightbox page with the item centered.
+- [apps/web/src/App.tsx](../apps/web/src/App.tsx) (TanStack Router): add `/media/:mediaId` route. On mount, fetch media + its owning event/series, redirect browser URL to `/events/{slug}/{eventCode}?media={mediaId}` (or series equivalent) so the lightbox opens on top of the natural context. If owning context fails, render a bare lightbox page with the item centered.
 - `apps/web/src/features/media.ts` — TanStack Query hooks: `useEventMedia(eventId, {type, sort, seed, anchor})`, `useOpenMicMedia(openMicId, …)`, `useProfileMedia(profileId, …)`, `useMediaItem(mediaId)`, `useUploadMedia`, `useUpdateMedia`, `useSoftDeleteMedia`, `useRecoverMedia`, `useFeaturedMediaMutation`.
 
 ### 8.2 Shared components
 
 - `apps/web/src/components/media/MediaGallery.tsx`
   - JS-balanced masonry driven by `--min-tile: 240px`: each item is assigned to the currently-shortest column in code so visual order, DOM order, and the active sort all agree (pure CSS multi-column is ruled out — it fills column-major).
-  - Type filter chip (All / Photos / Videos), persisted in URL + `localStorage` per design §11.1. Hidden on profile page.
+  - Public Photos/Videos tabs on event and performer pages; series Events/Photos/Videos. Tab, event filters/page and sorting use router search, with return scroll/focus preserved. Both media tabs remain visible when empty.
   - Sort control (Newest, Shuffle; Most liked hidden). Shuffle seed in `history.state`, re-shuffle on refresh.
   - Hybrid infinite scroll (2 auto-pages) → explicit "Load more". Keyset cursors.
   - Scroll offset in `history.state`; restored on lightbox close.
@@ -287,7 +289,7 @@ Unit tests cover: injection for visible media, fallback for hidden media, fallba
   - Download: `<a>` with `download` attribute, `href` = original rendition URL. No signed URL.
   - Reactions / Comments icons visually present but `disabled`, matching the existing disabled-state pattern on event + open-mic pages.
   - Organizer-only toolbar when `useOrganizerProfile().owns(mediaItem)` returns true.
-- `apps/web/src/components/media/FeaturedStrip.tsx` — horizontal scroll on mobile, two-row grid on desktop. Hidden when a filter is active (§11.4).
+- `apps/web/src/components/media/FeaturedStrip.tsx` — compact manual horizontal rail with previous/next controls. Series Events has a mixed showcase above the tabs; Photos/Videos show matching pins first without grid duplication. Featured viewers stay within their selection and do not change the active tab.
 - `apps/web/src/components/media/CaptionEditor.tsx` — token helper + live preview, 500-char hard cap, warning at 450. Used both inline and in lightbox detail.
 
 ### 8.3 Public pages

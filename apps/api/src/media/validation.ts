@@ -58,6 +58,7 @@ export const mediaListQuerySchema = z.object({
   // Series galleries set this to keep Featured pins out of the masonry (they render in
   // the strip above it). Ignored by event/profile lists — featured is a series concept.
   exclude_featured: z.enum(['true', 'false']).optional(),
+  public_view: z.enum(['true', 'false']).optional(),
 });
 export type MediaListQueryInput = z.infer<typeof mediaListQuerySchema>;
 

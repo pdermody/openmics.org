@@ -1,6 +1,6 @@
 # Open Mic Documentation Review: Concerns and Gaps
 
-**Status:** Reviewed against [decisions.md](decisions.md) during the earlier Milestone 0 pass of the feature plan (now [FEATURE-PLAN.md](../FEATURE-PLAN.md)). Resolved items are recorded below with a pointer to the authoritative source and removed from the active concern list. Only genuinely open items remain in full.
+**Status:** Reviewed against [decisions.md](decisions.md) during the earlier Milestone 0 pass of the feature plan (now [FEATURE-PLAN.md](FEATURE-PLAN.md)). Resolved items are recorded below with a pointer to the authoritative source and removed from the active concern list. Only genuinely open items remain in full.
 
 This document originally captured concerns from an early review of the Open Mic planning documents, before [decisions.md](decisions.md), [3-open-mic-requirements.md](3-open-mic-requirements.md), [6-open-mic-vanity-urls.md](6-open-mic-vanity-urls.md), and the `docs/architecture/*` documents reached their current state. Most of the original contradictions have since been settled; this revision keeps the historical record short and points each resolved item at where it was actually decided, rather than re-describing settled ground.
 

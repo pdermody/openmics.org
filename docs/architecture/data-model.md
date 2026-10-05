@@ -335,7 +335,7 @@ All frontend entry points share the same `POST /events/:id/registrations` endpoi
 
 ## Post-MVP appendix
 
-Everything below describes design work that is explicitly deferred by [decisions.md](../decisions.md) and [FEATURE-PLAN.md](../../FEATURE-PLAN.md). None of it is expected in Phase 1. Contents are retained as design reference so a future phase can restore the earlier thinking without starting from scratch.
+Everything below describes design work that is explicitly deferred by [decisions.md](../decisions.md) and [FEATURE-PLAN.md](../FEATURE-PLAN.md). None of it is expected in Phase 1. Contents are retained as design reference so a future phase can restore the earlier thinking without starting from scratch.
 
 ### Deferred Accounts columns
 
@@ -456,7 +456,7 @@ ReactionSuggestions      (reaction_id PK/FK, suggestion_id FK, profile_id FK)
 
 ### Media pipeline (promoted to Phase 1)
 
-The `Media` and `PendingS3Deletions` tables — plus the `OpenMicFeaturedMedia` join table added for the series-page Featured strip — shipped in the Phase 1 media slice; see the [Phase 1 schema](#phase-1-schema-current) section. What remains deferred from the earlier media thinking: reactions/comments on media (covered by the reviews/comments/reactions appendix sections), AV scanning, on-the-fly rendition resizing, and the per-item takedown flow for free-standing media depicting a consent-revoked person (see [../../media-gallery-design.md](../../media-gallery-design.md) §16).
+The `Media` and `PendingS3Deletions` tables — plus the `OpenMicFeaturedMedia` join table added for the series-page Featured strip — shipped in the Phase 1 media slice; see the [Phase 1 schema](#phase-1-schema-current) section. What remains deferred from the earlier media thinking: reactions/comments on media (covered by the reviews/comments/reactions appendix sections), AV scanning, on-the-fly rendition resizing, and the per-item takedown flow for free-standing media depicting a consent-revoked person (see [../../media-gallery-design.md](../media-gallery-design.md) §16).
 
 ### Private messaging and notifications (post-MVP)
 

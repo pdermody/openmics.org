@@ -13,16 +13,16 @@ import { ReadState, SiteHeader, type ThemeProps } from './shared'
 export function MediaDeepLinkPage({ mediaId, theme, mode }: { mediaId: string } & ThemeProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const item = useMediaItem(mediaId)
+  const item = useMediaItem(mediaId, true)
   const [hiddenRedirect, setHiddenRedirect] = useState(false)
 
   useEffect(() => {
     const media = item.data
     if (!media) return
     if (media.event_id) {
-      void navigate({ to: '/events/$eventId', params: { eventId: media.event_id }, search: { media: media.id }, replace: true })
+      void navigate({ to: '/events/$eventId', params: { eventId: media.event_id }, search: { media: media.id, tab: media.media_type === 'photo' ? 'photos' : 'videos' }, replace: true })
     } else if (media.open_mic_id) {
-      void navigate({ to: '/open-mics/$openMicId', params: { openMicId: media.open_mic_id }, search: { media: media.id }, replace: true })
+      void navigate({ to: '/open-mics/$openMicId', params: { openMicId: media.open_mic_id }, search: { media: media.id, tab: media.media_type === 'photo' ? 'photos' : 'videos' }, replace: true })
     }
   }, [item.data, navigate])
 

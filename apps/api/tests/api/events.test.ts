@@ -22,6 +22,14 @@ describe('events routes', () => {
   beforeAll(async () => app.ready());
   afterAll(async () => app.close());
 
+  it('validates public browsing parameters before any database access', async () => {
+    for (const query of ['page=0', 'page_size=51', 'year=0', 'month=13&year=2026', 'month=1', 'period=draft', 'page=1.5']) {
+      const response = await app.inject({ url: `/api/open-mics/00000000-0000-0000-0000-000000000000/public-events?${query}` });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('VALIDATION_ERROR');
+    }
+  });
+
   it('rejects event creation without a bearer token', async () => {
     const response = await app.inject({
       method: 'POST',

@@ -8,7 +8,7 @@ import { useEventRoster, useOrganizerProfile } from '../features/organizer'
 import { usePublicEvent, usePublicOpenMic } from '../features/publicReads'
 import { CaptionEditor } from '../components/media/CaptionEditor'
 import { Lightbox } from '../components/media/Lightbox'
-import { MediaGallery } from '../components/media/MediaGallery'
+import { PublicDetailTabs } from '../components/PublicDetailTabs'
 import { MediaManageGrid, sortManageItems, type ManageSort } from '../components/media/MediaManageGrid'
 import { MediaUploader } from '../components/media/MediaUploader'
 import { Modal, ReadState, SiteHeader, type ThemeProps } from './shared'
@@ -95,7 +95,7 @@ export function EventMediaManagePage({ seriesId, eventId, theme, mode }: { serie
             recovering={recoverMedia.isPending}
           />
         ) : previewMode ? (
-          <MediaGallery scope={{ kind: 'event', id: eventId }} />
+          <PublicDetailTabs scope={{ kind: 'event', id: eventId }} />
         ) : (
           <>
             <MediaUploader eventId={eventId} registrations={attributable} />

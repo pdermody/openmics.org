@@ -74,7 +74,7 @@ export function useAccountContext(enabled = true) {
     error: account.error,
   } : {
     data: undefined,
-    isPending: false,
+    isPending: isAuthConfigured && enabled && isSessionKnown.isPending,
     isError: false,
   }
 

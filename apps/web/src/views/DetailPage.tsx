@@ -7,9 +7,7 @@ import { useAccountContext } from '../features/account'
 import { useMyRegisteredEventIds } from '../features/myRegistrations'
 import { isRegistrationClosed, useNextEvent, usePublicEvent, usePublicOpenMic, usePublicOwnerOpenMics, usePublicProfile } from '../features/publicReads'
 import { profileKindMeta } from '../features/profileKinds'
-import { useFeaturedMedia } from '../features/media'
-import { FeaturedStrip } from '../components/media/FeaturedStrip'
-import { MediaGallery } from '../components/media/MediaGallery'
+import { PublicDetailTabs } from '../components/PublicDetailTabs'
 import type { ThemeProps } from './shared'
 import { ReadState, SiteHeader, SocialButton } from './shared'
 
@@ -21,7 +19,7 @@ function focusProfileSwitcher() {
 }
 
 export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mic' | 'profile'; id: string } & ThemeProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const event = usePublicEvent(kind === 'event' ? id : undefined)
   const openMic = usePublicOpenMic(kind === 'open-mic' ? id : undefined)
   const nextEvent = useNextEvent(kind === 'open-mic' ? id : undefined)
@@ -40,6 +38,7 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   const registeredEventIds = useMyRegisteredEventIds()
   const isRegisteredForEvent = kind === 'event' && Boolean(event.data) && registeredEventIds.has(event.data!.id)
   const nextRegistrableEvent = nextEvent.data?.next_registration_event
+  const highlightedEvent = nextEvent.data?.current_event ?? nextEvent.data?.next_event
   const isRegisteredForNextEvent = kind === 'open-mic' && Boolean(nextRegistrableEvent) && registeredEventIds.has(nextRegistrableEvent!.id)
   const loading = kind === 'event' ? event.isPending : kind === 'open-mic' ? openMic.isPending : profile.isPending
   const error = kind === 'event' ? event.isError : kind === 'open-mic' ? openMic.isError : profile.isError
@@ -75,7 +74,6 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
       window.history.replaceState(window.history.state, '', url.toString())
     }
   }, [search])
-  const featured = useFeaturedMedia(kind === 'open-mic' ? openMic.data?.id : undefined)
   const showProfileGallery = kind === 'profile' && profile.data?.profile_kind === 'performer' && profile.data.show_gig_media !== false
 
   return (
@@ -94,6 +92,13 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
             {event.data?.starts_at && <span><Clock3 size={16} /> {new Date(event.data.starts_at).toLocaleString()}</span>}
             {profileKind && <span><profileKind.icon size={16} aria-hidden="true" /> {t(profileKind.labelKey)}</span>}
           </div>
+          {kind === 'open-mic' && highlightedEvent && <article className="series-next-event">
+            <strong>{t(highlightedEvent.phase === 'running' ? 'browseHappeningNow' : 'browseNextEvent')}</strong>
+            <h2><Link to="/events/$eventId" params={{ eventId: highlightedEvent.id }}>{highlightedEvent.title}</Link></h2>
+            <p><time dateTime={highlightedEvent.starts_at}>
+              {new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short', timeZone: highlightedEvent.time_zone }).format(new Date(highlightedEvent.starts_at))}
+            </time> · {highlightedEvent.venue_name}, {highlightedEvent.city}</p>
+          </article>}
           <div className="detail-actions">
             {kind === 'open-mic' && ownsOpenMic && <>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/edit" params={{ seriesId: openMic.data?.id ?? '' }} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></Link>
@@ -153,25 +158,15 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
           )}
           {mediaUnavailableNotice && <p className="media-unavailable-toast" role="status">{t('mediaUnavailableNotice')}</p>}
           {kind === 'event' && event.data && (
-            <MediaGallery scope={{ kind: 'event', id: event.data.id }} initialOpenId={search.get('media')} />
+            <PublicDetailTabs key={event.data.id} scope={{ kind: 'event', id: event.data.id }} />
           )}
           {kind === 'open-mic' && openMic.data && (
-            <MediaGallery
-              scope={{ kind: 'open-mic', id: openMic.data.id }}
-              initialOpenId={search.get('media')}
-              featuredItems={featured.data?.items ?? []}
-              featuredStrip={(openLightbox) => (
-                <FeaturedStrip
-                  items={featured.data?.items ?? []}
-                  onOpen={openLightbox}
-                />
-              )}
-            />
+            <PublicDetailTabs key={openMic.data.id} scope={{ kind: 'open-mic', id: openMic.data.id }} />
           )}
           {showProfileGallery && profile.data && (
             <section aria-label={t('mediaGalleryHeading')}>
               <h2>{t('mediaProfileGalleryHeading')}</h2>
-              <MediaGallery scope={{ kind: 'profile', id: profile.data.id }} hideTypeFilter />
+              <PublicDetailTabs key={profile.data.id} scope={{ kind: 'profile', id: profile.data.id }} />
             </section>
           )}
         </>}

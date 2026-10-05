@@ -81,9 +81,10 @@ export const publicReadKeys = {
     [...publicReadKeys.all, 'open-mics', pageSize, near?.lat, near?.lng, near?.radiusKm] as const,
 }
 
-export function useUpcomingEvents(limit = 6, near?: { lat: number; lng: number; radiusKm?: number }) {
+export function useUpcomingEvents(limit = 6, near?: { lat: number; lng: number; radiusKm?: number }, enabled = true) {
   return useQuery({
     queryKey: publicReadKeys.upcomingEvents(limit, near),
+    enabled,
     queryFn: () => {
       const params = new URLSearchParams({ limit: String(limit) })
       if (near) {
@@ -95,9 +96,10 @@ export function useUpcomingEvents(limit = 6, near?: { lat: number; lng: number; 
   })
 }
 
-export function usePublicOpenMics(pageSize = 6, near?: { lat: number; lng: number; radiusKm?: number }) {
+export function usePublicOpenMics(pageSize = 6, near?: { lat: number; lng: number; radiusKm?: number }, enabled = true) {
   return useQuery({
     queryKey: publicReadKeys.openMics(pageSize, near),
+    enabled,
     queryFn: async () => {
       const params = new URLSearchParams({ page_size: String(pageSize) })
       if (near) {
@@ -123,6 +125,21 @@ export function usePublicOpenMic(id: string | undefined) {
     queryKey: [...publicReadKeys.all, 'open-mic', id],
     queryFn: () => api<OpenMic>(`/open-mics/${id}`),
     enabled: Boolean(id),
+  })
+}
+
+export type PublicEventsFilters = { period: 'upcoming' | 'past'; page: number; year?: number; month?: number }
+export type PublicEventsPage = { items: Event[]; pagination: { page: number; page_size: number; total: number }; available_years: number[] }
+
+export function usePublicSeriesEvents(id: string, filters: PublicEventsFilters) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'series-events', id, filters],
+    queryFn: () => {
+      const params = new URLSearchParams({ period: filters.period, page: String(filters.page), page_size: '10' })
+      if (filters.year !== undefined) params.set('year', String(filters.year))
+      if (filters.month !== undefined) params.set('month', String(filters.month))
+      return api<PublicEventsPage>(`/open-mics/${id}/public-events?${params}`)
+    },
   })
 }
 

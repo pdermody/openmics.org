@@ -296,13 +296,14 @@ export const mediaRoutes: FastifyPluginAsync<MediaPluginOptions> = async (app, {
   // -------------------------------------------------------------------------
 
   app.get<{ Params: { id: string } }>('/media/:id', { preHandler: app.authenticateOptional }, async (request, reply) => {
+    const query = parseListQuery(request.query);
     const media = await findMediaById(pool, request.params.id);
     if (!media) throw new MediaNotFoundError();
     const ownerAccountId = await findMediaOwnerAccountId(pool, media);
     const canManage = Boolean(
       request.account && (request.account.isPlatformAdmin || ownerAccountId === request.account.accountId),
     );
-    if (canManage) {
+    if (canManage && query.public_view !== 'true') {
       reply.send(serializeMedia(media));
       return;
     }
@@ -394,9 +395,10 @@ export const mediaRoutes: FastifyPluginAsync<MediaPluginOptions> = async (app, {
     const openMic = await findOpenMicById(pool, event.open_mic_id);
     if (!openMic || openMic.deleted_at) throw new NotFoundError('Event not found');
     const canManage = await canManageSeries(openMic.owner_profile_id, request.account);
-    const isPublic = openMic.status !== 'draft' && openMic.status !== 'ended' && event.status === 'published';
-    if (!canManage && !isPublic) throw new NotFoundError('Event not found');
-    sendListPage(reply, await listEventMedia(pool, event.id, { ...query, includePubliclyHidden: canManage }));
+    const isPublic = openMic.status === 'active' && event.status === 'published';
+    const managementView = canManage && query.public_view !== 'true';
+    if (!managementView && !isPublic) throw new NotFoundError('Event not found');
+    sendListPage(reply, await listEventMedia(pool, event.id, { ...query, includePubliclyHidden: managementView }));
   });
 
   app.get<{ Params: { id: string } }>('/open-mics/:id/media', { preHandler: app.authenticateOptional }, async (request, reply) => {
@@ -404,9 +406,11 @@ export const mediaRoutes: FastifyPluginAsync<MediaPluginOptions> = async (app, {
     const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic || openMic.deleted_at) throw new NotFoundError('Open mic not found');
     const canManage = await canManageSeries(openMic.owner_profile_id, request.account);
+    const managementView = canManage && query.public_view !== 'true';
+    if (!managementView && openMic.status !== 'active') throw new NotFoundError('Open mic not found');
     sendListPage(reply, await listOpenMicMedia(pool, openMic.id, {
       ...query,
-      includePubliclyHidden: canManage,
+      includePubliclyHidden: managementView,
       excludeFeaturedForOpenMicId: query.exclude_featured === 'true' ? openMic.id : undefined,
     }));
   });
@@ -477,10 +481,13 @@ export const mediaRoutes: FastifyPluginAsync<MediaPluginOptions> = async (app, {
   // -------------------------------------------------------------------------
 
   app.get<{ Params: { id: string } }>('/open-mics/:id/featured-media', { preHandler: app.authenticateOptional }, async (request, reply) => {
+    const query = parseListQuery(request.query);
     const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic || openMic.deleted_at) throw new NotFoundError('Open mic not found');
     const canManage = await canManageSeries(openMic.owner_profile_id, request.account);
-    const rows = await listFeaturedMedia(pool, openMic.id, canManage);
+    const managementView = canManage && query.public_view !== 'true';
+    if (!managementView && openMic.status !== 'active') throw new NotFoundError('Open mic not found');
+    const rows = await listFeaturedMedia(pool, openMic.id, managementView);
     reply.send({ items: rows.map(serializeMedia) });
   });
 

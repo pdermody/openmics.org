@@ -1,5 +1,5 @@
 import { createContext, Suspense, useContext, useEffect, useState, type ReactNode } from 'react'
-import { createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet, RouterProvider, useNavigate } from '@tanstack/react-router'
+import { createBrowserHistory, createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet, RouterProvider, useNavigate } from '@tanstack/react-router'
 import './App.css'
 import { HomePage } from './views/HomePage'
 import { ThemePage } from './views/ThemePage'
@@ -56,12 +56,25 @@ function RoutedView({ children, theme, mode }: { children: ReactNode; theme: The
 // Gallery query params shared by the event / series / profile detail routes: `media`
 // (deep-link anchor opened in the lightbox), `mediaUnavailable` (stale deep-link toast),
 // plus the type filter and sort which persist via URL + localStorage (design §11.1).
-function gallerySearchSchema(search: Record<string, unknown>): { media?: string; mediaUnavailable?: string; type?: string; sort?: string } {
+function gallerySearchSchema(search: Record<string, unknown>): {
+  media?: string; mediaUnavailable?: string; type?: string; sort?: string;
+  tab?: 'events' | 'photos' | 'videos'; period?: 'upcoming' | 'past'; page?: number; year?: number; month?: number;
+} {
+  const integer = (value: unknown, max: number) => {
+    const parsed = Number(value)
+    return Number.isInteger(parsed) && parsed > 0 && parsed <= max ? parsed : undefined
+  }
+  const year = integer(search.year, 9999)
   return {
     media: typeof search.media === 'string' ? search.media : undefined,
     mediaUnavailable: typeof search.mediaUnavailable === 'string' ? search.mediaUnavailable : undefined,
     type: typeof search.type === 'string' ? search.type : undefined,
     sort: typeof search.sort === 'string' ? search.sort : undefined,
+    tab: search.tab === 'events' || search.tab === 'photos' || search.tab === 'videos' ? search.tab : undefined,
+    period: search.period === 'past' || search.period === 'upcoming' ? search.period : undefined,
+    page: integer(search.page, 100000),
+    year,
+    month: year ? integer(search.month, 12) : undefined,
   }
 }
 
@@ -373,6 +386,7 @@ const vanityRegistrationRoute = createRoute({
 const vanityOpenMicRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/@{$handle}',
+  validateSearch: gallerySearchSchema,
   component: () => {
     const { theme, mode } = useThemeMode()
     const { handle } = vanityOpenMicRoute.useParams()
@@ -412,7 +426,12 @@ const routeTree = rootRoute.addChildren([
   vanityOpenMicRoute,
 ])
 
-export const router = createRouter({ routeTree, defaultPreload: 'intent' })
+const history = createBrowserHistory()
+const pageNavigation = typeof performance.getEntriesByType === 'function' ? performance.getEntriesByType('navigation')[0] : undefined
+if (typeof PerformanceNavigationTiming !== 'undefined' && pageNavigation instanceof PerformanceNavigationTiming && pageNavigation.type === 'reload') {
+  history.replace(history.location.href, { ...history.location.state, detailGallerySeed: undefined })
+}
+export const router = createRouter({ routeTree, history, defaultPreload: 'intent', scrollRestoration: true })
 
 // Registers this app's concrete route tree as the default for every `<Link>`/`useNavigate()`
 // call, so `to`/`params` are checked against real routes instead of falling back to `string`.

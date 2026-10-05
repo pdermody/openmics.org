@@ -2,7 +2,10 @@
 info:
   title: Open Mic API
   version: 1.0.0
-  description: Canonical API contract. All paths are relative to the /api base URL.
+  contact:
+    email: info@openmics.org
+  description:
+    Canonical API contract. All paths are relative to the /api base URL.
     The public media deep-link page (`/media/:mediaId`) is intentionally not part of
     this document — like the `/@:handle` vanity resolver it is served outside `/api`
     as server-rendered SPA HTML with Open Graph tags, not as a JSON operation.
@@ -28,6 +31,7 @@ paths:
         - Auth
       operationId: getOpenApiDocument
       summary: Get the canonical OpenAPI document
+      description: Returns the canonical OpenAPI 3.0 contract as JSON.
       responses:
         "200":
           description: OpenAPI document
@@ -40,6 +44,7 @@ paths:
       tags:
         - Auth
       operationId: getAuthProfile
+      description: Returns the authenticated caller's authentication profile.
       security:
         - bearerAuth: []
       responses:
@@ -52,6 +57,7 @@ paths:
       tags:
         - Accounts
       operationId: getMe
+      description: Returns the account associated with the authenticated caller.
       security:
         - bearerAuth: []
       responses:
@@ -62,6 +68,7 @@ paths:
       tags:
         - Accounts
       operationId: getMyPermissions
+      description: Returns the authenticated caller's permissions, optionally scoped to a profile.
       security:
         - bearerAuth: []
       parameters:
@@ -74,6 +81,7 @@ paths:
       tags:
         - Accounts
       operationId: updateAccount
+      description: Partially updates the account identified by `id`.
       security:
         - bearerAuth: []
       parameters:
@@ -92,6 +100,7 @@ paths:
       tags:
         - Accounts
       operationId: listAccountProfiles
+      description: Lists the profiles associated with the account identified by `id`.
       security:
         - bearerAuth: []
       parameters:
@@ -104,6 +113,7 @@ paths:
       tags:
         - Accounts
       operationId: setCurrentProfile
+      description: Sets the selected current profile for the account identified by `id`.
       security:
         - bearerAuth: []
       parameters:
@@ -118,6 +128,7 @@ paths:
       tags:
         - Registrations
       operationId: listClaimableRegistrations
+      description: Lists registrations the authenticated caller can claim for an account-owned profile.
       security:
         - bearerAuth: []
       responses:
@@ -148,6 +159,7 @@ paths:
       tags:
         - Profiles
       operationId: listProfiles
+      description: Returns a paginated list of profiles.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
@@ -177,6 +189,7 @@ paths:
       tags:
         - Profiles
       operationId: getProfile
+      description: Returns the profile identified by `id`, or 404 when it is unavailable.
       responses:
         "200":
           $ref: "#/components/responses/ProfileResponse"
@@ -200,6 +213,7 @@ paths:
       tags:
         - Profiles
       operationId: updateProfile
+      description: Partially updates the profile identified by `id`.
       security:
         - bearerAuth: []
       requestBody:
@@ -245,6 +259,7 @@ paths:
         - $ref: "#/components/parameters/MediaCursor"
         - $ref: "#/components/parameters/MediaLimit"
         - $ref: "#/components/parameters/MediaExcludeFeatured"
+        - $ref: "#/components/parameters/MediaPublicView"
       responses:
         "200":
           $ref: "#/components/responses/MediaListResponse"
@@ -277,10 +292,14 @@ paths:
       tags:
         - Media
       operationId: listFeaturedMedia
-      description: Lists this series' pinned featured media in the organizer's manual order. Empty when nothing is pinned or when the series is not publicly visible; pins to media that is no longer visible are dropped from the response.
+      description: Lists this series' pinned featured media in the organizer's manual order. Empty when nothing is pinned; publicly unavailable series return 404. Pins to media that is no longer visible are dropped from the public response.
+      parameters:
+        - $ref: "#/components/parameters/MediaPublicView"
       responses:
         "200":
           $ref: "#/components/responses/FeaturedMediaResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
       tags:
         - Media
@@ -304,6 +323,7 @@ paths:
       tags:
         - Handles
       operationId: checkHandleAvailability
+      description: Checks whether the candidate handle can be claimed.
       parameters:
         - $ref: "#/components/parameters/Candidate"
       responses:
@@ -317,7 +337,8 @@ paths:
         - Geocoding
       operationId: searchGeocode
       summary: Forward-geocode an address query into candidate coordinates
-      description: Server-side proxy over the configured geocoding provider (LocationIQ).
+      description:
+        Server-side proxy over the configured geocoding provider (LocationIQ).
         Used by the map location picker to move the map/marker as an organizer types an
         address. Requires authentication and is throttled server-side to stay within the
         provider's shared rate limit.
@@ -342,7 +363,8 @@ paths:
         - Geocoding
       operationId: reverseGeocode
       summary: Reverse-geocode coordinates into a candidate address
-      description: Server-side proxy over the configured geocoding provider (LocationIQ).
+      description:
+        Server-side proxy over the configured geocoding provider (LocationIQ).
         Used by the map location picker to optionally suggest address text after an
         organizer drags the map marker. Requires authentication and is throttled
         server-side to stay within the provider's shared rate limit.
@@ -367,6 +389,7 @@ paths:
       tags:
         - Open Mics
       operationId: listOpenMics
+      description: Returns a paginated list of open-mic series matching the supplied search, location, activity, rating, registration, and sort filters.
       parameters:
         - $ref: "#/components/parameters/Q"
         - $ref: "#/components/parameters/Country"
@@ -387,6 +410,7 @@ paths:
       tags:
         - Open Mics
       operationId: createOpenMic
+      description: Creates an open-mic series using the supplied details.
       security:
         - bearerAuth: []
       requestBody:
@@ -423,6 +447,7 @@ paths:
       tags:
         - Open Mics
       operationId: getOpenMic
+      description: Active series are publicly readable. Draft, paused and ended series are available only to their owning account or a platform admin; deleted series are unavailable. Paused series are also excluded from public discovery and media.
       responses:
         "200":
           $ref: "#/components/responses/OpenMicResponse"
@@ -432,6 +457,7 @@ paths:
       tags:
         - Open Mics
       operationId: deleteOpenMic
+      description: Deletes the open-mic series identified by `id`.
       security:
         - bearerAuth: []
       responses:
@@ -441,6 +467,7 @@ paths:
       tags:
         - Open Mics
       operationId: updateOpenMic
+      description: Partially updates the open-mic series identified by `id`.
       security:
         - bearerAuth: []
       requestBody:
@@ -455,6 +482,7 @@ paths:
       tags:
         - Events
       operationId: listOpenMicEvents
+      description: Lists events associated with the open-mic series identified by `id`.
       responses:
         "200":
           $ref: "#/components/responses/EventListResponse"
@@ -462,6 +490,7 @@ paths:
       tags:
         - Events
       operationId: createEvent
+      description: Creates an event for the open-mic series identified by `id`.
       security:
         - bearerAuth: []
       requestBody:
@@ -471,11 +500,84 @@ paths:
           $ref: "#/components/responses/EventResponse"
         "403":
           $ref: "#/components/responses/PlanLimitExceeded"
+  /open-mics/{id}/public-events:
+    get:
+      tags:
+        - Events
+      operationId: listPublicSeriesEvents
+      description: Public-only published events of an active series, including for owners. Upcoming includes running events first, then future events nearest first; past is newest first. Year/month match each event's venue-local start date. Stable id tie-breaks apply. Available years cover the selected period independent of year/month/page. The organizer events operation is unchanged.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, past]
+            default: upcoming
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+        - name: year
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9999
+        - name: month
+          in: query
+          description: Requires year.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        "200":
+          description: Paginated public events and available venue-local years.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pagination, available_years]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Event"
+                  pagination:
+                    type: object
+                    required: [page, page_size, total]
+                    properties:
+                      page:
+                        type: integer
+                      page_size:
+                        type: integer
+                      total:
+                        type: integer
+                  available_years:
+                    type: array
+                    items:
+                      type: integer
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /open-mics/{id}/next-event:
     get:
       tags:
         - Events
       operationId: getNextEvent
+      description: Returns the next event for the open-mic series identified by `id`, or 404 when none is available.
       parameters:
         - $ref: "#/components/parameters/Id"
       responses:
@@ -491,6 +593,7 @@ paths:
         - Open Mics
       operationId: getKioskBackupPinStatus
       summary: Whether this series has a kiosk backup PIN configured
+      description: Reports whether the open-mic series has a kiosk backup PIN configured without revealing the PIN.
       security:
         - bearerAuth: []
       responses:
@@ -501,6 +604,7 @@ paths:
         - Open Mics
       operationId: setKioskBackupPin
       summary: Set (or replace) this series' kiosk backup PIN
+      description: Sets or replaces the kiosk backup PIN for the open-mic series.
       security:
         - bearerAuth: []
       requestBody:
@@ -533,6 +637,7 @@ paths:
       tags:
         - Open Mics
       operationId: verifyKioskBackupPin
+      description: Checks whether the submitted PIN matches the configured kiosk backup PIN.
       summary: Check an entered PIN against this series' configured kiosk backup PIN
       security:
         - bearerAuth: []
@@ -548,6 +653,7 @@ paths:
       tags:
         - Events
       operationId: listUpcomingEvents
+      description: Lists upcoming events, optionally filtered by location and start-time bounds.
       parameters:
         - $ref: "#/components/parameters/Near"
         - $ref: "#/components/parameters/Radius"
@@ -580,6 +686,7 @@ paths:
       tags:
         - Events
       operationId: updateEvent
+      description: Partially updates the event identified by `id`.
       security:
         - bearerAuth: []
       requestBody:
@@ -593,6 +700,7 @@ paths:
       tags:
         - Events
       operationId: deleteEvent
+      description: Deletes the event identified by `id`.
       security:
         - bearerAuth: []
       responses:
@@ -624,6 +732,7 @@ paths:
       tags:
         - Registrations
       operationId: listEventRegistrations
+      description: Lists registrations for the event identified by `id`.
       security:
         - bearerAuth: []
       responses:
@@ -633,6 +742,7 @@ paths:
       tags:
         - Registrations
       operationId: createRegistration
+      description: Submits a registration for the event identified by `id`.
       requestBody:
         $ref: "#/components/requestBodies/RegistrationCreate"
       responses:
@@ -724,6 +834,7 @@ paths:
         - $ref: "#/components/parameters/MediaAnchor"
         - $ref: "#/components/parameters/MediaCursor"
         - $ref: "#/components/parameters/MediaLimit"
+        - $ref: "#/components/parameters/MediaPublicView"
       responses:
         "200":
           $ref: "#/components/responses/MediaListResponse"
@@ -752,6 +863,7 @@ paths:
       tags:
         - Registrations
       operationId: resolveRegistrationEditLink
+      description: Resolves a registration edit link using its token and returns the associated registration.
       parameters:
         - name: token
           in: query
@@ -763,7 +875,8 @@ paths:
           description: Registration and short-lived edit session established
           headers:
             Set-Cookie:
-              description: Secure, HttpOnly, SameSite=Lax edit-session cookie; raw token is
+              description:
+                Secure, HttpOnly, SameSite=Lax edit-session cookie; raw token is
                 not retained.
               schema:
                 type: string
@@ -788,6 +901,7 @@ paths:
       tags:
         - Registrations
       operationId: getRegistration
+      description: Returns the registration identified by `id` to an authorized caller.
       security:
         - bearerAuth: []
         - editSession: []
@@ -798,6 +912,7 @@ paths:
       tags:
         - Registrations
       operationId: updateRegistration
+      description: Partially updates the registration identified by `id`.
       security:
         - bearerAuth: []
         - editSession: []
@@ -822,6 +937,7 @@ paths:
       tags:
         - Registrations
       operationId: rotateRegistrationEditToken
+      description: Rotates the edit token for the registration identified by `id`.
       security:
         - bearerAuth: []
       parameters:
@@ -834,6 +950,7 @@ paths:
       tags:
         - Registrations
       operationId: verifyRegistrationEmail
+      description: Verifies the email address associated with the registration using the submitted verification code.
       parameters:
         - $ref: "#/components/parameters/Id"
       requestBody:
@@ -848,6 +965,7 @@ paths:
       tags:
         - Registrations
       operationId: claimRegistration
+      description: Claims the registration for an account-owned profile.
       security:
         - bearerAuth: []
       parameters:
@@ -864,6 +982,7 @@ paths:
       tags:
         - Performances
       operationId: listRegistrationPerformances
+      description: Lists performances associated with the registration identified by `id`.
       parameters:
         - $ref: "#/components/parameters/Id"
       responses:
@@ -874,6 +993,7 @@ paths:
       tags:
         - Performances
       operationId: createPerformance
+      description: Creates a performance record for a registration.
       security:
         - bearerAuth: []
       requestBody:
@@ -888,6 +1008,7 @@ paths:
       tags:
         - Performances
       operationId: updatePerformance
+      description: Replaces the performance details for the performance identified by `id`.
       security:
         - bearerAuth: []
       requestBody:
@@ -899,6 +1020,7 @@ paths:
       tags:
         - Performances
       operationId: deletePerformance
+      description: Deletes the performance identified by `id`.
       security:
         - bearerAuth: []
       responses:
@@ -948,6 +1070,8 @@ paths:
         - Media
       operationId: getMedia
       description: Public read. Hidden media (soft-deleted, consent-revoked, or on a non-public event/series) returns 404 `MEDIA_HIDDEN`; unknown ids return 404 `MEDIA_NOT_FOUND`. The owning organizer (or a platform admin) still receives the row, including soft-deleted rows inside their recovery window.
+      parameters:
+        - $ref: "#/components/parameters/MediaPublicView"
       responses:
         "200":
           $ref: "#/components/responses/MediaResponse"
@@ -1028,6 +1152,7 @@ paths:
       tags:
         - Admin
       operationId: listReservedHandles
+      description: Returns a paginated list of reserved handles, optionally filtered by tag.
       security:
         - bearerAuth: []
       parameters:
@@ -1040,6 +1165,7 @@ paths:
       tags:
         - Admin
       operationId: reserveHandle
+      description: Reserves a handle so it cannot be claimed through normal profile creation or handle changes.
       security:
         - bearerAuth: []
       requestBody:
@@ -1054,6 +1180,7 @@ paths:
       tags:
         - Admin
       operationId: releaseReservedHandle
+      description: Releases the reservation for the specified handle.
       security:
         - bearerAuth: []
       parameters:
@@ -1224,7 +1351,8 @@ components:
     MediaSort:
       name: sort
       in: query
-      description: "`newest` (default) orders by creation time; `shuffle` is a stable
+      description:
+        "`newest` (default) orders by creation time; `shuffle` is a stable
         random order for the supplied `seed`; `most_liked` is accepted for forward
         compatibility and currently behaves like `newest` until reactions ship."
       schema:
@@ -1243,21 +1371,24 @@ components:
     MediaAnchor:
       name: anchor
       in: query
-      description: Media id to center the page on (deep-link support). Returns a window
+      description:
+        Media id to center the page on (deep-link support). Returns a window
         around the anchor with both `prev_cursor` and `next_cursor` populated.
       schema:
         $ref: "#/components/schemas/Id"
     MediaCursor:
       name: cursor
       in: query
-      description: Opaque keyset cursor from a previous response's `next_cursor` or
+      description:
+        Opaque keyset cursor from a previous response's `next_cursor` or
         `prev_cursor`.
       schema:
         type: string
     MediaExcludeFeatured:
       name: exclude_featured
       in: query
-      description: When `true`, media pinned to the series' Featured strip are excluded
+      description:
+        When `true`, media pinned to the series' Featured strip are excluded
         from the page (series galleries render them once, in the strip above the grid).
         Only meaningful on `GET /open-mics/{id}/media`.
       schema:
@@ -1265,6 +1396,13 @@ components:
         enum:
           - "true"
           - "false"
+    MediaPublicView:
+      name: public_view
+      in: query
+      description: When true, enforce public visibility even for owners/admins. Management defaults remain unchanged. Paused series and their media are not publicly visible.
+      schema:
+        type: string
+        enum: ["true", "false"]
     MediaLimit:
       name: limit
       in: query
@@ -1611,7 +1749,8 @@ components:
           schema:
             $ref: "#/components/schemas/KioskRegistrationToken"
     KioskTokenInvalid:
-      description: "`error.code` is `KIOSK_TOKEN_INVALID` when the supplied kiosk_token
+      description:
+        "`error.code` is `KIOSK_TOKEN_INVALID` when the supplied kiosk_token
         is expired, malformed, or issued for a different event."
       content:
         application/json:
@@ -1630,7 +1769,8 @@ components:
           schema:
             $ref: "#/components/schemas/HandleConflictError"
     ProfileDeleteConflict:
-      description: The profile cannot be deleted. `error.code` is `CURRENT_PROFILE`
+      description:
+        The profile cannot be deleted. `error.code` is `CURRENT_PROFILE`
         when it is the account's currently selected profile, or `LAST_PROFILE`
         when it is the account's only remaining profile.
       content:
@@ -1638,14 +1778,16 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     CapacityError:
-      description: Capacity exceeded. Never returned for kiosk sign-ups (`organizer_supervised`
+      description:
+        Capacity exceeded. Never returned for kiosk sign-ups (`organizer_supervised`
         or a valid `kiosk_token`), which are exempt from capacity but still count toward it.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     ClaimConflict:
-      description: Registration was already claimed by another account before this
+      description:
+        Registration was already claimed by another account before this
         request completed.
       content:
         application/json:
@@ -1658,7 +1800,8 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     GeocodingRateLimited:
-      description: The geocoding provider (or the server-side proxy's shared rate
+      description:
+        The geocoding provider (or the server-side proxy's shared rate
         limit) rejected the request; back off and retry later, or continue without
         geocoding assist.
       content:
@@ -1672,7 +1815,8 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     MediaBadRequest:
-      description: "`error.code` is `MEDIA_UPLOAD_INVALID` (MIME type or size outside
+      description:
+        "`error.code` is `MEDIA_UPLOAD_INVALID` (MIME type or size outside
         the plan rules), `MEDIA_SOURCE_POLICY` (video host not allowlisted, or the
         object key is not a valid pending upload in the platform media bucket), or
         `MEDIA_FEATURED_INVALID` (featured list references unknown, hidden,
@@ -1682,7 +1826,8 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     MediaNotFound:
-      description: "`error.code` is `MEDIA_NOT_FOUND` when no such media exists, or
+      description:
+        "`error.code` is `MEDIA_NOT_FOUND` when no such media exists, or
         `MEDIA_HIDDEN` when it exists but is hidden from the caller (soft-deleted,
         consent-revoked, or its event/series is not publicly visible)."
       content:
@@ -1690,7 +1835,8 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     MediaConflict:
-      description: "`error.code` is `MEDIA_QUOTA_EXCEEDED` (with `error.details.scope`
+      description:
+        "`error.code` is `MEDIA_QUOTA_EXCEEDED` (with `error.details.scope`
         = `event` or `account`) when a plan media quota is hit, or
         `MEDIA_CONSENT_REVOKED` when the target registration's media consent is revoked."
       content:
@@ -1698,14 +1844,16 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     MediaGone:
-      description: "`error.code` is `MEDIA_RECOVERY_EXPIRED` once the 30-day recovery
+      description:
+        "`error.code` is `MEDIA_RECOVERY_EXPIRED` once the 30-day recovery
         window has elapsed."
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
     PlanLimitExceeded:
-      description: "`error.code` is `PLAN_LIMIT_EXCEEDED` with `error.details.scope` =
+      description:
+        "`error.code` is `PLAN_LIMIT_EXCEEDED` with `error.details.scope` =
         `series` (max series per organizer reached), `event` (max events per series
         reached), or `event_capacity` (capacity above the plan maximum, or unlimited
         capacity, which the default plan rejects)."
@@ -1788,7 +1936,8 @@ components:
               type: string
             details:
               nullable: true
-              description: Machine-readable extras specific to `code` — validation field
+              description:
+                Machine-readable extras specific to `code` — validation field
                 errors for VALIDATION_ERROR, or a `scope` discriminator for
                 PLAN_LIMIT_EXCEEDED / MEDIA_QUOTA_EXCEEDED.
     HandleConflictError:
@@ -1902,7 +2051,8 @@ components:
           $ref: "#/components/schemas/ProfileVisibility"
         show_gig_media:
           type: boolean
-          description: Defaults to true. Controls only the derived media gallery on this
+          description:
+            Defaults to true. Controls only the derived media gallery on this
             profile's public page; event and series galleries are unaffected.
         links:
           type: array
@@ -2188,7 +2338,8 @@ components:
         bio:
           type: string
           nullable: true
-          description: Optional short bio the performer gave at sign-up, separate from any
+          description:
+            Optional short bio the performer gave at sign-up, separate from any
             profile bio (adopting a profile does not overwrite this).
         submission_channel:
           $ref: "#/components/schemas/RegistrationChannel"
@@ -2207,7 +2358,8 @@ components:
           description: Set whenever media_consent changes. Revocation blocks new attribution and starts reason-coded soft deletion of linked media. Restoring consent within 30 days automatically restores media deleted solely for that revocation.
         reminders_opt_in:
           type: boolean
-          description: Performer opted in to being reminded about upcoming events in this
+          description:
+            Performer opted in to being reminded about upcoming events in this
             open mic series. Never used for marketing and never shared with anyone
             else.
         email_verified_at:
@@ -2240,7 +2392,8 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-          description: Profile explicitly adopted by the claiming account as the public
+          description:
+            Profile explicitly adopted by the claiming account as the public
             attribution for this registration. Distinct from profile_id (set
             only for authenticated self-serve registrations) and never set
             without claimed_by_account_id.
@@ -2356,7 +2509,8 @@ components:
         source_url:
           type: string
           format: uri
-          description: For media_type=photo, an object URL in the platform's own S3 media
+          description:
+            For media_type=photo, an object URL in the platform's own S3 media
             bucket (via the upload-url flow). For media_type=video, a link on an
             allowlisted host (youtube.com, youtu.be, or vimeo.com). Enforced
             server-side; arbitrary hosts are rejected.
@@ -2373,12 +2527,14 @@ components:
           type: string
           format: uri
           nullable: true
-          description: Photos leave this null (renditions cover display); videos carry
+          description:
+            Photos leave this null (renditions cover display); videos carry
             the provider-CDN thumbnail derived from video_platform + platform_video_id.
         width:
           type: integer
           nullable: true
-          description: Intrinsic pixel width of the original photo. Null until the
+          description:
+            Intrinsic pixel width of the original photo. Null until the
             renditions pipeline reports back; always null for videos.
         height:
           type: integer
@@ -2401,13 +2557,15 @@ components:
           description: Canonical video ID on `video_platform`.
         alt_text:
           type: string
-          description: Always present. The substituted caption when one resolves,
+          description:
+            Always present. The substituted caption when one resolves,
             otherwise a server-derived fallback (e.g. `Photo from {event_name}`). Used
             as photo alt text and in social unfurl output.
         attribution:
           type: object
           nullable: true
-          description: Performer attribution display values. Null for free-standing
+          description:
+            Performer attribution display values. Null for free-standing
             media. When the linked registration currently adopts a live performer
             profile, the display name/handle come from that profile; otherwise the
             publish-time registration snapshot is shown.
@@ -2424,7 +2582,8 @@ components:
             profile_handle:
               type: string
               nullable: true
-              description: Set when attribution resolves to a live adopted profile; the
+              description:
+                Set when attribution resolves to a live adopted profile; the
                 performer name links to `/@handle`.
         caption_context:
           type: object
@@ -2656,7 +2815,8 @@ components:
     MediaRenditions:
       type: object
       nullable: true
-      description: Named photo renditions (`thumb` 400px, `grid` 800px, `lightbox`
+      description:
+        Named photo renditions (`thumb` 400px, `grid` 800px, `lightbox`
         2048px short side — all webp — plus `original`). Null until the renditions
         pipeline has processed the upload, and always null for videos; clients fall
         back to `source_url` / `thumbnail_url`.
@@ -2784,8 +2944,8 @@ components:
           $ref: "#/components/schemas/ProfileVisibility"
         show_gig_media:
           type: boolean
-          description: "Profile-page gallery toggle (\"Show my gig photos on my
-            profile\"). Does not affect event or series galleries."
+          description: 'Profile-page gallery toggle ("Show my gig photos on my
+            profile"). Does not affect event or series galleries.'
         theme_name:
           type: string
           nullable: true
@@ -2879,7 +3039,13 @@ components:
           type: string
     NextEventResolution:
       type: object
-      required: [current_event, current_registration_open, next_event, next_registration_event]
+      required:
+        [
+          current_event,
+          current_registration_open,
+          next_event,
+          next_registration_event,
+        ]
       properties:
         current_event:
           allOf:
@@ -2992,13 +3158,15 @@ components:
         capacity:
           type: integer
           minimum: 1
-          description: Plan-capped. The default plan rejects values above 50 — and
+          description:
+            Plan-capped. The default plan rejects values above 50 — and
             rejects unlimited capacity (capacity omitted) — with PLAN_LIMIT_EXCEEDED
             (scope `event_capacity`). Kiosk sign-ups remain exempt from the configured
             capacity while still counting toward it.
         venue_name:
           type: string
-          description: Part of the location snapshot. If provided, all location fields
+          description:
+            Part of the location snapshot. If provided, all location fields
             (venue_name, address_line1, city, country, lat, lng) must be
             provided together. If omitted, event inherits location from parent
             open mic.
@@ -3058,12 +3226,14 @@ components:
         capacity:
           type: integer
           minimum: 1
-          description: Plan-capped. The default plan rejects values above 50 — and
+          description:
+            Plan-capped. The default plan rejects values above 50 — and
             rejects clearing capacity to unlimited — with PLAN_LIMIT_EXCEEDED (scope
             `event_capacity`).
         venue_name:
           type: string
-          description: Part of the location snapshot. If provided, all location fields
+          description:
+            Part of the location snapshot. If provided, all location fields
             (venue_name, address_line1, city, country, lat, lng) must be
             provided together. If omitted, event inherits location from parent
             open mic.
@@ -3112,7 +3282,8 @@ components:
         profile_id:
           allOf:
             - $ref: "#/components/schemas/Id"
-          description: Required for authenticated self-serve registrations; must reference
+          description:
+            Required for authenticated self-serve registrations; must reference
             a separate account-owned profile with profile_kind=performer.
         performer_name:
           type: string
@@ -3182,7 +3353,8 @@ components:
             attribution for this registration.
         sync_public_fields:
           type: boolean
-          description: If true and adopted_profile_id is set, update performer_name and
+          description:
+            If true and adopted_profile_id is set, update performer_name and
             performer_city from the adopted profile for public event
             attribution.
         note:
@@ -3298,7 +3470,8 @@ components:
             - photo
         object_key:
           type: string
-          description: Server-generated object key returned by POST /media/upload-url (a
+          description:
+            Server-generated object key returned by POST /media/upload-url (a
             `tmp/{accountId}/{uuid}.{ext}` key). The server validates the object, moves
             it to its canonical `original/{mediaId}.{ext}` location, and composes
             `source_url` from the plan-bound media bucket. Client-supplied source URLs
@@ -3340,7 +3513,8 @@ components:
           $ref: "#/components/schemas/Id"
     MediaUpdateRequest:
       type: object
-      description: Partial update. `media_type` and the media source are immutable and
+      description:
+        Partial update. `media_type` and the media source are immutable and
         are not accepted here.
       properties:
         caption:
@@ -3364,7 +3538,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Id"
-          description: Ordered replacement list. Every id must reference visible media
+          description:
+            Ordered replacement list. Every id must reference visible media
             scoped to this series or one of its events; hidden, soft-deleted, or
             consent-revoked media is rejected with `MEDIA_FEATURED_INVALID`.
     UploadUrlRequest:

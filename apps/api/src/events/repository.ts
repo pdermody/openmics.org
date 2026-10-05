@@ -123,6 +123,43 @@ export async function findEventsByOpenMicId(client: Queryable, openMicId: string
   return result.rows;
 }
 
+export async function findPublicSeriesEvents(
+  client: Queryable,
+  openMicId: string,
+  query: { period: 'upcoming' | 'past'; page: number; page_size: number; year?: number; month?: number },
+  now: Date,
+): Promise<{ rows: EventRow[]; total: number; availableYears: number[] }> {
+  const params: unknown[] = [openMicId, now];
+  const phase = `CASE WHEN starts_at > $2 THEN 'future'
+    WHEN ends_at > $2 THEN 'running' ELSE 'past' END`;
+  const conditions = [
+    'open_mic_id = $1', 'deleted_at IS NULL', "status = 'published'",
+    query.period === 'past' ? `(${phase}) = 'past'` : `(${phase}) <> 'past'`,
+  ];
+  const baseWhere = conditions.join(' AND ');
+  const years = await client.query<{ year: number }>(
+    `SELECT DISTINCT EXTRACT(YEAR FROM starts_at AT TIME ZONE time_zone)::int AS year
+     FROM events WHERE ${baseWhere} ORDER BY year DESC`, params,
+  );
+  if (query.year !== undefined) {
+    params.push(query.year);
+    conditions.push(`EXTRACT(YEAR FROM starts_at AT TIME ZONE time_zone) = $${params.length}`);
+  }
+  if (query.month !== undefined) {
+    params.push(query.month);
+    conditions.push(`EXTRACT(MONTH FROM starts_at AT TIME ZONE time_zone) = $${params.length}`);
+  }
+  const where = conditions.join(' AND ');
+  const count = await client.query<{ total: string }>(`SELECT count(*)::text AS total FROM events WHERE ${where}`, params);
+  const order = query.period === 'past' ? 'starts_at DESC, id DESC'
+    : `CASE WHEN (${phase}) = 'running' THEN 0 ELSE 1 END, starts_at ASC, id ASC`;
+  params.push(query.page_size, (query.page - 1) * query.page_size);
+  const rows = await client.query<EventRow>(
+    `SELECT * FROM events WHERE ${where} ORDER BY ${order} LIMIT $${params.length - 1} OFFSET $${params.length}`, params,
+  );
+  return { rows: rows.rows, total: Number(count.rows[0].total), availableYears: years.rows.map((row) => row.year) };
+}
+
 export async function findUpcomingEvents(
   client: Queryable,
   options: { from?: string; to?: string; limit: number; geo?: { lat: number; lng: number; radiusKm: number } },
@@ -273,7 +310,7 @@ export async function updateEvent(pool: Queryable, id: string, changes: Partial<
   return result.rows[0] ?? null;
 }
 
-export function serializeEvent(row: EventRow): Record<string, unknown> {
+export function serializeEvent(row: EventRow, now = new Date()): Record<string, unknown> {
   return {
     id: row.id,
     public_code: row.public_code,
@@ -283,7 +320,7 @@ export function serializeEvent(row: EventRow): Record<string, unknown> {
     ends_at: row.ends_at,
     time_zone: row.time_zone,
     status: row.status,
-    phase: eventPhase(row),
+    phase: eventPhase(row, now),
     registrations_closed_at: row.registrations_closed_at,
     venue_name: row.venue_name,
     address_line1: row.address_line1,

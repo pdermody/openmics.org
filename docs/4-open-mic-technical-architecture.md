@@ -22,6 +22,6 @@ This document is an index. Detailed content lives in the linked files so each co
 | Handle lifecycle | [6-open-mic-vanity-urls.md](6-open-mic-vanity-urls.md) | Vanity URL and handle policy |
 | Map/location-picker research | [research/open-mic-map-location-picker.md](research/open-mic-map-location-picker.md) | Options considered for the venue map/geocoding picker; background for the decisions recorded in [decisions.md](decisions.md#forms-and-location-picker) |
 
-Current infrastructure, deployment, and workflow guidance lives in [FEATURE-PLAN.md](../FEATURE-PLAN.md), [decisions.md](decisions.md), [AGENTS.md](../AGENTS.md), and the [infra/](../infra/) CDK sources. The prior EC2-oriented overview/infrastructure/development pages have been removed.
+Current infrastructure, deployment, and workflow guidance lives in [FEATURE-PLAN.md](FEATURE-PLAN.md), [decisions.md](decisions.md), [AGENTS.md](../AGENTS.md), and the [infra/](../infra/) CDK sources. The prior EC2-oriented overview/infrastructure/development pages have been removed.
 
 Use [decisions.md](decisions.md) first for any settled cross-document policy; only open the detailed files above when the specific implementation detail is needed.

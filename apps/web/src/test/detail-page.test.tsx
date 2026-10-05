@@ -47,6 +47,7 @@ function registerHandlers(currentEvent = event) {
     http.get('/api/me', () => HttpResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Not signed in' } }, { status: 401 })),
     http.get('/api/events/LIVE1', () => HttpResponse.json(currentEvent)),
     http.get('/api/open-mics/open-mic-1', () => HttpResponse.json(openMic)),
+    http.get('/api/events/event-1/media', () => HttpResponse.json({ items: [], prev_cursor: null, next_cursor: null })),
   )
 }
 

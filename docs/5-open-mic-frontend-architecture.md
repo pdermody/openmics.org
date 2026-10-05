@@ -8,6 +8,10 @@
 
 ## 1) Summary
 
+### Public detail browsing
+
+Series pages use Events / Photos / Videos tabs (Events default); event and performer galleries use Photos / Videos (Photos default). Shareable tab/event-filter/page state lives in router search; history retains scroll/focus and shuffle state. Existing media deep links select the matching media tab. Series-only featured viewers leave the active tab unchanged. Events fetch a separate public-only paginated operation with 10-item Previous/Next, Upcoming/Past, and venue-local Year/Month filters. Media retains cursor loading and Newest/Shuffle; no public All control.
+
 A **React 18 + TypeScript + Vite** single-page application, hosted as static assets on S3, fed by the Fastify API described in [API Design](architecture/api-design.md). The frontend is designed around four fixed priorities:
 
 1. **Instant navigations** after the first paint (client-side routing + prefetch on hover).

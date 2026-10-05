@@ -1,9 +1,11 @@
 # Phase 1 Contract-Gap Matrix
 
 **Status:** Active working document  
-**Authority:** [FEATURE-PLAN.md](../FEATURE-PLAN.md) for sequencing; [docs/decisions.md](decisions.md) for settled behavior; [openapi.yaml](../openapi.yaml) for the executable API contract.
+**Authority:** [FEATURE-PLAN.md](FEATURE-PLAN.md) for sequencing; [docs/decisions.md](decisions.md) for settled behavior; [openapi.yaml](../openapi.yaml) for the executable API contract.
 
 This matrix records the remaining contract and coverage gaps for the selected Phase 1 workflows. A workflow is not complete until its API, authorization, visibility, failure states, fixtures, and applicable automated tests are aligned.
+
+Public series browsing now has a separate published-only paginated API, venue-local Year/Month filtering, and Events/Photos/Videos tabs. Event and performer galleries have Photos/Videos tabs. Focused API, database and frontend tests cover pagination, draft exclusion, featured navigation and paused-parent visibility; organizer list behavior is retained.
 
 | Workflow | Canonical route(s) and API | Auth / ownership | Visibility / key states | Fixture and coverage status | Next contract gap |
 |---|---|---|---|---|---|

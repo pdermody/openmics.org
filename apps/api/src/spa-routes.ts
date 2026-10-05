@@ -96,6 +96,7 @@ export function mediaOgTags(media: MediaListRow, appBaseUrl: string): OgTags {
 
 /** Fallback OG for hidden/stale deep-links: the surrounding event or series (no image — no cover columns exist). */
 export function fallbackOgTags(media: MediaListRow, appBaseUrl: string): OgTags {
+  if (media.series_deleted_at || media.series_status !== 'active') return { title: SITE_NAME, url: appBaseUrl };
   if (media.event_id && media.event_name) {
     const url = media.series_handle
       ? `${appBaseUrl}/@${media.series_handle}/events/${media.event_id}`

@@ -8,8 +8,8 @@ import { flattenMediaPages, useFeaturedMedia, useMediaList, useRecentlyDeletedMe
 import { useOrganizerProfile } from '../features/organizer'
 import { usePublicOpenMic } from '../features/publicReads'
 import { resolveCaption } from '../features/media-captions'
-import { captionValuesOf, MediaGallery, tileImageSource } from '../components/media/MediaGallery'
-import { FeaturedStrip } from '../components/media/FeaturedStrip'
+import { captionValuesOf, tileImageSource } from '../components/media/MediaGallery'
+import { PublicDetailTabs } from '../components/PublicDetailTabs'
 import { CaptionEditor } from '../components/media/CaptionEditor'
 import { Lightbox } from '../components/media/Lightbox'
 import { MediaManageGrid, sortManageItems, type ManageSort } from '../components/media/MediaManageGrid'
@@ -117,16 +117,7 @@ export function SeriesMediaManagePage({ seriesId, theme, mode }: { seriesId: str
             recovering={recoverMedia.isPending}
           />
         ) : previewMode ? (
-          <MediaGallery
-            scope={{ kind: 'open-mic', id: seriesId }}
-            featuredItems={featured.data?.items ?? []}
-            featuredStrip={(openLightbox) => (
-              <FeaturedStrip
-                items={featured.data?.items ?? []}
-                onOpen={openLightbox}
-              />
-            )}
-          />
+          <PublicDetailTabs scope={{ kind: 'open-mic', id: seriesId }} />
         ) : (
           <>
             <MediaUploader openMicId={openMic.data.id} />

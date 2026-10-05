@@ -138,11 +138,14 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 
 - Shows series name, description, venue, schedule, activities, upcoming events, registration links, canonical handle, and organizer-owned content.
 - Provides the durable next-event registration link.
+- Events is the default tab, alongside Photos and Videos. Events includes Upcoming/Past, venue-local Year/Month filters, and 10-item Previous/Next pagination. Running events lead Upcoming with a "Happening now" label. Media uses separate tabs with series-only featured strips and no All option.
+- Paused series and their events/media are unavailable publicly; organizer management access remains available.
 
 #### Event page
 
 - Shows title, date/time, venue, registration state, capacity information where appropriate, permitted roster entries, and organizer-owned photos and video links.
 - Separates organizer controls from public content.
+- Public media uses Photos/Videos tabs, with explicit empty states and no featured strip. Performer-profile galleries use the same tabs subject to their visibility/opt-out rules.
 - Does not expose pending registrations or organizer-hidden attendee details.
 
 #### Registration page

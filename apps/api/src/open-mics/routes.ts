@@ -108,9 +108,15 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     });
   });
 
-  app.get<{ Params: { id: string } }>('/open-mics/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/open-mics/:id', { preHandler: app.authenticateOptional }, async (request, reply) => {
     const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
     if (!openMic) throw new NotFoundError('Open mic not found');
+    if (openMic.status !== 'active') {
+      const owner = request.account ? await findProfileById(pool, openMic.owner_profile_id) : null;
+      if (!request.account || (!request.account.isPlatformAdmin && owner?.created_by_account_id !== request.account.accountId)) {
+        throw new NotFoundError('Open mic not found');
+      }
+    }
     reply.send(serializeOpenMic(openMic));
   });
 

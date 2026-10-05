@@ -142,7 +142,7 @@ export async function findPublicOpenMics(
   options: { limit: number; offset: number; q?: string; country?: string; city?: string; activity?: string; tag?: string; registrationMode?: string; ownerProfileId?: string; geo?: { lat: number; lng: number; radiusKm: number } },
 ): Promise<{ rows: OpenMicRow[]; total: number }> {
   const values: unknown[] = [];
-  const conditions = ["deleted_at IS NULL", "status NOT IN ('draft', 'ended')"];
+  const conditions = ["deleted_at IS NULL", "status = 'active'"];
   if (options.q) {
     values.push(`%${options.q}%`);
     conditions.push(`(name ILIKE $${values.length} OR description ILIKE $${values.length})`);

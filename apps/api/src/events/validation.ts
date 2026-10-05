@@ -1,5 +1,15 @@
 import { z } from 'zod';
 
+export const publicEventsQuerySchema = z.object({
+  period: z.enum(['upcoming', 'past']).default('upcoming'),
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  page_size: z.coerce.number().int().min(1).max(50).default(10),
+  year: z.coerce.number().int().min(1).max(9999).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+}).strict().refine((query) => query.month === undefined || query.year !== undefined, {
+  message: 'Month requires year', path: ['month'],
+});
+
 const activitySchema = z.enum(['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other']);
 const registrationChannelSchema = z.enum(['pre_only', 'on_night_only', 'both', 'external']);
 

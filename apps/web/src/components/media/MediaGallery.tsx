@@ -70,31 +70,43 @@ export type MediaGalleryProps = {
   /** Optional organizer toolbar rendered inside the lightbox for owned media. */
   renderLightboxOrganizerActions?: (item: MediaItem, close: () => void) => React.ReactNode
   canManageItem?: (item: MediaItem) => boolean
+  fixedType?: 'photo' | 'video'
+  publicView?: boolean
+  controlledSort?: MediaSort
+  onSortChange?: (sort: MediaSort) => void
+  onCloseAnchor?: () => void
+  initialShuffleSeed?: number
+  onShuffleSeedChange?: (seed: number) => void
 }
 
-export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, featuredStrip, featuredItems, renderLightboxOrganizerActions, canManageItem }: MediaGalleryProps) {
+export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, featuredStrip, featuredItems, renderLightboxOrganizerActions, canManageItem, fixedType, publicView = false, controlledSort, onSortChange, onCloseAnchor, initialShuffleSeed, onShuffleSeedChange }: MediaGalleryProps) {
   const { t } = useTranslation()
   // URL query wins on mount and is written back to localStorage; localStorage seeds the
   // default otherwise (design §11.1). Mount-time read via window.location (not the
   // router's useSearch) so the gallery works outside a matched route as well.
   const [search] = useState(() => new URLSearchParams(window.location.search))
-  const [typeFilter, setTypeFilter] = useState<MediaTypeFilter>(() => {
+  const [storedTypeFilter, setTypeFilter] = useState<MediaTypeFilter>(() => {
     const fromUrl = search.get('type')
     if (fromUrl === 'photo' || fromUrl === 'video' || fromUrl === 'all') return fromUrl
     return readStored(TYPE_STORAGE_KEY, ['all', 'photo', 'video'] as const, 'all')
   })
-  const [sort, setSort] = useState<MediaSort>(() => {
+  const typeFilter = fixedType ?? storedTypeFilter
+  const [storedSort, setSort] = useState<MediaSort>(() => {
     const fromUrl = search.get('sort')
     if (fromUrl === 'shuffle' || fromUrl === 'newest') return fromUrl
     return readStored(SORT_STORAGE_KEY, ['newest', 'shuffle'] as const, 'newest')
   })
+  const sort = controlledSort ?? storedSort
   // The shuffle seed lives in memory + history.state — never in the URL (§11.1).
-  const [shuffleSeed, setShuffleSeed] = useState<number>(() => {
+  const [localShuffleSeed, setShuffleSeed] = useState<number>(() => {
+    if (initialShuffleSeed !== undefined) return initialShuffleSeed
     const state = window.history.state as { mediaShuffleSeed?: number } | null
     return typeof state?.mediaShuffleSeed === 'number' ? state.mediaShuffleSeed : Math.floor(Math.random() * 2 ** 31)
   })
+  const shuffleSeed = initialShuffleSeed ?? localShuffleSeed
 
   useEffect(() => {
+    if (fixedType) return
     localStorage.setItem(TYPE_STORAGE_KEY, typeFilter)
     if (search.get('type') !== typeFilter) {
       const url = new URL(window.location.href)
@@ -102,9 +114,10 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
       else url.searchParams.set('type', typeFilter)
       window.history.replaceState(window.history.state, '', url.toString())
     }
-  }, [typeFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [typeFilter, fixedType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (controlledSort !== undefined) return
     localStorage.setItem(SORT_STORAGE_KEY, sort)
     if (search.get('sort') !== sort) {
       const url = new URL(window.location.href)
@@ -112,16 +125,20 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
       else url.searchParams.set('sort', sort)
       window.history.replaceState({ ...(window.history.state ?? {}), mediaShuffleSeed: shuffleSeed }, '', url.toString())
     }
-  }, [sort, shuffleSeed]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sort, shuffleSeed, controlledSort]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep the loaded deep-link window when closing its viewer.
+  const [queryAnchor, setQueryAnchor] = useState(initialOpenId)
+  if (initialOpenId && queryAnchor !== initialOpenId) setQueryAnchor(initialOpenId)
   const query = useMediaList(scope, {
     type: typeFilter,
     sort,
     seed: sort === 'shuffle' ? shuffleSeed : undefined,
-    anchor: initialOpenId ?? undefined,
+    anchor: featuredItems?.some((item) => item.id === queryAnchor) ? undefined : queryAnchor ?? undefined,
     // Featured pins render in the strip, not the masonry — but only while the strip is
     // visible ('all' filter); filtering rejoins them so Photos shows every photo (§11.4).
-    excludeFeatured: typeFilter === 'all' && featuredItems !== undefined,
+    excludeFeatured: (Boolean(fixedType) || typeFilter === 'all') && featuredItems !== undefined,
+    publicView,
   })
   const items = useMemo(() => flattenMediaPages(query.data), [query.data])
 
@@ -135,7 +152,11 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
   }, [featuredItems, items])
 
   // Reshuffle on refresh is a feature; a fresh page load generates a new seed in useState.
-  const reShuffle = () => setShuffleSeed(Math.floor(Math.random() * 2 ** 31))
+  const reShuffle = () => {
+    const seed = Math.floor(Math.random() * 2 ** 31)
+    setShuffleSeed(seed)
+    onShuffleSeedChange?.(seed)
+  }
 
   // ------------------------------------------------------------------
   // Balanced masonry layout (shared engine; public tiles are image-only height)
@@ -152,11 +173,11 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
   // ------------------------------------------------------------------
   // Hybrid infinite scroll: two auto-pages, then explicit Load more (§11.3)
   // ------------------------------------------------------------------
-  const autoPagesFetched = useRef(0)
+  const autoPagesFetched = useRef(Math.max(0, (query.data?.pages.length ?? 1) - 1))
   const sentinelRef = useRef<HTMLDivElement>(null)
   const hasNext = Boolean(query.hasNextPage)
   useEffect(() => {
-    autoPagesFetched.current = 0
+    autoPagesFetched.current = Math.max(0, (query.data?.pages.length ?? 1) - 1)
   }, [typeFilter, sort, shuffleSeed, scope.kind, scope.id])
   useEffect(() => {
     const sentinel = sentinelRef.current
@@ -176,6 +197,7 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
   // ------------------------------------------------------------------
   const [openId, setOpenId] = useState<string | null>(null)
   const tileRefs = useRef(new Map<string, HTMLButtonElement>())
+  const focusOrigin = useRef<HTMLElement | null>(null)
   const openItem = navItems.find((item) => item.id === openId) ?? null
 
   // Deep-link: open the lightbox once the anchor window has loaded. Checks the combined
@@ -186,16 +208,22 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
     }
   }, [initialOpenId, query.isPending, navItems])
 
-  const openLightbox = useCallback((mediaId: string) => setOpenId(mediaId), [])
+  const openLightbox = useCallback((mediaId: string) => {
+    focusOrigin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setOpenId(mediaId)
+  }, [])
 
-  const closeLightbox = useCallback(() => {
+  const closeLightbox = () => {
     setOpenId(null)
-    const origin = openId ? tileRefs.current.get(openId) : undefined
-    if (origin) {
-      origin.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      origin.focus({ preventScroll: true })
-    }
-  }, [openId])
+    onCloseAnchor?.()
+    const origin = focusOrigin.current ?? (openId ? tileRefs.current.get(openId) : undefined)
+    requestAnimationFrame(() => {
+      if (origin?.isConnected) {
+        origin.scrollIntoView({ block: 'nearest' })
+        origin.focus({ preventScroll: true })
+      }
+    })
+  }
 
   // Prefetch the next page as the lightbox approaches the loaded edge (±1 page rule).
   const openIndex = openItem ? navItems.indexOf(openItem) : -1
@@ -221,12 +249,12 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
   // ------------------------------------------------------------------
 
   // Empty public view: the whole section is hidden (§5.5).
-  if (!query.isPending && !query.isError && items.length === 0 && !featuredStrip) return null
+  if (!fixedType && !query.isPending && !query.isError && items.length === 0 && !featuredStrip) return null
 
   return (
     <section className="media-gallery" aria-label={t('mediaGalleryHeading')}>
       <div className="media-gallery-controls">
-        {!hideTypeFilter && (
+        {!hideTypeFilter && !fixedType && (
           <div className="media-filter-chips" role="group" aria-label={t('mediaTypeFilter')}>
             {(['all', 'photo', 'video'] as const).map((value) => (
               <button
@@ -246,7 +274,11 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
           <select
             id={`media-sort-${scope.kind}-${scope.id}`}
             value={sort}
-            onChange={(event) => setSort(event.target.value as MediaSort)}
+            onChange={(event) => {
+              const value = event.target.value === 'shuffle' ? 'shuffle' : 'newest'
+              if (onSortChange) onSortChange(value)
+              else setSort(value)
+            }}
           >
             <option value="newest">{t('mediaSortNewest')}</option>
             <option value="shuffle">{t('mediaSortShuffle')}</option>
@@ -259,6 +291,9 @@ export function MediaGallery({ scope, initialOpenId, hideTypeFilter = false, fea
       </div>
 
       {featuredStrip && typeFilter === 'all' ? featuredStrip(openLightbox) : null}
+      {fixedType && !query.isPending && !query.isError && items.length === 0 && !featuredItems?.length && (
+        <p className="field-hint">{t(fixedType === 'photo' ? 'browseNoPhotos' : 'browseNoVideos')}</p>
+      )}
 
       {query.isPending && (
         <div className="media-masonry" ref={setContainerRef} aria-busy="true">

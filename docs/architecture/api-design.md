@@ -68,6 +68,10 @@ Quotas themselves are a post-MVP concept — see [data-model.md → Post-MVP app
 
 **Directory search & map endpoints:**
 
+**Public series event browsing:** `GET /open-mics/{id}/public-events` is a separate, public-only operation; the organizer array operation is unchanged. `period=upcoming|past`, `page` and `page_size` (default 10), optional `year` and `month` (requires year) filter published events of an active series. Running events lead Upcoming; future events are nearest first, Past newest first, with stable ID tie-breaks. Year/month match venue-local start dates. The response contains `items`, `pagination` (`page`, `page_size`, `total`) and `available_years` for the entire chosen period.
+
+**Public media views:** shared media item/list/featured operations accept `public_view=true` to enforce public visibility even for owners. Management defaults retain staging access. Paused parents are hidden from every public gallery, including derived performer media, individual media JSON and OG. Public tabs are Photos/Videos; `type=all` remains an internal API capability, not a public tab.
+
 `GET /open-mics` — the directory query, used by the public directory home and any "browse open mics" surface. All params are optional and combine freely:
 
 - `q` — full-text against `name`, `description`, `venue_name`, `city`, `schedule_summary`. Uses Postgres's `simple` tsvector config for now (language-agnostic; localization is deferred).
@@ -80,7 +84,7 @@ Quotas themselves are a post-MVP concept — see [data-model.md → Post-MVP app
 - `sort=nearest|rating|recent|updated|popular` — default is `nearest` when `near=…` is set, otherwise `recent`. `recent` sorts by `created_at DESC` (newest listings first — used by the home page "Notable open-mics" section). `updated` sorts by `updated_at DESC` (a signal of active organizer management). `popular` sorts by `rating_avg` weighted by `log(rating_count + 1)` so a 5-star listing with one review doesn't outrank a 4.6-star listing with fifty.
 - `page`, `page_size` — page/limit for MVP; cursor pagination if the list grows.
 
-Always excludes `status IN ('draft','ended')` and `deleted_at IS NOT NULL`. `paused` rows are returned with an `on_break: true` flag so cards can show "On break" without dropping the entry from search results. Response items are a summary shape (`{ id, handle, name, city, country, rating_avg, rating_count, activities, tags, schedule_summary, registration_mode, entry_fee_amount, entry_fee_currency, entry_fee_note, primary_photo_url, distance_km? }`) — deliberately smaller than `GET /open-mics/:id` so the list renders fast.
+Public discovery excludes draft, paused, ended and deleted series. Paused series and their events/media are unavailable publicly; organizer management access is unchanged. Response items are a summary shape (`{ id, handle, name, city, country, rating_avg, rating_count, activities, tags, schedule_summary, registration_mode, entry_fee_amount, entry_fee_currency, entry_fee_note, primary_photo_url, distance_km? }`) — deliberately smaller than `GET /open-mics/:id` so the list renders fast.
 
 `GET /me/open-mics` — the authenticated organizer-dashboard listing (owner_profile_id required, must belong to the caller's account). Unlike `GET /open-mics`, this endpoint does **not** filter by status: it returns every non-deleted series owned by the profile, including `draft` and `ended`, so an organizer can see and manage a series they just created before it's published. Follows the `GET /me/permissions` / `GET /me/registrations` pattern of account-scoped endpoints rather than adding undocumented owner filters to the public directory query.
 

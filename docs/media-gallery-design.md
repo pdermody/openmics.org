@@ -25,7 +25,7 @@ Give organizers a way to publish photos and videos of their open-mic series and 
 
 Four surfaces present or produce media:
 
-1. **Event page — public gallery.** Media associated with this event, ordered by the user's chosen sort. Section is hidden entirely if there is no visible media.
+1. **Event page — public gallery.** Media associated with this event, ordered by the user's chosen sort inside Photos/Videos tabs. Both tabs remain visible with explicit empty states; no event featured strip.
 2. **Open-mic (series) page — public gallery.** Union of all media from every publicly-visible event in the series, ordered by the user's chosen sort. Preceded by an organizer-curated **Featured** strip.
 3. **Performer profile page — public gallery.** Media that has been attributed to this profile via registration claim + adoption. Rendered as a "Gallery" section below existing profile content. Owner-toggleable.
 4. **Organizer manage view.** Not public. Where uploads, edits, attribution changes, Featured pinning, soft-delete, and recovery live. Includes a "Preview as public visitor" toggle that renders the gallery without organizer chrome.
@@ -64,9 +64,9 @@ Free-standing media exists only on events and series. Profile galleries are deri
 - **Masonry** columns with aspect-preserving tiles. No forced square crop.
 - Column count is **driven by a minimum tile width of ~220–260px**, not by fixed breakpoints. Ultrawide displays get more columns automatically; phones collapse to a single column; tablets land in between and always interact touch-first.
 - **Order fidelity.** The visual order of tiles always matches the active sort order and the DOM order, reading left-to-right row by row. Keyboard focus and screen readers traverse tiles in the same order the sort control implies. (This rules out pure CSS multi-column masonry, which fills column-major.)
-- Photos and videos are **mixed inline** in the same masonry. Videos carry a play-badge overlay.
-- Above the grid: a **type filter chip** with three states — **All / Photos / Videos** — defaulting to **All** — and a **sort control** (§7).
-- On the series page, a **Featured strip** renders above the grid whenever the organizer has pinned items and no filter/sort divergence has cleared the page. The Featured strip always renders in the organizer's manual order regardless of the sort selection.
+- Photos and videos use the same masonry layout in separate type-specific tabs. Videos carry a play-badge overlay.
+- Public galleries use **Photos / Videos** tabs, defaulting to Photos on event and performer pages. Series uses **Events / Photos / Videos**, defaulting to Events. There is no All media tab. Sorting remains within each media collection.
+- Featured media is series-only: Events shows a mixed showcase above the tabs; Photos/Videos show matching featured items first in organizer order, without grid duplication, regardless of sort. Featured viewers do not switch tabs and navigate only that featured selection.
 - Extreme aspect ratios are capped in the grid to keep columns balanced: portraits render at up to ~9:16 with letterboxing above/below; panoramas render at up to ~16:9 with center-crop. The lightbox always shows the true aspect ratio.
 - Video thumbnails are rendered at a fixed 16:9 assumption in the grid.
 
@@ -92,7 +92,7 @@ The tile itself is the only click target — no per-tile action icons. Actions l
 
 ### 5.5 Empty, loading, error states
 
-- **Empty (public view).** The entire gallery section is hidden. No "Gallery" heading over a blank state.
+- **Empty (public view).** Both Photos/Videos tabs remain visible, with an explicit empty message for the selected collection. Profile privacy and gallery opt-out still hide the gallery.
 - **Empty (organizer manage view).** Empty-state illustration with a call-to-action to upload or add a video.
 - **Loading.** Skeleton grid renders immediately (no center spinner) with shimmer animation. Shimmer respects `prefers-reduced-motion` and drops to static gray tiles when reduced.
 - **Whole-gallery load failure.** Friendly panel with translated copy and a Retry button. Rest of the page is unaffected.
@@ -108,7 +108,7 @@ Opens when a tile is clicked (or a deep-link is followed).
 - Media area fits the viewport with padding. Portraits fit height, panoramas fit width, videos are capped at ~1600px wide even on wider viewports so controls stay reachable.
 - The caption and attribution render below the media. Long captions cap at ~4 lines with a "Show more" toggle. Alt text is uncapped.
 - Toolbar at top: Close, Share, Download (photos only), and a small **Reactions** and **Comments** icon set that matches the **existing disabled-state pattern used on the open-mic and event pages**. No counters are shown next to the disabled icons.
-- Prev / Next arrows on the sides for keyboard/pointer, and left/right swipe on touch. Navigation moves between photos and videos indistinguishably.
+- Prev / Next arrows on the sides for keyboard/pointer, and left/right swipe on touch. Navigation follows the selected collection: mixed media in the series Events featured showcase, matching media only in Photos/Videos.
 - On mobile browsers the lightbox contains overscroll (`overscroll-behavior: contain`) so swipe navigation never triggers pull-to-refresh or browser history gestures.
 
 ### 6.2 Zoom
@@ -266,7 +266,7 @@ Reserved conversion-lever fields (shape only in Phase 1; enforced when the under
 
 Phase 1 ships a **single hard-coded `DEFAULT_PLAN`** object in the API and applies it to every organizer. There is no `Plans` table and no `Accounts.plan_id` column — adding a second plan is a config change plus (then and only then) a migration. The explicit anti-pattern this guards against is standing up full tier infrastructure for a hypothetical paid tier that may never ship as spec'd.
 
-**The numeric values and the exact Plan shape** are not resolved here. They are recorded in [`docs/decisions.md`](docs/decisions.md) under "Organizer `DEFAULT_PLAN` values (Phase 1, config-only)". This spec defines only the behaviour the Plan drives.
+**The numeric values and the exact Plan shape** are not resolved here. They are recorded in [`docs/decisions.md`](decisions.md) under "Organizer `DEFAULT_PLAN` values (Phase 1, config-only)". This spec defines only the behaviour the Plan drives.
 
 **History.** An earlier revision of this spec scoped the Plan "narrowly to media quotas" and declared non-media gating out of scope. That boundary was deliberately relaxed in `docs/decisions.md` on 2026-10-02 so a single Plan surface covers every tier-differentiating lever, including scale caps and conversion-reserve flags. Follow decisions.md as the current authority.
 
@@ -281,7 +281,7 @@ Media inherits the visibility of its scope; that visibility is enforced by the A
 | Event: soft-deleted (within 30-day recovery) | No | — |
 | Event: hard-deleted | Gone permanently | — |
 | Series: active | Yes | Yes (if pinned items exist) |
-| Series: paused | Yes | Yes (if pinned items exist) |
+| Series: paused | No (including its events and derived profile media) | No |
 | Series: soft-deleted | No | No |
 | Series: hard-deleted | Gone permanently | Gone |
 | Profile: public + owner toggle on | Yes | — |
@@ -311,7 +311,7 @@ Revocation removes access through the application but does not invalidate an alr
 
 Both kiosk flows — organizer-kiosk and kiosk-QR self-registration — ask the performer the media consent question explicitly on their own form, with the toggle **pre-checked to TRUE**. One consistent, auditable pattern across both surfaces.
 
-**History.** An earlier revision of this spec split the two: organizer-kiosk defaulted `true` without asking (trusting the organizer to have asked in person), and kiosk-QR asked without an implicit default. That split was reconciled on 2026-10-02 to a single ask-and-default-true pattern recorded in [`docs/decisions.md`](docs/decisions.md) under "Media consent at kiosk." Follow decisions.md as the current authority.
+**History.** An earlier revision of this spec split the two: organizer-kiosk defaulted `true` without asking (trusting the organizer to have asked in person), and kiosk-QR asked without an implicit default. That split was reconciled on 2026-10-02 to a single ask-and-default-true pattern recorded in [`docs/decisions.md`](decisions.md) under "Media consent at kiosk." Follow decisions.md as the current authority.
 
 ### 10.3 Profile-owner display toggle
 
@@ -339,7 +339,7 @@ The **shuffle seed** lives in memory and in `history.state` — **not in the URL
 
 ### 11.2 Filter
 
-- **Media type chip**: **All / Photos / Videos** — always visible on all gallery surfaces except the profile page (which omits the chip to avoid chrome on typically-sparse profile galleries).
+- **Media tabs**: Photos / Videos on event and performer-profile galleries; Events / Photos / Videos on series. Both media tabs remain visible when empty.
 - No other visible filter picker in Phase 1 (no "by event" or "by performer" picker).
 - Deep-link filter query params (`?event=…`, `?performer=…`) are **reserved** for future use so cross-page links won't break URL shapes later.
 
@@ -356,7 +356,7 @@ The **shuffle seed** lives in memory and in `history.state` — **not in the URL
 ### 11.4 Featured strip and filters
 
 - The Featured strip renders in the organizer's manual order regardless of the sort control.
-- When **any filter is active** (e.g. Photos-only), the Featured strip **hides** because it is a curated welcome element, not a filter target. It reappears when filters clear.
+- Events shows a mixed featured showcase above the tabs. Photos/Videos show only matching featured items inside their tab and exclude those pins from the grid.
 
 ## 12. Sharing and deep-linking
 
@@ -371,6 +371,7 @@ Opening a deep-link:
 - Loads the media and its owning event or series context.
 - Opens the lightbox on the specified item.
 - If the media is hidden by consent revocation, soft-deleted, or hard-deleted, the route shows the surrounding event or series page with a translatable toast reading "That photo isn't available anymore," and the lightbox does not open. A server-side metric logs the miss.
+- If its parent series is paused or otherwise unavailable publicly, the media and private parent context are not exposed; the route shows an unavailable state instead.
 
 ### 12.2 Share action
 
@@ -395,7 +396,7 @@ When a shared deep-link is pasted into Slack, WhatsApp, iMessage, Facebook, X/Tw
 - The deep-link route serves the SPA's `index.html` **with the OG tags stamped into the `<head>` server-side**. This behaviour extends the existing `apps/api/src/spa-routes.ts` pattern; adding one more route pattern is the entirety of the new server-side surface.
 - Response `Cache-Control: public, s-maxage=3600, max-age=0` — the CDN caches the rendered HTML at the edge for **60 minutes**; browsers revalidate on each hit.
 - **CDN invalidation on privacy mutations only.** Caption edits and ordinary organizer deletes may take up to 60 minutes to reflect in social unfurl previews. Consent revocation invalidates the canonical media page's cached HTML immediately so media-specific OG tags are no longer served. The raw photo object remains available to anyone who already knows its CDN URL until normal hard deletion.
-- **Stale deep-links at scrape time.** If the media is missing or hidden when the scraper hits, the injector **falls back to the surrounding event's OG tags** (event name and event URL only; `og:image` is omitted because no event cover column exists in Phase 1) and returns a valid `200` HTML page. The scraper never sees a 404.
+- **Stale deep-links at scrape time.** If the media is missing or hidden when the scraper hits, the injector **falls back to the surrounding event's OG tags** only when that parent is publicly visible (event name and event URL only; `og:image` is omitted because no event cover column exists in Phase 1). Paused or otherwise non-public parents use generic site tags without their names or media. The response remains a valid `200` HTML page; the scraper never sees a 404.
 
 ## 13. Delivery baseline
 
@@ -417,7 +418,7 @@ When a shared deep-link is pasted into Slack, WhatsApp, iMessage, Facebook, X/Tw
 ## 14. Responsive behaviour
 
 - Column count scales from 1 (mobile) through 4–6 (typical desktop) up to whatever a min-column-width of 220–260px permits (ultrawide). Tablets fall naturally between phone and desktop counts; every interaction on them is touch-first and never depends on hover.
-- Featured strip on the series page is a horizontally scrollable rail on mobile and a two-row grid on desktop.
+- Featured strips are labelled "Featured photos and videos" and use compact horizontally scrollable rails with previous/next controls overlaid on the left/right edges of the carousel on mobile and desktop; no automatic rotation.
 - Lightbox occupies the whole viewport on mobile with a slim close button and tap-to-hide toolbar. On desktop it centers with a backdrop.
 - Organizer manage views are fully usable on touch devices: upload via the file picker (with camera capture on phones/tablets), Featured reorder via touch-drag, bulk actions via the explicit selection mode (§8.4).
 - All actions are reachable with keyboard only (§6.6) and screen readers announce the active item, its caption, and its position in the gallery.
@@ -426,9 +427,9 @@ When a shared deep-link is pasted into Slack, WhatsApp, iMessage, Facebook, X/Tw
 
 Resolved on 2026-10-01 and 2026-10-02 before implementation:
 
-1. **Kiosk defaults for `media_consent`** (§10.2) — recorded in [`docs/decisions.md`](docs/decisions.md) under "Media consent at kiosk".
-2. **Plan shape and numeric values** (§8.5) — recorded in [`docs/decisions.md`](docs/decisions.md) under "Organizer `DEFAULT_PLAN` values (Phase 1, config-only)", covering media MIME allowlist, per-file size cap, per-event photo and video count caps, global per-account byte backstop, presigned URL expiry, scale caps (series/events/capacity), and reserved conversion-lever fields.
-3. **Media delivery subdomain, S3 object layout, and CloudFront topology** — recorded in [`docs/decisions.md`](docs/decisions.md) under "Media delivery".
+1. **Kiosk defaults for `media_consent`** (§10.2) — recorded in [`docs/decisions.md`](decisions.md) under "Media consent at kiosk".
+2. **Plan shape and numeric values** (§8.5) — recorded in [`docs/decisions.md`](decisions.md) under "Organizer `DEFAULT_PLAN` values (Phase 1, config-only)", covering media MIME allowlist, per-file size cap, per-event photo and video count caps, global per-account byte backstop, presigned URL expiry, scale caps (series/events/capacity), and reserved conversion-lever fields.
+3. **Media delivery subdomain, S3 object layout, and CloudFront topology** — recorded in [`docs/decisions.md`](decisions.md) under "Media delivery".
 
 Implementation sequencing lives in [`media-gallery-plan.md`](media-gallery-plan.md).
 

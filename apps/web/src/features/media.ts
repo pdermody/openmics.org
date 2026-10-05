@@ -68,19 +68,20 @@ function scopePath(scope: MediaScope): string {
 
 export const mediaKeys = {
   all: ['media'] as const,
-  list: (scope: MediaScope, type: MediaTypeFilter, sort: MediaSort, seed?: number, excludeFeatured?: boolean) =>
-    [...mediaKeys.all, 'list', scope.kind, scope.id, type, sort, seed, excludeFeatured] as const,
-  item: (id: string | undefined) => [...mediaKeys.all, 'item', id] as const,
-  featured: (openMicId: string | undefined) => [...mediaKeys.all, 'featured', openMicId] as const,
+  list: (scope: MediaScope, type: MediaTypeFilter, sort: MediaSort, seed?: number, excludeFeatured?: boolean, publicView = false) =>
+    [...mediaKeys.all, 'list', scope.kind, scope.id, type, sort, seed, excludeFeatured, publicView] as const,
+  item: (id: string | undefined, publicView?: boolean) => [...mediaKeys.all, 'item', id, ...(publicView === undefined ? [] : [publicView])] as const,
+  featured: (openMicId: string | undefined, publicView?: boolean) => [...mediaKeys.all, 'featured', openMicId, ...(publicView === undefined ? [] : [publicView])] as const,
   recentlyDeleted: () => [...mediaKeys.all, 'recently-deleted'] as const,
 }
 
-export function useMediaList(scope: MediaScope, options: { type: MediaTypeFilter; sort: MediaSort; seed?: number; anchor?: string; enabled?: boolean; excludeFeatured?: boolean }) {
-  const { type, sort, seed, anchor, enabled = true, excludeFeatured = false } = options
+export function useMediaList(scope: MediaScope, options: { type: MediaTypeFilter; sort: MediaSort; seed?: number; anchor?: string; enabled?: boolean; excludeFeatured?: boolean; publicView?: boolean }) {
+  const { type, sort, seed, anchor, enabled = true, excludeFeatured = false, publicView = false } = options
   return useInfiniteQuery({
-    queryKey: mediaKeys.list(scope, type, sort, seed, excludeFeatured),
+    queryKey: [...mediaKeys.list(scope, type, sort, seed, excludeFeatured, publicView), anchor],
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ type, sort, limit: '24' })
+      if (publicView) params.set('public_view', 'true')
       if (sort === 'shuffle' && seed !== undefined) params.set('seed', String(seed))
       // Series galleries keep Featured pins out of the masonry (strip above the grid).
       if (excludeFeatured && scope.kind === 'open-mic') params.set('exclude_featured', 'true')
@@ -95,19 +96,19 @@ export function useMediaList(scope: MediaScope, options: { type: MediaTypeFilter
   })
 }
 
-export function useMediaItem(mediaId: string | undefined) {
+export function useMediaItem(mediaId: string | undefined, publicView = false) {
   return useQuery({
-    queryKey: mediaKeys.item(mediaId),
-    queryFn: () => api<MediaItem>(`/media/${mediaId}`),
+    queryKey: mediaKeys.item(mediaId, publicView),
+    queryFn: () => api<MediaItem>(`/media/${mediaId}${publicView ? '?public_view=true' : ''}`),
     enabled: Boolean(mediaId),
     retry: false,
   })
 }
 
-export function useFeaturedMedia(openMicId: string | undefined) {
+export function useFeaturedMedia(openMicId: string | undefined, publicView = false) {
   return useQuery({
-    queryKey: mediaKeys.featured(openMicId),
-    queryFn: () => api<{ items: MediaItem[] }>(`/open-mics/${openMicId}/featured-media`),
+    queryKey: mediaKeys.featured(openMicId, publicView),
+    queryFn: () => api<{ items: MediaItem[] }>(`/open-mics/${openMicId}/featured-media${publicView ? '?public_view=true' : ''}`),
     enabled: Boolean(openMicId),
   })
 }

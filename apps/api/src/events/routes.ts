@@ -11,6 +11,7 @@ import {
   findEventByIdOrPublicCode,
   findEventByIdOrPublicCodeIncludingDeleted,
   findEventsByOpenMicId,
+  findPublicSeriesEvents,
   findNextEventByOpenMicId,
   findNextRegistrableEventByOpenMicId,
   findRunningEventByOpenMicId,
@@ -22,7 +23,7 @@ import {
   updateEvent,
 } from './repository.js';
 import { notifyRoster, rosterChannelName, signKioskRegistrationToken, signStreamToken, verifyKioskRegistrationToken, verifyStreamToken } from './roster-stream.js';
-import { createEventSchema, updateEventSchema } from './validation.js';
+import { createEventSchema, publicEventsQuerySchema, updateEventSchema } from './validation.js';
 
 export type EventsPluginOptions = { pool: Pool; streamTokenSecret: string };
 
@@ -100,7 +101,21 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     }
 
     const events = await findEventsByOpenMicId(pool, openMic.id);
-    reply.send((canManage ? events : events.filter((event) => event.status === 'published')).map(serializeEvent));
+    reply.send((canManage ? events : events.filter((event) => event.status === 'published')).map((row) => serializeEvent(row)));
+  });
+
+  app.get<{ Params: { id: string } }>('/open-mics/:id/public-events', async (request, reply) => {
+    const parsed = publicEventsQuerySchema.safeParse(request.query);
+    if (!parsed.success) throw new ValidationError('Invalid public events query', parsed.error.flatten());
+    const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
+    if (!openMic || openMic.status !== 'active') throw new NotFoundError('Open mic not found');
+    const now = new Date();
+    const result = await findPublicSeriesEvents(pool, openMic.id, parsed.data, now);
+    reply.send({
+      items: result.rows.map((row) => serializeEvent(row, now)),
+      pagination: { page: parsed.data.page, page_size: parsed.data.page_size, total: result.total },
+      available_years: result.availableYears,
+    });
   });
 
   app.get<{ Params: { id: string } }>('/open-mics/:id/next-event', { preHandler: app.authenticateOptional }, async (request, reply) => {
@@ -139,7 +154,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
         limit,
         geo,
       });
-      reply.send(events.map(serializeEvent));
+      reply.send(events.map((row) => serializeEvent(row)));
     },
   );
 

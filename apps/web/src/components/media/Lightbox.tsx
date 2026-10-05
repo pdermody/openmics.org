@@ -44,6 +44,7 @@ export type LightboxProps = {
   hasPrev: boolean
   hasNext: boolean
   organizerActions?: React.ReactNode
+  browseActions?: React.ReactNode
 }
 
 export function Lightbox(props: LightboxProps) {
@@ -53,7 +54,7 @@ export function Lightbox(props: LightboxProps) {
   return <LightboxContent key={props.item.id} {...props} />
 }
 
-function LightboxContent({ item, position, onClose, onNavigate, hasPrev, hasNext, organizerActions }: LightboxProps) {
+function LightboxContent({ item, position, onClose, onNavigate, hasPrev, hasNext, organizerActions, browseActions }: LightboxProps) {
   const { t } = useTranslation()
   const [zoom, setZoom] = useState(1)
   const [showFullCaption, setShowFullCaption] = useState(false)
@@ -143,7 +144,6 @@ function LightboxContent({ item, position, onClose, onNavigate, hasPrev, hasNext
         <Dialog.Content
           className="media-lightbox"
           aria-label={item.alt_text}
-          onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <Dialog.Title className="visually-hidden">{item.alt_text}</Dialog.Title>
           <div className="media-lightbox-toolbar">
@@ -241,6 +241,7 @@ function LightboxContent({ item, position, onClose, onNavigate, hasPrev, hasNext
               </p>
             )}
             {organizerActions && <div className="media-lightbox-organizer">{organizerActions}</div>}
+            {browseActions && <div className="media-lightbox-browse">{browseActions}</div>}
             {shareMessage && <p className="media-toast" role="status">{shareMessage}</p>}
           </div>
         </Dialog.Content>

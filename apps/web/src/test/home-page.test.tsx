@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { userEvent } from '@testing-library/user-event'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { HomePage } from '../views/HomePage'
 import { renderWithProviders } from './render'
@@ -96,6 +96,39 @@ describe('HomePage', () => {
     expect(await screen.findByText('Rooms near you')).toBeInTheDocument()
     expect(screen.getByText('Open mic series near you')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /use my location/i })).not.toBeInTheDocument()
+  })
+
+  it('waits for the saved city and browser permission before loading discovery results', async () => {
+    mockGeolocationPermission('denied')
+    window.localStorage.setItem('openmic-simulated-auth-token', 'organizer-token')
+    const eventRequests: string[] = []
+    const seriesRequests: string[] = []
+    server.use(
+      http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
+      http.get('/api/me', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return HttpResponse.json({ ...signedInAccount, city: 'Cork' })
+      }),
+      http.get('/api/accounts/account-1/profiles', () => HttpResponse.json({ items: [] })),
+      http.get('/api/events/upcoming', ({ request }) => {
+        eventRequests.push(request.url)
+        return HttpResponse.json([])
+      }),
+      http.get('/api/open-mics', ({ request }) => {
+        seriesRequests.push(request.url)
+        return HttpResponse.json({ items: [], pagination: { page: 1, page_size: 6, total: 0 } })
+      }),
+    )
+
+    renderWithProviders(<HomePage theme="venue" mode="light" />)
+
+    expect(await screen.findByText('No open mic series found near Cork yet.')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(eventRequests).toHaveLength(1)
+      expect(seriesRequests).toHaveLength(1)
+    })
+    expect(new URL(eventRequests[0]).searchParams.get('near')).toBe('51.8985,-8.4756')
+    expect(new URL(seriesRequests[0]).searchParams.get('near')).toBe('51.8985,-8.4756')
   })
 
   it('shows an opt-in button when permission has not been decided, and uses the granted location once clicked', async () => {

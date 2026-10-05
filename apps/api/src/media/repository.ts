@@ -110,7 +110,7 @@ const MEDIA_FROM = `
 export function isMediaPubliclyVisible(row: MediaListRow): boolean {
   if (row.deleted_at) return false;
   if (row.series_deleted_at) return false;
-  if (row.series_status !== 'active' && row.series_status !== 'paused') return false;
+  if (row.series_status !== 'active') return false;
   if (row.event_id !== null && (row.event_deleted_at || row.event_status !== 'published')) return false;
   return true;
 }
@@ -353,13 +353,13 @@ function effectiveSort(sort: MediaSortMode): 'newest' | 'shuffle' {
 
 /**
  * Public visibility: media not soft-deleted; event media requires a published,
- * non-deleted event in a non-deleted active/paused series; series free-standing media
- * requires a non-deleted active/paused series. (Directory parity: draft/ended series
+ * non-deleted event in a non-deleted active series; series free-standing media
+ * requires a non-deleted active series. (Directory parity: draft/paused/ended series
  * are not public surfaces.)
  */
 const PUBLIC_VISIBILITY = `
   m.deleted_at IS NULL
-  AND om.deleted_at IS NULL AND om.status IN ('active', 'paused')
+  AND om.deleted_at IS NULL AND om.status = 'active'
   AND (m.event_id IS NULL OR (e.deleted_at IS NULL AND e.status = 'published'))
 `;
 

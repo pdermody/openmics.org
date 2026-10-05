@@ -182,6 +182,7 @@ describe('open-mics routes (real database)', () => {
     });
     const body = created.json();
     expect(body.public_code).toMatch(/^[A-Z0-9]{10}$/);
+    await pool.query("UPDATE open_mics SET status='active' WHERE id=$1", [body.id]);
 
     const byCode = await instance.inject({ method: 'GET', url: `/api/open-mics/${body.public_code}` });
     expect(byCode.statusCode).toBe(200);

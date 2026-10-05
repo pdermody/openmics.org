@@ -16,8 +16,11 @@ export function HomePage({ theme, mode }: ThemeProps) {
   const browserLocation = useBrowserLocation()
   const savedCity = getCityCoordinates(accountContext.account.data?.city)
   const near = browserLocation.coords ?? savedCity
-  const upcomingEvents = useUpcomingEvents(6, near)
-  const openMics = usePublicOpenMics(6, near)
+  const locationReady = browserLocation.permissionState !== 'unknown'
+    && (browserLocation.permissionState !== 'granted' || Boolean(browserLocation.coords))
+  const publicReadsEnabled = !accountContext.account.isPending && locationReady
+  const upcomingEvents = useUpcomingEvents(6, near, publicReadsEnabled)
+  const openMics = usePublicOpenMics(6, near, publicReadsEnabled)
   const showLocationOptIn = browserLocation.permissionState === 'prompt' || browserLocation.permissionState === 'unknown'
   const showAddCityHint = !near && !showLocationOptIn && Boolean(accountContext.account.data)
   const roomsHeading = browserLocation.coords ? t('roomsNearYou') : savedCity ? t('roomsNear', { city: accountContext.account.data?.city }) : t('roomsWorth')
