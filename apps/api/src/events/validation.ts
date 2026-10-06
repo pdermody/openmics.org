@@ -10,6 +10,13 @@ export const publicEventsQuerySchema = z.object({
   message: 'Month requires year', path: ['month'],
 });
 
+export const discoveryEventsQuerySchema = z.object({
+  near: z.string().regex(/^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/).optional(),
+  radius_km: z.coerce.number().finite().min(0).max(200).default(50),
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  page_size: z.coerce.number().int().min(1).max(100).default(20),
+});
+
 const activitySchema = z.enum(['singing', 'poetry', 'jam', 'trad', 'comedy', 'storytelling', 'other']);
 const registrationChannelSchema = z.enum(['pre_only', 'on_night_only', 'both', 'external']);
 
@@ -28,6 +35,7 @@ const baseFields = {
   postcode: z.string().optional(),
   city: z.string().min(1).optional(),
   country: z.string().min(1).optional(),
+  city_id: z.string().uuid().nullable().optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   // Additional fields
@@ -56,6 +64,7 @@ function refineCrossFieldRules<T extends z.ZodTypeAny>(schema: T) {
       postcode?: string;
       city?: string;
       country?: string;
+      city_id?: string | null;
     };
 
     // Event time constraint: ends_at > starts_at if both provided
@@ -81,7 +90,7 @@ function refineCrossFieldRules<T extends z.ZodTypeAny>(schema: T) {
     const hasLocationField = locationFields.some((f) => f !== undefined);
     const allLocationFieldsPresent = locationFields.every((f) => f !== undefined);
 
-    if (hasLocationField && !allLocationFieldsPresent) {
+    if ((hasLocationField || data.city_id != null) && !allLocationFieldsPresent) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['venue_name'],

@@ -15,6 +15,7 @@ const registrationFields = {
   profile_id: z.string().uuid().optional(),
   performer_name: z.string().min(1).optional(),
   performer_city: z.string().optional(),
+  performer_city_id: z.string().uuid().nullable().optional(),
   contact_email: z.string().email().optional(),
   contact_phone: z.string().optional(),
   song_names: z.array(z.string()).optional(),
@@ -49,6 +50,7 @@ export type CreateRegistrationInput = z.infer<typeof createRegistrationSchema>;
 export const updateRegistrationSchema = z.object({
   performer_name: z.string().min(1).optional(),
   performer_city: z.string().optional(),
+  performer_city_id: z.string().uuid().nullable().optional(),
   contact_email: z.string().email().optional(),
   contact_phone: z.string().optional(),
   song_names: z.array(z.string()).optional(),

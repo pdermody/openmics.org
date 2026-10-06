@@ -20,6 +20,20 @@ This file records settled decisions that affect more than one planning document.
 - Phase 1 public surfaces are read-only for visitors and include the home, profile, open-mic, event, and registration pages.
 - Performer-authored content, comments, reviews, reactions, private messaging, follows, and social discovery are deferred until later phases.
 
+## City catalogue and public discovery
+
+- Home discovery starts within 50 km of browser location, falling back to a resolved saved account city. Both public sections use one origin/radius; searches never widen automatically.
+- Explicit expansion targets at least 20 **additional** public series outside the current radius, up to 200 km. Suggest the smallest outward-rounded radius that reaches that target, including distance ties. If fewer exist, offer the actual additional count within 200 km; if none exist, do not show an expansion action.
+- Suggested cities must contain active, non-deleted public series themselves, not merely listings within their catchment. Order cities by straight-line distance from the search origin and show country/region to disambiguate names.
+- Choosing a city starts a 50 km search without changing account preferences. Three-card home previews link to `/discover`, with Open mics/Upcoming events tabs and numbered pagination. Series are nearest-first with an origin and alphabetical otherwise; upcoming-event time semantics are unchanged.
+- Discovery overrides survive in-app navigation and Back/Forward, but reset on refresh/new app load. Without a usable origin, show general previews and explicit location/city actions, not purported nearby distances.
+- City search uses an indexed database catalogue seeded from Simplemaps Basic `worldcities.csv`, preserving source IDs, Unicode/ASCII names, ISO country codes, region, centre and nullable population. Match relevance precedes population; each suggestion shows country. Clients receive bounded matches, never the full catalogue.
+- Every city-entry form uses shared autocomplete. Unmatched free text remains allowed and optional fields remain optional. A selected city supplies country; organizer free-text entry reveals a country fallback selector. Resolved geographic discovery and exact venue coordinates are separate concerns.
+- Organizer city selection seeds an unconfirmed venue pin; an explicit confirmation or refinement is required before saving. Existing/inherited exact locations are not replaced merely by loading the form.
+- Nullable selected-city references supplement, rather than replace, existing resource location snapshots. Catalogue refresh, account claims and profile adoption must not rewrite guest provenance or historic attribution. Ambiguous legacy names are not resolved by guessing the largest city.
+- LocationIQ is an explicit "Search more places" fallback behind the existing adapter. Catalogue/cache hits need no provider calls. A configurable atomic daily budget bounds provider calls across API instances; existing organizer geocoding remains authenticated. Provider failures/budget exhaustion are explicit and do not disable catalogue discovery.
+- The supplied dataset is Simplemaps Basic, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) according to its [edition comparison](https://simplemaps.com/data/world-cities). Preserve source attribution and describe derived search fields in [the dataset notice](../licenses/worldcities.txt); public pages credit Simplemaps and link to the source/licence. Commercial Pro/Comprehensive redistribution restrictions are not the Basic licence. Public map discovery, personalized recommendations and social discovery remain deferred.
+
 ## Handles
 
 - Profiles and open-mic series share one global handle namespace.

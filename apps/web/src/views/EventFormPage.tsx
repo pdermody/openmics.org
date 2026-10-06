@@ -6,6 +6,8 @@ import { z } from 'zod'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
+import { CityAutocomplete } from '../components/location/CityAutocomplete'
+import { useCity, type City } from '../features/cities'
 import { useCreateEvent, useEventDetail, useOpenMicDetail, useOrganizerProfile, useUpdateEvent, type EventFormInput } from '../features/organizer'
 import { CURRENCIES } from '../features/currencies'
 import { ACTIVITY_LABEL_KEYS, browserTimeZone, COUNTRY_OPTIONS, formatTimeZoneOption, TIME_ZONE_OPTIONS } from '../features/form-options'
@@ -69,6 +71,9 @@ const eventFormSchema = z
     country: z.string().trim().min(1, 'Country is required'),
   })
   .superRefine((value, ctx) => {
+    if (value.override_location && value.venue_pin_confirmed === false) {
+      ctx.addIssue({ code: 'custom', message: 'cityPickerPinRequired', path: ['lat'] })
+    }
     if ((value.lat === undefined) !== (value.lng === undefined)) {
       ctx.addIssue({ code: 'custom', message: 'Latitude and longitude must be set together', path: ['lng'] })
     }
@@ -105,6 +110,8 @@ const DEFAULT_VALUES: EventFormValues = {
   address_line2: '',
   postcode: '',
   city: '',
+  city_id: null,
+  venue_pin_confirmed: true,
   country: '',
   lat: undefined,
   lng: undefined,
@@ -158,6 +165,9 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   const lng = watch('lng')
   const addressLine1 = watch('address_line1')
   const city = watch('city')
+  const cityId = watch('city_id')
+  const selectedCity = useCity(cityId)
+  const pinConfirmed = watch('venue_pin_confirmed') !== false
   const country = watch('country')
   const postcode = watch('postcode')
   const activities = watch('activities') ?? []
@@ -180,6 +190,8 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
     setValue('address_line2', openMic.data.address_line2 ?? '')
     setValue('postcode', openMic.data.postcode ?? '')
     setValue('city', openMic.data.city)
+    setValue('city_id', openMic.data.city_id ?? null)
+    setValue('venue_pin_confirmed', true)
     setValue('country', openMic.data.country)
     setValue('lat', openMic.data.lat ?? undefined)
     setValue('lng', openMic.data.lng ?? undefined)
@@ -203,6 +215,8 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
       address_line2: existing.data.address_line2 ?? '',
       postcode: existing.data.postcode ?? '',
       city: existing.data.city,
+      city_id: existing.data.city_id ?? null,
+      venue_pin_confirmed: true,
       country: existing.data.country,
       lat: existing.data.lat ?? undefined,
       lng: existing.data.lng ?? undefined,
@@ -281,6 +295,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
         address_line2: values.address_line2 || undefined,
         postcode: values.postcode || undefined,
         city: values.city,
+        city_id: values.city_id ?? null,
         country: values.country.toUpperCase(),
         lat: values.lat,
         lng: values.lng,
@@ -298,6 +313,22 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   function toggleRegistrationAvailability() {
     setValue('registrations_closed_at', registrationsClosed ? '' : toDatetimeLocalValue(new Date().toISOString()), { shouldDirty: true })
     setRegistrationTogglePending(true)
+  }
+
+  function changeCity(text: string, selected: City | null) {
+    const value = { text, city: selected }
+    setValue('city', value.text, { shouldDirty: true, shouldValidate: true })
+    setValue('city_id', value.city?.id ?? null, { shouldDirty: true })
+    if (value.city) {
+      setValue('country', value.city.iso2, { shouldDirty: true, shouldValidate: true })
+      setValue('lat', value.city.lat, { shouldDirty: true })
+      setValue('lng', value.city.lng, { shouldDirty: true })
+      setValue('venue_pin_confirmed', false, { shouldDirty: true, shouldValidate: true })
+    } else if (!pinConfirmed) {
+      setValue('lat', undefined, { shouldDirty: true, shouldValidate: true })
+      setValue('lng', undefined, { shouldDirty: true, shouldValidate: true })
+      setValue('venue_pin_confirmed', true, { shouldDirty: true })
+    }
   }
 
   function discardChanges() {
@@ -370,13 +401,13 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
             {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
             <label>{t('addressLine2')}<input {...register('address_line2')} /></label>
             <label>{t('postcode')}<input {...register('postcode')} /></label>
-            <label><span>{t('city')}<Required /></span><input required {...register('city')} /></label>
+            <CityAutocomplete name="city" required value={city} selectedCity={selectedCity.data} onChange={changeCity} />
             {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
-            <label><span>{t('country')}<Required /></span><select required {...register('country')}><option value="">{t('selectCountry')}</option>{COUNTRY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.name} ({option.code})</option>)}</select></label>
+            {!selectedCity.data && <label><span>{t('country')}<Required /></span><select required {...register('country', { onChange: () => setValue('city_id', null, { shouldDirty: true }) })}><option value="">{t('selectCountry')}</option>{COUNTRY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.name} ({option.code})</option>)}</select></label>}
             {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
             <p className="field-hint">{t('locationFieldsHint')}</p>
-            <LocationPicker lat={lat} lng={lng} onChange={({ lat: nextLat, lng: nextLng }) => { setValue('lat', nextLat, { shouldDirty: true, shouldValidate: true }); setValue('lng', nextLng, { shouldDirty: true, shouldValidate: true }) }} addressQuery={[addressLine1, postcode, city, country].filter(Boolean).join(', ')} latInputId="event-lat" lngInputId="event-lng" />
-            {errors.lat && <p className="form-error" role="alert">{errors.lat.message}</p>}
+            <LocationPicker provisional={!pinConfirmed} onConfirm={() => setValue('venue_pin_confirmed', true, { shouldDirty: true, shouldValidate: true })} lat={lat} lng={lng} onChange={({ lat: nextLat, lng: nextLng }) => { setValue('lat', nextLat, { shouldDirty: true, shouldValidate: true }); setValue('lng', nextLng, { shouldDirty: true, shouldValidate: true }); setValue('venue_pin_confirmed', nextLat !== undefined && nextLng !== undefined, { shouldDirty: true, shouldValidate: true }) }} addressQuery={[addressLine1, postcode, city, country].filter(Boolean).join(', ')} latInputId="event-lat" lngInputId="event-lng" />
+            {errors.lat && <p className="form-error" role="alert">{errors.lat.message === 'cityPickerPinRequired' ? t('cityPickerPinRequired') : errors.lat.message}</p>}
             {errors.lng && <p className="form-error" role="alert">{errors.lng.message}</p>}
           </>}
         </section>

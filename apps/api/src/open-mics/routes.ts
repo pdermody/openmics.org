@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { findCityById, matchesCityName, matchesCountryName } from '../cities/repository.js';
 import { parseGeoFilter } from '../geo.js';
 import { assignHandle } from '../handles/service.js';
 import { assertSeriesQuota, DEFAULT_PLAN } from '../media/plan.js';
@@ -18,6 +19,19 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     const parsed = createOpenMicSchema.safeParse(request.body);
     if (!parsed.success) throw new ValidationError('Invalid open mic payload', parsed.error.flatten());
     const input = parsed.data;
+    let city = input.city;
+    let country = input.country;
+    const cityId = input.city_id ?? null;
+    if (cityId) {
+      const selected = await findCityById(pool, cityId);
+      if (!selected) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+      if ((city && !matchesCityName(selected, city)) || (country && !matchesCountryName(selected, country))) {
+        throw new ValidationError('city and country must match the selected city', { field: 'city_id' });
+      }
+      city = selected.city;
+      country = selected.country;
+    }
+    if (!city || !country) throw new ValidationError('city and country are required');
 
     const ownerProfile = await requireOwnedProfile(pool, request, { profileKind: 'organizer' });
 
@@ -35,8 +49,9 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
         addressLine1: input.address_line1,
         addressLine2: input.address_line2,
         postcode: input.postcode,
-        city: input.city,
-        country: input.country,
+        city,
+        country,
+        cityId,
         lat: input.lat,
         lng: input.lng,
         timeZone: input.time_zone,
@@ -126,7 +141,20 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
 
     const existing = await requireOwnedOpenMic(request);
 
-    const updated = await updateOpenMic(pool, existing.id, parsed.data);
+    const changes: Record<string, unknown> = { ...parsed.data };
+    if (parsed.data.city_id) {
+      const selected = await findCityById(pool, parsed.data.city_id);
+      if (!selected) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+      if ((parsed.data.city && !matchesCityName(selected, parsed.data.city))
+        || (parsed.data.country && !matchesCountryName(selected, parsed.data.country))) {
+        throw new ValidationError('city and country must match the selected city', { field: 'city_id' });
+      }
+      changes.city = selected.city;
+      changes.country = selected.country;
+    } else if (parsed.data.city_id === null || parsed.data.city !== undefined || parsed.data.country !== undefined) {
+      changes.city_id = null;
+    }
+    const updated = await updateOpenMic(pool, existing.id, changes as Parameters<typeof updateOpenMic>[2]);
     reply.send(serializeOpenMic(updated!));
   });
 

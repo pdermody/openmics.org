@@ -1,0 +1,10 @@
+.discovery-controls { margin-block: 1.5rem; }
+.discovery-area { font-weight: 600; }
+.discovery-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.discovery-cities-heading { font-size: 1rem; margin-top: 1.25rem; }
+.discovery-cities { display: flex; flex-wrap: wrap; gap: .75rem; padding: 0; list-style: none; }
+.discovery-cities li { max-width: 100%; min-width: 0; }
+.discovery-cities button { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+.discovery-pagination { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; grid-column: 1 / -1; }
+.discovery-tabs { display: flex; flex-wrap: wrap; gap: .75rem; margin-block: 1rem; }
+.discovery-tabs [aria-current="page"], .discovery-pagination [aria-current="page"] { font-weight: 700; text-decoration: underline; }

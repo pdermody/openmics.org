@@ -2,6 +2,7 @@ import { createContext, Suspense, useContext, useEffect, useState, type ReactNod
 import { createBrowserHistory, createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet, RouterProvider, useNavigate } from '@tanstack/react-router'
 import './App.css'
 import { HomePage } from './views/HomePage'
+import { discoverySearchSchema } from './features/discoverySearch'
 import { ThemePage } from './views/ThemePage'
 import { EventPage } from './views/EventPage'
 import { OpenMicPage } from './views/OpenMicPage'
@@ -19,6 +20,7 @@ import { i18n } from './i18n'
 import { DEFAULT_THEME, isColorMode, isThemeId, MODE_STORAGE_KEY, systemColorMode, THEME_STORAGE_KEY, type ColorMode, type ThemeId } from './theme'
 
 const AccountSettings = lazyRouteComponent(() => import('./views/AccountPage'), 'AccountPage')
+const DiscoveryResults = lazyRouteComponent(() => import('./views/DiscoveryPage'), 'DiscoveryPage')
 const ProfileEditor = lazyRouteComponent(() => import('./views/ProfileEditorPage'), 'ProfileEditorPage')
 const OrganizerDashboard = lazyRouteComponent(() => import('./views/OrganizerDashboardPage'), 'OrganizerDashboardPage')
 const OrganizerEvents = lazyRouteComponent(() => import('./views/OrganizerEventsPage'), 'OrganizerEventsPage')
@@ -137,6 +139,17 @@ function RootLayout() {
 const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: HomeRoute })
 
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: HomeRoute })
+
+const discoveryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/discover',
+  validateSearch: (search) => discoverySearchSchema.parse(search),
+  component: withPreload(function DiscoveryRouteView() {
+    const { theme, mode } = useThemeMode()
+    const search = discoveryRoute.useSearch()
+    return <RoutedView theme={theme} mode={mode}><LazyView><DiscoveryResults theme={theme} mode={mode} {...search} /></LazyView></RoutedView>
+  }, DiscoveryResults),
+})
 
 const themeRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -398,6 +411,7 @@ const vanityOpenMicRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
+  discoveryRoute,
   homeRoute,
   themeRoute,
   securityRoute,

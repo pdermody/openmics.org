@@ -22,6 +22,7 @@ const environmentSchema = z.object({
   APP_BASE_URL: z.string().default('http://localhost:5173'),
   LOCATIONIQ_API_KEY: z.string().default(''),
   LOCATIONIQ_BASE_URL: z.string().default('https://us1.locationiq.com'),
+  GEOCODING_DAILY_LIMIT: z.coerce.number().int().min(0).max(100000).default(0),
   // Signs the short-lived, single-purpose roster SSE stream token (see decisions.md → Live
   // updates). The insecure default is fine for local/dev/test; production must override it.
   STREAM_TOKEN_SECRET: z.string().default('dev-insecure-stream-token-secret-change-me'),
@@ -56,6 +57,7 @@ export type AppConfig = {
   appBaseUrl: string;
   locationIqApiKey: string;
   locationIqBaseUrl: string;
+  geocodingDailyLimit: number;
   streamTokenSecret: string;
   mediaStorageAdapter: 's3' | 'local';
   mediaBucket?: string;
@@ -98,6 +100,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     appBaseUrl: parsed.APP_BASE_URL,
     locationIqApiKey: parsed.LOCATIONIQ_API_KEY,
     locationIqBaseUrl: parsed.LOCATIONIQ_BASE_URL,
+    geocodingDailyLimit: parsed.GEOCODING_DAILY_LIMIT,
     streamTokenSecret: parsed.STREAM_TOKEN_SECRET,
     mediaStorageAdapter: parsed.MEDIA_STORAGE_ADAPTER ?? (parsed.NODE_ENV === 'production' ? 's3' : 'local'),
     mediaBucket: parsed.MEDIA_BUCKET,

@@ -15,6 +15,7 @@ const baseConfig: AppConfig = {
   appBaseUrl: 'http://localhost:5173',
   locationIqApiKey: '',
   locationIqBaseUrl: 'https://us1.locationiq.com',
+  geocodingDailyLimit: 0,
   streamTokenSecret: 'test-stream-token-secret',
   mediaStorageAdapter: 'local',
   mediaCdnBaseUrl: 'https://media.test',

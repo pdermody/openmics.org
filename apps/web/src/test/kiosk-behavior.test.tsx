@@ -5,6 +5,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { KioskPage } from '../views/KioskPage'
 import { renderWithProviders } from './render'
 import { server } from './server'
+import { dublinCity } from './city-fixtures'
 
 beforeEach(() => {
   window.localStorage.setItem('openmic-simulated-auth-token', 'organizer-token')
@@ -43,6 +44,30 @@ function registerOrganizerHandlers(registrationMode: 'both' | 'on_night_only' = 
 }
 
 describe('KioskPage behavior', () => {
+  it('submits the selected city and resets its identity and consent for the next performer', async () => {
+    registerOrganizerHandlers()
+    let submitted: Record<string, unknown> | undefined
+    server.use(
+      http.get('/api/cities/search', () => HttpResponse.json({ items: [dublinCity] })),
+      http.post('/api/events/event-1/registrations', async ({ request }) => {
+        submitted = await request.json() as Record<string, unknown>
+        return HttpResponse.json({ id: 'registration-1', ...submitted })
+      }),
+    )
+    renderWithProviders(<KioskPage seriesId="series-1" eventId="event-1" theme="venue" mode="light" />)
+    await screen.findByRole('button', { name: 'Add to roster' })
+    fireEvent.change(screen.getByLabelText(/performer name/i), { target: { value: 'Ava' } })
+    fireEvent.change(screen.getByRole('combobox', { name: /city/i }), { target: { value: 'Dub' } })
+    fireEvent.click(await screen.findByRole('option'))
+    fireEvent.change(screen.getByRole('textbox', { name: /^email/i }), { target: { value: 'ava@example.test' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /photos or video/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add to roster' }))
+    await waitFor(() => expect(submitted).toMatchObject({ performer_city: 'Dublin', performer_city_id: dublinCity.id, media_consent: false }))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /city/i })).toHaveValue(''))
+    expect(screen.queryByRole('button', { name: 'Clear city' })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /photos or video/i })).toBeChecked()
+  })
+
   it('confirms the event date before opening a future kiosk', async () => {
     registerOrganizerHandlers('both', 'future')
     const LazyKiosk = lazy(async () => ({ default: KioskPage }))

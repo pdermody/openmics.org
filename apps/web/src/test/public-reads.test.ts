@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { getCityCoordinates, isRegistrationClosed } from '../features/publicReads'
 
 describe('public read helpers', () => {
-  it('resolves seeded city coordinates case-insensitively and trims whitespace', () => {
-    expect(getCityCoordinates(' Dublin ')).toEqual({ lat: 53.3498, lng: -6.2603 })
-    expect(getCityCoordinates('unknown city')).toBeUndefined()
+  it('uses resolved city centres rather than a hardcoded name catalogue', () => {
+    expect(getCityCoordinates({ lat: 53.3498, lng: -6.2603 })).toEqual({ lat: 53.3498, lng: -6.2603 })
+    expect(getCityCoordinates(undefined)).toBeUndefined()
     expect(getCityCoordinates(null)).toBeUndefined()
   })
 

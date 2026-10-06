@@ -102,28 +102,20 @@ Both endpoints send `Cache-Control: public, max-age=60`; the edge layer warms fa
 
 **Home page feed rules (`/` directory home):**
 
-The public `/` route lays out two sections — **Upcoming events** and **Notable open-mics**, five cards each — above the interactive map and search surface. The endpoint powering each section switches based on auth and geolocation permission:
+The public `/` route previews three upcoming events and three open-mic series. Anonymous and signed-in browsing use the same public visibility boundary; personalized `/me/home/*` feeds and public map discovery remain deferred.
 
-| State | Upcoming events source | Notable open-mics source |
-|---|---|---|
-| Anonymous, location off | `GET /events/upcoming?limit=5` | `GET /open-mics?sort=recent&limit=5` |
-| Anonymous, location on  | `GET /events/upcoming?near=<lat>,<lng>&radius_km=100&limit=5` | `GET /open-mics?near=<lat>,<lng>&sort=nearest&limit=5` |
-| Signed in, location off | `GET /me/home/upcoming-events?limit=5` | `GET /me/home/notable-open-mics?limit=5` |
-| Signed in, location on  | `GET /me/home/upcoming-events?near=<lat>,<lng>&limit=5` | `GET /me/home/notable-open-mics?near=<lat>,<lng>&limit=5` |
+- Previews use `GET /events/upcoming` and paginated `GET /open-mics`. With an origin, both send the same `near` and `radius_km`, initially 50 km. Without one, show general results.
+- `GET /discovery/suggestions` calculates the smallest wider radius reaching 20 additional active public series, with a 200 km ceiling. Positive smaller inventories are offered at 200 km; zero inventory produces no expansion action. Counts use the current-radius annulus and include boundary ties.
+- Suggestions contain cities with their own public series and use city-centre distance ordering. Choosing one resets the radius to 50 km.
+- `/discover` uses numbered pagination across Open mics/Upcoming events tabs. Series use `GET /open-mics`; events use the additive paginated `GET /events/discovery`, preserving the existing `/events/upcoming` array contract.
+- Sections load and fail independently. Suggestion failures do not conceal valid results or appear as successful empty searches.
+- Browser location is requested only with permission or an explicit user action, falling back to a resolved saved city. Geographic overrides live only for the active app instance and restore with in-app history; refresh resets them. There is no IP geolocation.
 
-Both sections render an empty state on zero rows ("No upcoming events" / "No open mics found") and each renders independently — a slow or empty query in one section never blocks the other.
+**City lookup:** `GET /cities/search` returns bounded catalogue matches ranked by exact/prefix/other relevance, then population, with country and region. `GET /cities/{id}` resolves one place. The catalogue preserves Unicode/ASCII spellings and stable source IDs; it is not a public bulk-data export.
 
-**Personalization for signed-in requests** (`/me/home/*`). The server scores every candidate row against the caller's account/profile context using four EXISTS-style predicates and sorts on those signals before falling back to distance/recency. Signals evaluated:
+`POST /cities/search-external` is an explicit city-only LocationIQ fallback. Repeated queries/confirmed places are cached within provider terms, and a shared atomic daily budget limits actual outgoing requests. Normal typing, catalogue searches and result browsing do not call the provider.
 
-1. **Followed** — the open mic's owning organizer profile is followed by any of the caller's profiles (`ProfileFollows`).
-2. **Registered** — the caller has any `Registrations` row for an event on this open mic, resolved via `profile_id IN (my profiles) OR claimed_by_account_id = my account`.
-3. **Attended** — a `Performances` row with `status='performed'` exists on any of the caller's registrations for this open mic.
-4. **Distance** — `ST_Distance(location, near)` when a `near` param is provided; NULL otherwise.
-5. **Recency** — `created_at` for open mics, `date` for events.
-
-Sort order: `is_followed DESC, has_registered DESC, has_attended DESC, dist_m ASC NULLS LAST, recency`. A single CTE-backed query builds the score set from the base table plus the three EXISTS predicates — cheap enough to serve inline without cache warming. A brand-new signed-in account with no signals degrades naturally to distance/recency — the same output an anonymous caller with the same location settings would get.
-
-**Location handling.** The client requests `navigator.geolocation.getCurrentPosition()` behind a small explanatory prompt on first visit, caches the result in `sessionStorage` for the session, and sends it as `near=` on every home request. If the user declines or the browser denies, the client omits `near=` and the endpoint falls back cleanly. There is no server-side IP geolocation for MVP.
+Nullable selected-city references supplement existing text snapshots on accounts, series, events and registrations. The API resolves selected identities, validates country consistency and preserves partial-update/unlink semantics. Ambiguous legacy strings remain unresolved rather than selecting the most populous match. See [decisions.md](../decisions.md#city-catalogue-and-public-discovery).
 
 ---
 
@@ -132,8 +124,8 @@ Sort order: `is_followed DESC, has_registered DESC, has_attended DESC, dist_m AS
 `GET /geocoding/search?q=<address>` and `GET /geocoding/reverse?lat=<num>&lng=<num>` back the organizer-facing map/location picker embedded in the OpenMic and Event create/edit forms (see [../research/open-mic-map-location-picker.md](../research/open-mic-map-location-picker.md) for the options considered). Both are authenticated (`profiles:manage`-adjacent org tooling, not public) and proxy [LocationIQ](https://locationiq.com/):
 
 - **Backend proxy, never a browser-held key.** The LocationIQ API key lives only in the API's `LOCATIONIQ_API_KEY` config and is never sent to the client. The frontend calls `/geocoding/*` on this API, which forwards to LocationIQ server-side.
-- **Shared rate-limit throttling.** LocationIQ's free tier caps requests at ~2/sec *per account*, shared across every concurrent app user — not per-user. The proxy implements an in-process token-bucket throttle (`apps/api/src/geocoding/service.ts`) so the app as a whole stays within quota; once the local queue is saturated or LocationIQ itself returns `429`, the endpoint returns `429 GEOCODING_RATE_LIMITED` rather than queuing indefinitely.
-- **Graceful frontend degradation.** The reusable `LocationPicker` component and `useGeocoding` hook (`apps/web/src/components/location/`, `apps/web/src/features/location.ts`) disable the address-lookup assist for the rest of the session on a `GEOCODING_RATE_LIMITED` response (or a `503 GEOCODING_UNAVAILABLE`), logging the event via a pluggable reporter. The map's draggable pin and the always-present, keyboard-accessible numeric latitude/longitude inputs keep working with zero API calls regardless of assist availability — coordinates only ever reach the database from those two paths, never invented client-side.
+- **Shared cost/rate boundary.** External city fallback shares the configured provider budget with organizer geocoding. A daily cap is reserved atomically across API instances; throttling and bounded requests protect the provider rate limit. Exhaustion/provider `429` is returned explicitly, not as an empty candidate list.
+- **Graceful frontend degradation.** The reusable `LocationPicker` and `useGeocoding` disable address assist on rate-limit/unavailable errors and report them explicitly. Manual pin/coordinate editing remains usable. Catalogue city selection can seed an initial pin, but the organizer must confirm or refine it before saving as a venue location.
 - Both endpoints share the standard error envelope; see `openapi.yaml` for the full request/response schema (`GeocodeCandidate`, `GeocodingRateLimited`, `GeocodingUnavailable`).
 
 ---
@@ -142,6 +134,6 @@ Sort order: `is_followed DESC, has_registered DESC, has_attended DESC, dist_m AS
 
 - **Signed in** with `open_mics:create` on any of their profiles: a **Register a new open mic** button, and for every open mic the caller can manage, an **Add an event to *〈open-mic-name〉*** button.
 - **Signed in** without those permissions: no create CTAs (their `/dashboard` already carries any actions relevant to their role).
-- **Anonymous:** a prominent **Sign up** button and a secondary **Sign in** link, with one-line copy explaining what an account unlocks (following organizers, personalized recommendations, claiming past registrations).
+- **Anonymous:** sign-up/sign-in actions explain Phase 1 account benefits such as registration and claiming eligible past registrations, not deferred follows or personalized recommendations.
 
 ---

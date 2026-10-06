@@ -8,6 +8,7 @@ export const updateAccountSchema = z
   .object({
     display_name: z.string().min(1).nullable().optional(),
     city: z.string().nullable().optional(),
+    city_id: z.string().uuid().nullable().optional(),
     preferred_language: languageTagSchema.nullable().optional(),
   })
   .strict();

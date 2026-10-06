@@ -15,6 +15,7 @@ const baseFields = {
   postcode: z.string().optional(),
   city: z.string().min(1).optional(),
   country: z.string().min(1).optional(),
+  city_id: z.string().uuid().nullable().optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   time_zone: z.string().min(1).optional(),
@@ -46,6 +47,8 @@ function refineCrossFieldRules<T extends z.ZodTypeAny>(schema: T) {
       entry_fee_currency?: string;
       lat?: number;
       lng?: number;
+      city?: string;
+      country?: string;
     };
     if (data.registration_mode === 'external' && !data.external_registration_url) {
       ctx.addIssue({
@@ -74,10 +77,13 @@ export const createOpenMicSchema = refineCrossFieldRules(
       name: true,
       venue_name: true,
       address_line1: true,
-      city: true,
-      country: true,
       time_zone: true,
       activities: true,
+    })
+    .superRefine((value, ctx) => {
+      if (value.city_id == null && (!value.city || !value.country)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['city'], message: 'city and country are required without a selected city' });
+      }
     })
     .strict(),
 );

@@ -13,6 +13,14 @@ Cross-cutting decisions live in [decisions.md](../decisions.md). When this docum
 
 ## Phase 1 schema (current)
 
+### City catalogue boundary
+
+The location-discovery slice adds an indexed `cities` catalogue with stable source identity, Unicode/ASCII city and country names, ISO2/ISO3, administrative region, centre coordinates/geography and nullable population. The import is explicit and idempotent; refreshing source records preserves referenced identities. City/country names are not a unique key.
+
+Nullable `city_id` on accounts, series and events, and `performer_city_id` on registrations supplement existing text snapshots. Resolved selection supplies canonical city/country, while free-text edits unlink stale references. Partial updates distinguish omitted fields from explicit clearing. Ambiguous legacy records remain unresolved; account ownership/adoption and catalogue refresh never rewrite guest provenance. Exact venue coordinates are separate from city centres.
+
+Shared provider-budget/cache persistence supports explicit external city lookup without distributing the raw catalogue or relying on process-local cost limits. Dataset seeding and distribution must preserve the applicable source licence. See [decisions.md](../decisions.md#city-catalogue-and-public-discovery).
+
 ```sql
 Accounts
 ├── id (UUID)
@@ -20,6 +28,7 @@ Accounts
 ├── email
 ├── display_name
 ├── city (optional)
+├── city_id (FK to cities, nullable — resolved browsing origin, separate from city text)
 ├── preferred_language (text, nullable — BCP 47 tag e.g. 'en', 'ga', 'fr'; drives the frontend's i18n locale resolution when set; NULL means "honour the browser")
 ├── current_profile_id (FK to Profiles, nullable — indicates which profile user is currently using)
 ├── is_platform_admin (boolean — platform super user, manages entire platform)
@@ -67,6 +76,7 @@ OpenMics
 ├── venue_name (NOT NULL)
 ├── address_line1 (NOT NULL), address_line2 (nullable)
 ├── postcode (nullable), city (NOT NULL), country (NOT NULL)
+├── city_id (FK to cities, nullable — does not replace exact venue coordinates)
 ├── lat numeric(9,6), lng numeric(9,6) (nullable)
 ├── time_zone (text — IANA time zone such as `Europe/Dublin`)
 ├── website (text, nullable)
@@ -114,6 +124,7 @@ Events
 ├── venue_name (NOT NULL — defaults from OpenMics when the event is created)
 ├── address_line1 (NOT NULL), address_line2 (nullable)
 ├── postcode (nullable), city (NOT NULL), country (NOT NULL)
+├── city_id (FK to cities, nullable — part of the inherited/overridden venue snapshot)
 ├── lat numeric(9,6), lng numeric(9,6) (nullable — defaults from OpenMics when the event is created)
 ├── location (geography(Point, 4326) GENERATED ALWAYS AS (
 │              CASE WHEN lat IS NOT NULL AND lng IS NOT NULL
@@ -147,6 +158,7 @@ Registrations
 ├── profile_id (FK or NULL for guests, references Profiles for registered performers)
 ├── performer_name (guest name, required when profile_id is NULL)
 ├── performer_city (optional)
+├── performer_city_id (FK to cities, nullable — preserves the submitted performer-city snapshot)
 ├── contact_email (nullable — required unless organizer_supervised; used for email confirmation, magic edit links, and user-initiated claim after sign-in)
 ├── contact_phone (nullable)
 ├── submission_channel ("organic" | "shared_link" | "email_reminder" | "social_ad" | "poster_qr" | "kiosk" | "kiosk_qr" | "prior" — descriptive attribution tag only; does not by itself gate visibility or claim eligibility)

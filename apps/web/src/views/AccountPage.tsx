@@ -1,45 +1,55 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { LocateFixed, MapPin } from 'lucide-react'
 import { Select } from '../components/radix-select'
 import { changeLanguage } from '../i18n'
 import { useAccountContext } from '../features/account'
+import { useCity } from '../features/cities'
+import { CityAutocomplete } from '../components/location/CityAutocomplete'
 import { useBrowserLocation } from '../hooks/geolocation'
 import type { ColorMode, ThemeId } from '../theme'
 import { Modal, ReadState, SiteHeader } from './shared'
+
+const accountFormSchema = z.object({
+  display_name: z.string().trim(),
+  city: z.string().trim(),
+  city_id: z.string().nullable(),
+  preferred_language: z.string(),
+})
 
 export function AccountPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }) {
   const { t } = useTranslation()
   const context = useAccountContext()
   const browserLocation = useBrowserLocation()
-  const [form, setForm] = useState({
-    display_name: '',
-    city: '',
-    preferred_language: 'en',
+  const { watch, setValue, handleSubmit } = useForm<z.infer<typeof accountFormSchema>>({
+    resolver: zodResolver(accountFormSchema),
+    values: {
+      display_name: context.account.data?.display_name ?? '',
+      city: context.account.data?.city ?? '',
+      city_id: context.account.data?.city_id ?? null,
+      preferred_language: context.account.data?.preferred_language === 'es' ? 'es' : 'en',
+    },
   })
+  const form = watch()
+  const selectedCity = useCity(form.city_id)
   const [savedModalOpen, setSavedModalOpen] = useState(false)
-
-  useEffect(() => {
-    if (!context.account.data) return
-    setForm({
-      display_name: context.account.data.display_name ?? '',
-      city: context.account.data.city ?? '',
-      preferred_language: context.account.data.preferred_language === 'es' ? 'es' : 'en',
-    })
-  }, [context.account.data?.display_name, context.account.data?.city, context.account.data?.preferred_language, context.account.data?.id])
 
   if (!context.account.data) return <main className="app" data-theme={theme} data-mode={mode}><SiteHeader /><ReadState message={t('signInDashboard')} /></main>
 
   const hasChanges = form.display_name !== (context.account.data.display_name ?? '')
     || form.city !== (context.account.data.city ?? '')
+    || form.city_id !== (context.account.data.city_id ?? null)
     || form.preferred_language !== (context.account.data.preferred_language === 'es' ? 'es' : 'en')
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function submit() {
     const payload = {
       display_name: form.display_name.trim() || undefined,
-      city: form.city.trim() || undefined,
+      city: form.city.trim() || null,
+      city_id: form.city_id,
       preferred_language: form.preferred_language,
     }
 
@@ -63,7 +73,7 @@ export function AccountPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }
       <h1>{t('accountDetails')}</h1>
       <p className="detail-lede">{t('accountInfoIntro')}</p>
 
-      <form className="account-page-form" onSubmit={handleSubmit}>
+      <form className="account-page-form" onSubmit={handleSubmit(submit)}>
         <label className="account-field">
           <div className="field-header">
             <span>{t('email')}</span>
@@ -74,14 +84,14 @@ export function AccountPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }
 
         <label className="account-field">
           <span>{t('displayName')}</span>
-          <input value={form.display_name} onChange={(event) => setForm((current) => ({ ...current, display_name: event.target.value }))} />
+          <input value={form.display_name} onChange={(event) => setValue('display_name', event.target.value, { shouldDirty: true })} />
         </label>
 
         <div className="account-field">
-          <label className="field-stack" htmlFor="account-city-input">
-            <span>{t('city')}</span>
-          </label>
-          <input id="account-city-input" value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} />
+          <CityAutocomplete id="account-city-input" value={form.city} selectedCity={selectedCity.data} onChange={(value, city) => {
+            setValue('city', value, { shouldDirty: true })
+            setValue('city_id', city?.id ?? null, { shouldDirty: true })
+          }} />
           <p className="field-hint">{t('accountCityHint')}</p>
         </div>
 
@@ -91,7 +101,7 @@ export function AccountPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }
           </div>
           <Select
             value={form.preferred_language}
-            onValueChange={(value) => setForm((current) => ({ ...current, preferred_language: value }))}
+            onValueChange={(value) => setValue('preferred_language', value, { shouldDirty: true })}
             ariaLabel={t('language')}
             placeholder={t('language')}
             options={[

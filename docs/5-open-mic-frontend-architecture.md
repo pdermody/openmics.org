@@ -135,6 +135,7 @@ The canonical URL map is the [Key Pages (Route Map)](#key-pages-route-map) secti
 
 Public / auth:
 - `/` — **Directory home.** Upcoming events and open-mic series with browse and registration actions. Phase 1 does not require personalized feeds, maps, follows, or recommendations.
+- `/discover` — Public full results with Open mics/Upcoming events tabs and numbered pagination. Both tabs share the home's explicit city/radius selection. Geographic overrides are per-app-lifetime browsing state, restored on in-app Back/Forward but reset on reload; tab/page are validated route search parameters. See [decisions.md](decisions.md#city-catalogue-and-public-discovery).
 - `/login` — Sign-in (redirects to Cognito)
 - `/register` — Sign-up (delegates to Cognito)
 - `/dashboard` — **Signed-in home.** Post-login landing: current profile, owned open-mics and events, registration activity, and organizer actions. Requires authentication; unauthenticated hits redirect to `/`.

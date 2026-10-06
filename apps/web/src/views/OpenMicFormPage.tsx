@@ -7,6 +7,8 @@ import { CircleAlert, CircleCheck } from 'lucide-react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
+import { CityAutocomplete } from '../components/location/CityAutocomplete'
+import { useCity, type City } from '../features/cities'
 import { useHandleAvailability } from '../features/handles'
 import { CURRENCIES } from '../features/currencies'
 import { ACTIVITY_LABEL_KEYS, browserTimeZone, COUNTRY_OPTIONS, formatTimeZoneOption, TIME_ZONE_OPTIONS } from '../features/form-options'
@@ -51,6 +53,9 @@ const openMicFormSchema = z
   })
   .extend(baseLocationFieldsSchema.shape)
   .superRefine((value, ctx) => {
+    if (value.venue_pin_confirmed === false) {
+      ctx.addIssue({ code: 'custom', message: 'cityPickerPinRequired', path: ['lat'] })
+    }
     if ((value.lat === undefined) !== (value.lng === undefined)) {
       ctx.addIssue({ code: 'custom', message: 'Latitude and longitude must be set together', path: ['lng'] })
     }
@@ -74,6 +79,8 @@ const DEFAULT_VALUES: OpenMicFormValues = {
   address_line2: '',
   postcode: '',
   city: '',
+  city_id: null,
+  venue_pin_confirmed: true,
   country: '',
   lat: undefined,
   lng: undefined,
@@ -137,6 +144,9 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
   const lng = watch('lng')
   const addressLine1 = watch('address_line1')
   const city = watch('city')
+  const cityId = watch('city_id')
+  const selectedCity = useCity(cityId)
+  const pinConfirmed = watch('venue_pin_confirmed') !== false
   const country = watch('country')
   const postcode = watch('postcode')
   const activities = watch('activities')
@@ -188,6 +198,8 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
       address_line2: existing.data.address_line2 ?? '',
       postcode: existing.data.postcode ?? '',
       city: existing.data.city,
+      city_id: existing.data.city_id ?? null,
+      venue_pin_confirmed: true,
       country: existing.data.country,
       lat: existing.data.lat ?? undefined,
       lng: existing.data.lng ?? undefined,
@@ -261,6 +273,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
       address_line2: values.address_line2 || undefined,
       postcode: values.postcode || undefined,
       city: values.city,
+      city_id: values.city_id ?? null,
       country: values.country,
       lat: values.lat,
       lng: values.lng,
@@ -297,6 +310,22 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
     else void navigate({ to: '/dashboard' })
   }
 
+  function changeCity(text: string, selected: City | null) {
+    const value = { text, city: selected }
+    setValue('city', value.text, { shouldDirty: true, shouldValidate: true })
+    setValue('city_id', value.city?.id ?? null, { shouldDirty: true })
+    if (value.city) {
+      setValue('country', value.city.iso2, { shouldDirty: true, shouldValidate: true })
+      setValue('lat', value.city.lat, { shouldDirty: true })
+      setValue('lng', value.city.lng, { shouldDirty: true })
+      setValue('venue_pin_confirmed', false, { shouldDirty: true, shouldValidate: true })
+    } else if (!pinConfirmed) {
+      setValue('lat', undefined, { shouldDirty: true, shouldValidate: true })
+      setValue('lng', undefined, { shouldDirty: true, shouldValidate: true })
+      setValue('venue_pin_confirmed', true, { shouldDirty: true })
+    }
+  }
+
   const isOwner = !isEdit || !existing.data || existing.data.owner_profile_id === activeProfile?.id
 
   if (context.account.isPending || context.profiles.isPending || (isEdit && existing.isPending)) {
@@ -323,7 +352,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
         : <Link className="back-link" to="/dashboard">{t('backToDashboard')}</Link>}
       <div className="eyebrow">{t('organizerWorkspace')}</div>
       <h1>{isEdit ? t('editSeriesTitle', { name: existing.data?.name ?? t('openMicSeries') }) : t('createSeriesTitle')}</h1>
-      <form className="registration-form series-form" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <form className="registration-form series-form" onSubmit={handleSubmit(onSubmit, focusFirstError)} noValidate>
         <RequiredFieldsNote />
         <div className="form-tabs" role="tablist" aria-label={t('seriesFormSections')}>
           {FORM_TABS.map((tab, index) => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === index} aria-controls={`series-tab-${tab.id}`} className={`form-tab${activeTab === index ? ' form-tab-active' : ''}`} onClick={() => setActiveTab(index)}>
@@ -373,19 +402,22 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
           {errors.address_line1 && <p className="form-error" role="alert">{errors.address_line1.message}</p>}
           <label>{t('addressLine2')}<textarea {...register('address_line2')} /></label>
           <label>{t('postcode')}<input {...register('postcode')} /></label>
-          <label><span>{t('city')}<Required /></span><input required {...register('city')} /></label>
+          <CityAutocomplete name="city" required value={city} selectedCity={selectedCity.data} onChange={changeCity} />
           {errors.city && <p className="form-error" role="alert">{errors.city.message}</p>}
-          <label><span>{t('country')}<Required /></span><select required {...register('country')}><option value="">{t('selectCountry')}</option>{COUNTRY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.name} ({option.code})</option>)}</select></label>
+          {!selectedCity.data && <label><span>{t('country')}<Required /></span><select required {...register('country', { onChange: () => setValue('city_id', null, { shouldDirty: true }) })}><option value="">{t('selectCountry')}</option>{COUNTRY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.name} ({option.code})</option>)}</select></label>}
           {errors.country && <p className="form-error" role="alert">{errors.country.message}</p>}
           <p className="field-hint">{t('locationFieldsHint')}</p>
           <LocationPicker
+            provisional={!pinConfirmed}
+            onConfirm={() => setValue('venue_pin_confirmed', true, { shouldDirty: true, shouldValidate: true })}
             lat={lat}
             lng={lng}
-            onChange={({ lat: nextLat, lng: nextLng }) => { setValue('lat', nextLat, { shouldDirty: true, shouldValidate: true }); setValue('lng', nextLng, { shouldDirty: true, shouldValidate: true }) }}
+            onChange={({ lat: nextLat, lng: nextLng }) => { setValue('lat', nextLat, { shouldDirty: true, shouldValidate: true }); setValue('lng', nextLng, { shouldDirty: true, shouldValidate: true }); setValue('venue_pin_confirmed', nextLat !== undefined && nextLng !== undefined, { shouldDirty: true, shouldValidate: true }) }}
             addressQuery={[addressLine1, postcode, city, country].filter(Boolean).join(', ')}
             latInputId="open-mic-lat"
             lngInputId="open-mic-lng"
           />
+          {errors.lat && <p className="form-error" role="alert">{errors.lat.message === 'cityPickerPinRequired' ? t('cityPickerPinRequired') : errors.lat.message}</p>}
           {errors.lng && <p className="form-error" role="alert">{errors.lng.message}</p>}
         </section>
 

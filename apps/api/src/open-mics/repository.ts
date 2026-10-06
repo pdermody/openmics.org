@@ -14,6 +14,7 @@ export type OpenMicRow = {
   address_line2: string | null;
   postcode: string | null;
   city: string;
+  city_id: string | null;
   country: string;
   lat: string | null;
   lng: string | null;
@@ -38,6 +39,7 @@ export type OpenMicRow = {
   // Never included in serializeOpenMic's output. Read/write only through owner-authenticated
   // kiosk-backup-pin routes; the PIN is not an account-security credential.
   kiosk_backup_pin: string | null;
+  distance_km?: string | number | null;
 };
 
 type Queryable = Pool | PoolClient;
@@ -62,6 +64,7 @@ export type InsertOpenMicInput = {
   addressLine2?: string;
   postcode?: string;
   city: string;
+  cityId?: string | null;
   country: string;
   lat?: number;
   lng?: number;
@@ -84,13 +87,13 @@ export async function insertOpenMic(client: PoolClient, input: InsertOpenMicInpu
   const result = await client.query<OpenMicRow>(
     `INSERT INTO open_mics (
        owner_profile_id, name, description, activities, tags, venue_name, address_line1, address_line2,
-       postcode, city, country, lat, lng, time_zone, website, contact_email, schedule_summary, schedule_details,
+       postcode, city, country, city_id, lat, lng, time_zone, website, contact_email, schedule_summary, schedule_details,
        originals_only, amplification_available, age_policy, registration_mode, external_registration_url,
        entry_fee_amount, entry_fee_currency, entry_fee_note
      ) VALUES (
-       $1, $2, $3, $4, COALESCE($5, '{}'::text[]), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-       COALESCE($19, false), COALESCE($20, false), COALESCE($21, 'both'), COALESCE($22, 'both'), $23,
-       COALESCE($24, 0), $25, $26
+       $1, $2, $3, $4, COALESCE($5, '{}'::text[]), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+       $17, $18, $19, COALESCE($20, false), COALESCE($21, false), COALESCE($22, 'both'),
+       COALESCE($23, 'both'), $24, COALESCE($25, 0), $26, $27
      ) RETURNING *`,
     [
       input.ownerProfileId,
@@ -104,6 +107,7 @@ export async function insertOpenMic(client: PoolClient, input: InsertOpenMicInpu
       input.postcode ?? null,
       input.city,
       input.country,
+      input.cityId ?? null,
       input.lat ?? null,
       input.lng ?? null,
       input.timeZone,
@@ -143,6 +147,7 @@ export async function findPublicOpenMics(
 ): Promise<{ rows: OpenMicRow[]; total: number }> {
   const values: unknown[] = [];
   const conditions = ["deleted_at IS NULL", "status = 'active'"];
+  let geoPointParameters: { lng: number; lat: number } | undefined;
   if (options.q) {
     values.push(`%${options.q}%`);
     conditions.push(`(name ILIKE $${values.length} OR description ILIKE $${values.length})`);
@@ -172,15 +177,20 @@ export async function findPublicOpenMics(
     conditions.push(`owner_profile_id = $${values.length}`);
   }
   if (options.geo) {
+    geoPointParameters = { lng: values.length + 1, lat: values.length + 2 };
     values.push(options.geo.lng, options.geo.lat, options.geo.radiusKm * 1000);
     conditions.push(`ST_DWithin(location, ST_SetSRID(ST_MakePoint($${values.length - 2}, $${values.length - 1}), 4326)::geography, $${values.length})`);
   }
   const where = conditions.join(' AND ');
   values.push(options.limit, options.offset);
+  const distanceSelect = geoPointParameters
+    ? `, ST_Distance(location, ST_SetSRID(ST_MakePoint($${geoPointParameters.lng}, $${geoPointParameters.lat}), 4326)::geography) / 1000.0 AS distance_km`
+    : '';
   const result = await client.query<OpenMicRow>(
-    `SELECT * FROM open_mics
+    `SELECT *${distanceSelect}
+     FROM open_mics
      WHERE ${where}
-     ORDER BY name ASC LIMIT $${values.length - 1} OFFSET $${values.length}`,
+     ORDER BY ${options.geo ? 'distance_km ASC, id ASC' : 'name ASC, id ASC'} LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
   );
   const count = await client.query<{ count: string }>(
@@ -213,6 +223,7 @@ const UPDATABLE_COLUMNS = [
   'postcode',
   'city',
   'country',
+  'city_id',
   'lat',
   'lng',
   'time_zone',
@@ -298,6 +309,7 @@ export function serializeOpenMic(row: OpenMicRow) {
     address_line2: row.address_line2,
     postcode: row.postcode,
     city: row.city,
+    city_id: row.city_id ?? null,
     country: row.country,
     lat: row.lat === null ? null : Number(row.lat),
     lng: row.lng === null ? null : Number(row.lng),
@@ -317,5 +329,6 @@ export function serializeOpenMic(row: OpenMicRow) {
     status: row.status,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    ...(row.distance_km === undefined ? {} : { distance_km: Number(row.distance_km) }),
   };
 }

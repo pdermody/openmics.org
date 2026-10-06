@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { getAuthenticatedUser, getStoredSimulatedAuthToken, isAuthConfigured } from '../auth/session'
+import type { City } from './cities'
 
 export type Account = {
   id: string
   email: string
   display_name: string | null
   city: string | null
+  city_id?: string | null
+  city_location?: City | null
   preferred_language: string | null
   current_profile_id: string | null
   is_platform_admin: boolean
@@ -150,7 +153,7 @@ export function useAccountContext(enabled = true) {
   })
 
   const updateAccount = useMutation({
-    mutationFn: (input: { display_name?: string; city?: string; preferred_language?: string }) => {
+    mutationFn: (input: { display_name?: string; city?: string | null; city_id?: string | null; preferred_language?: string }) => {
       if (!account.data?.id) return Promise.resolve(null)
       return api<Account>(`/accounts/${account.data.id}`, {
         method: 'PATCH',

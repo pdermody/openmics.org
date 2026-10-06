@@ -14,6 +14,7 @@ export type Event = {
   address_line2?: string | null
   postcode?: string | null
   city: string
+  city_id?: string | null
   country: string
   activities: string[] | null
   tags: string[]
@@ -33,6 +34,8 @@ export type OpenMic = {
   description: string | null
   venue_name: string
   city: string
+  city_id?: string | null
+  distance_km?: number
   country: string
   activities: string[]
   tags: string[]
@@ -52,25 +55,43 @@ export type Profile = {
   show_gig_media?: boolean
 }
 
-type OpenMicPage = { items: OpenMic[]; pagination: { page: number; page_size: number; total: number } }
+export type PublicPage<T> = { items: T[]; pagination: { page: number; page_size: number; total: number } }
+type OpenMicPage = PublicPage<OpenMic>
 
 /** Mirrors the API's own registrations-closed check (apps/api/src/registrations/routes.ts). */
 export function isRegistrationClosed(event: Pick<Event, 'registrations_closed_at'>): boolean {
   return Boolean(event.registrations_closed_at) && new Date(event.registrations_closed_at!).getTime() <= Date.now()
 }
 
-/** Approximate coordinates for the seeded dev cities, so switching to a profile based in a
- * different city (via the profile switcher) can demonstrate "near me" filtering locally. */
-const DEV_CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
-  dublin: { lat: 53.3498, lng: -6.2603 },
-  cork: { lat: 51.8985, lng: -8.4756 },
-  galway: { lat: 53.2707, lng: -9.0568 },
-  paris: { lat: 48.8566, lng: 2.3522 },
+export function getCityCoordinates(city: { lat: number; lng: number } | null | undefined): { lat: number; lng: number } | undefined {
+  return city ? { lat: city.lat, lng: city.lng } : undefined
 }
 
-export function getCityCoordinates(city: string | null | undefined): { lat: number; lng: number } | undefined {
-  if (!city) return undefined
-  return DEV_CITY_COORDINATES[city.trim().toLowerCase()]
+export type DiscoveryNear = { lat: number; lng: number; radiusKm: number }
+
+function discoveryParams(page: number, near?: DiscoveryNear) {
+  const params = new URLSearchParams({ page: String(page), page_size: '20' })
+  if (near) {
+    params.set('near', `${near.lat},${near.lng}`)
+    params.set('radius_km', String(near.radiusKm))
+  }
+  return params
+}
+
+export function useDiscoveryOpenMics(page: number, near?: DiscoveryNear, enabled = true) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'discovery-series', page, near],
+    enabled,
+    queryFn: ({ signal }) => api<PublicPage<OpenMic>>(`/open-mics?${discoveryParams(page, near)}`, { signal }),
+  })
+}
+
+export function useDiscoveryEvents(page: number, near?: DiscoveryNear, enabled = true) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'discovery-events', page, near],
+    enabled,
+    queryFn: ({ signal }) => api<PublicPage<Event>>(`/events/discovery?${discoveryParams(page, near)}`, { signal }),
+  })
 }
 
 export const publicReadKeys = {
@@ -85,13 +106,13 @@ export function useUpcomingEvents(limit = 6, near?: { lat: number; lng: number; 
   return useQuery({
     queryKey: publicReadKeys.upcomingEvents(limit, near),
     enabled,
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const params = new URLSearchParams({ limit: String(limit) })
       if (near) {
         params.set('near', `${near.lat},${near.lng}`)
         params.set('radius_km', String(near.radiusKm ?? 50))
       }
-      return api<Event[]>(`/events/upcoming?${params.toString()}`)
+      return api<Event[]>(`/events/upcoming?${params.toString()}`, { signal })
     },
   })
 }
@@ -100,13 +121,13 @@ export function usePublicOpenMics(pageSize = 6, near?: { lat: number; lng: numbe
   return useQuery({
     queryKey: publicReadKeys.openMics(pageSize, near),
     enabled,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams({ page_size: String(pageSize) })
       if (near) {
         params.set('near', `${near.lat},${near.lng}`)
         params.set('radius_km', String(near.radiusKm ?? 50))
       }
-      const response = await api<OpenMicPage>(`/open-mics?${params.toString()}`)
+      const response = await api<OpenMicPage>(`/open-mics?${params.toString()}`, { signal })
       return response.items
     },
   })

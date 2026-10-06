@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { CityAutocomplete } from '../components/location/CityAutocomplete'
+import { useCity } from '../features/cities'
+import { kioskFormSchema, type KioskFormValues } from '../features/registration-form'
 import { CalendarDays, Eye, EyeOff, MapPin, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ApiError, friendlyApiErrorMessage } from '../api/client'
@@ -275,14 +280,21 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   const confirmationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  const [performerName, setPerformerName] = useState('')
-  const [performerCity, setPerformerCity] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [contactPhone, setContactPhone] = useState('')
-  const [songNames, setSongNames] = useState('')
-  const [bio, setBio] = useState('')
-  const [mediaConsent, setMediaConsent] = useState(true)
-  const [remindersOptIn, setRemindersOptIn] = useState(false)
+  const { watch, setValue, handleSubmit, reset, formState: { errors } } = useForm<KioskFormValues>({
+    resolver: zodResolver(kioskFormSchema),
+    defaultValues: { performer_name: '', performer_city: '', performer_city_id: null, contact_email: '', contact_phone: '', song_names: '', bio: '', media_consent: true, reminders_opt_in: false },
+  })
+  const { performer_name: performerName, performer_city: performerCity, performer_city_id: performerCityId, contact_email: contactEmail,
+    contact_phone: contactPhone, song_names: songNames, bio, media_consent: mediaConsent, reminders_opt_in: remindersOptIn } = watch()
+  const setPerformerName = (value: string) => setValue('performer_name', value, { shouldDirty: true })
+  const setPerformerCity = (value: string) => setValue('performer_city', value, { shouldDirty: true })
+  const setContactEmail = (value: string) => setValue('contact_email', value, { shouldDirty: true })
+  const setContactPhone = (value: string) => setValue('contact_phone', value, { shouldDirty: true })
+  const setSongNames = (value: string) => setValue('song_names', value, { shouldDirty: true })
+  const setBio = (value: string) => setValue('bio', value, { shouldDirty: true })
+  const setMediaConsent = (value: boolean) => setValue('media_consent', value, { shouldDirty: true })
+  const setRemindersOptIn = (value: boolean) => setValue('reminders_opt_in', value, { shouldDirty: true })
+  const selectedCity = useCity(performerCityId)
   const [confirmation, setConfirmation] = useState('')
   const [emailPromptOpen, setEmailPromptOpen] = useState(false)
 
@@ -294,14 +306,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
   }, [event.data?.id])
 
   function resetForm() {
-    setPerformerName('')
-    setPerformerCity('')
-    setContactEmail('')
-    setContactPhone('')
-    setSongNames('')
-    setBio('')
-    setMediaConsent(true)
-    setRemindersOptIn(false)
+    reset()
     nameInputRef.current?.focus()
   }
 
@@ -310,7 +315,8 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
     kioskRegistration.mutate(
       {
         performer_name: submittedName,
-        performer_city: performerCity.trim() || undefined,
+        performer_city: performerCity.trim() || null,
+        performer_city_id: performerCityId,
         contact_email: contactEmail.trim() || undefined,
         contact_phone: contactPhone.trim() || undefined,
         song_names: songNames.split(',').map((song) => song.trim()).filter(Boolean),
@@ -330,8 +336,7 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
     )
   }
 
-  function submit(formEvent: FormEvent<HTMLFormElement>) {
-    formEvent.preventDefault()
+  function submit() {
     if (!performerName.trim()) return
     // No email? Explain why one helps before recording a sign-up with no way to follow up.
     if (!contactEmail.trim()) { setEmailPromptOpen(true); return }
@@ -398,10 +403,11 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
           {event.isPending && <ReadState message="Loading event…" />}
           {event.isError && <ReadState message={friendlyApiErrorMessage(event.error, 'We could not load this event.')} retry={() => void event.refetch()} />}
 
-          {event.data && <form className="kiosk-form" noValidate onSubmit={submit}>
+          {event.data && <form className="kiosk-form" noValidate onSubmit={handleSubmit(submit)}>
             <RequiredFieldsNote />
             <label><span>{t('performerName')}<Required /></span> <span className="field-hint">{t('kioskNameHint')}</span><input ref={nameInputRef} autoFocus required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
-            <label>{t('cityLabel')} <span className="field-hint">{t('kioskCityHint')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
+            <CityAutocomplete label={t('cityLabel')} value={performerCity} selectedCity={selectedCity.data} onChange={(value, city) => { setPerformerCity(value); setValue('performer_city_id', city?.id ?? null, { shouldDirty: true }) }} />
+            <p className="field-hint">{t('kioskCityHint')}</p>
             <label>{t('phoneLabel')} <span className="field-hint">{t('kioskPhoneHint')}</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
             <label>{t('kioskEmailLabel')} <span className="field-hint">{t('kioskEmailHint')}</span><input ref={emailInputRef} type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
             <label>{t('performancePrompt')} <span className="field-hint">{t('kioskPerformanceHint')}</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
@@ -409,6 +415,8 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
             <label className="checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>{t('mediaConsentPrompt')}</span></label>
             <label className="checkbox-label"><input type="checkbox" checked={remindersOptIn} onChange={(input) => setRemindersOptIn(input.target.checked)} /><span>{t('kioskRemindersOptIn')}</span></label>
             {kioskRegistration.isError && <p className="form-error" role="alert">{kioskErrorMessage(kioskRegistration.error)}</p>}
+            {errors.performer_name && <p className="form-error" role="alert">{t('cityPickerNameRequired')}</p>}
+            {errors.contact_email && <p className="form-error" role="alert">{t('cityPickerEmailInvalid')}</p>}
             {confirmation && <p className="kiosk-success" role="status">{confirmation} ✓</p>}
             <button className="primary-button kiosk-submit" type="submit" disabled={kioskRegistration.isPending}>{kioskRegistration.isPending ? t('loading') : t('addRoster')}</button>
           </form>}
@@ -431,4 +439,3 @@ export function KioskPage({ seriesId, eventId, theme, mode }: { seriesId: string
     </KioskLock>
   </div>
 }
-

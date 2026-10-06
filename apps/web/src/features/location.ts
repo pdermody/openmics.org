@@ -15,6 +15,8 @@ export const baseLocationFieldsSchema = z.object({
   address_line2: z.string().trim().optional(),
   postcode: z.string().trim().optional(),
   city: z.string().trim().min(1, 'City is required'),
+  city_id: z.string().nullable().optional(),
+  venue_pin_confirmed: z.boolean().optional(),
   country: z
     .string()
     .trim()

@@ -41,6 +41,8 @@ export type LocationPickerProps = {
   /** Ids for the always-present, keyboard-accessible numeric lat/lng inputs (for label association). */
   latInputId?: string
   lngInputId?: string
+  provisional?: boolean
+  onConfirm?: () => void
 }
 
 function MapClickAndDrag({ onSelect }: { onSelect: (lat: number, lng: number) => void }) {
@@ -59,7 +61,7 @@ function MapClickAndDrag({ onSelect }: { onSelect: (lat: number, lng: number) =>
  * unavailable. Intended to be embedded in any form (via React Hook Form's `Controller`) that
  * collects a venue location — OpenMic and Event forms today, future forms later.
  */
-export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, latInputId, lngInputId }: LocationPickerProps) {
+export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, latInputId, lngInputId, provisional, onConfirm }: LocationPickerProps) {
   const { t } = useTranslation()
   const geocoding = useGeocoding()
   const [query, setQuery] = useState(addressQuery)
@@ -129,6 +131,11 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
   }
 
   return <div className="location-picker">
+    {provisional && <div role="status">
+      <p className="field-hint">{t('cityPickerProvisionalPin')}</p>
+      <button type="button" className="quiet-button" disabled={disabled || lat === undefined || lng === undefined}
+        onClick={onConfirm}>{t('cityPickerConfirmPin')}</button>
+    </div>}
     {!geocoding.assistDisabled && <div className="location-picker-search" ref={searchContainerRef}>
       <label className="sr-only" htmlFor="location-picker-query">{t('searchVenue')}</label>
       <input

@@ -16,6 +16,7 @@ export function useOrganizerProfile() {
 }
 
 export type OpenMicDetail = OpenMic & {
+  city_id?: string | null
   owner_profile_id: string
   address_line1: string
   address_line2: string | null
@@ -44,6 +45,7 @@ export type OpenMicFormInput = {
   address_line2?: string
   postcode?: string
   city: string
+  city_id?: string | null
   country: string
   lat?: number
   lng?: number
@@ -187,6 +189,7 @@ export function useOrganizerSeriesEvents(seriesId: string | undefined, enabled =
 }
 
 export type EventDetail = Event & {
+  city_id?: string | null
   ends_at: string | null
   registrations_closed_at: string | null
   address_line1: string
@@ -214,6 +217,7 @@ export type EventFormInput = {
   address_line2?: string
   postcode?: string
   city?: string
+  city_id?: string | null
   country?: string
   lat?: number
   lng?: number
@@ -361,6 +365,7 @@ export type RosterRegistration = {
   profile_id: string | null
   performer_name: string
   performer_city: string | null
+  performer_city_id?: string | null
   contact_email: string | null
   contact_phone: string | null
   song_names: string[]
@@ -492,7 +497,8 @@ export function useUpdatePerformance(eventId: string | undefined) {
 // updateRegistrationSchema in apps/api/src/registrations/validation.ts).
 export type RegistrationEditInput = {
   performer_name?: string
-  performer_city?: string
+  performer_city?: string | null
+  performer_city_id?: string | null
   contact_email?: string
   contact_phone?: string
   song_names?: string[]
@@ -646,7 +652,8 @@ export function useRosterLiveUpdates(openMicId: string | undefined, eventId: str
 
 export type KioskRegistrationInput = {
   performer_name: string
-  performer_city?: string
+  performer_city?: string | null
+  performer_city_id?: string | null
   contact_email?: string
   contact_phone?: string
   song_names?: string[]

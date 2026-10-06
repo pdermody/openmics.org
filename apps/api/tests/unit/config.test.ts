@@ -19,6 +19,7 @@ describe('loadConfig', () => {
       appBaseUrl: 'http://localhost:5173',
       locationIqApiKey: '',
       locationIqBaseUrl: 'https://us1.locationiq.com',
+      geocodingDailyLimit: 0,
       streamTokenSecret: 'dev-insecure-stream-token-secret-change-me',
       mediaStorageAdapter: 'local',
       mediaBucket: undefined,

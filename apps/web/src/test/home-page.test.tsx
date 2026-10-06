@@ -1,10 +1,17 @@
 import { http, HttpResponse } from 'msw'
 import { userEvent } from '@testing-library/user-event'
-import { screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { HomePage } from '../views/HomePage'
 import { renderWithProviders } from './render'
 import { server } from './server'
+import { useDiscoveryStore } from '../features/discovery'
+
+beforeEach(() => {
+  mockGeolocationPermission('denied')
+  useDiscoveryStore.setState({ latest: null, entries: {} })
+  server.use(http.get('/api/discovery/suggestions', () => HttpResponse.json({ expansion: null, cities: [] })))
+})
 
 function mockGeolocationPermission(state: PermissionState, coords?: { lat: number; lng: number }) {
   Object.defineProperty(navigator, 'permissions', {
@@ -22,6 +29,7 @@ function mockGeolocationPermission(state: PermissionState, coords?: { lat: numbe
 }
 
 afterEach(() => {
+  cleanup()
   delete (navigator as unknown as { permissions?: unknown }).permissions
   delete (navigator as unknown as { geolocation?: unknown }).geolocation
   window.localStorage.clear()
@@ -35,6 +43,11 @@ const anonymousHandlers = [
 const signedInAccount = {
   id: 'account-1', email: 'organizer@example.test', display_name: 'Organizer', city: null,
   preferred_language: 'en', current_profile_id: null, is_platform_admin: false, plan: 'free',
+}
+
+const cork = {
+  id: 'city-cork', city: 'Cork', city_ascii: 'Cork', country: 'Ireland', country_ascii: 'Ireland',
+  iso2: 'IE', iso3: 'IRL', admin_name: null, lat: 51.8985, lng: -8.4756, population: 222333,
 }
 
 describe('HomePage', () => {
@@ -79,8 +92,8 @@ describe('HomePage', () => {
 
     renderWithProviders(<HomePage theme="venue" mode="light" />)
 
-    expect(await screen.findByText('No upcoming rooms found near you yet.')).toBeInTheDocument()
-    expect(screen.getByText('No open mic series found near you yet.')).toBeInTheDocument()
+    expect(await screen.findByText('No upcoming events found. Choose a city to explore.')).toBeInTheDocument()
+    expect(screen.getByText('No open mic series found. Choose a city to explore.')).toBeInTheDocument()
   })
 
   it('uses browser location silently when permission is already granted, without showing the opt-in button', async () => {
@@ -107,7 +120,7 @@ describe('HomePage', () => {
       http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
       http.get('/api/me', async () => {
         await new Promise((resolve) => setTimeout(resolve, 20))
-        return HttpResponse.json({ ...signedInAccount, city: 'Cork' })
+        return HttpResponse.json({ ...signedInAccount, city: 'Cork', city_id: cork.id, city_location: cork })
       }),
       http.get('/api/accounts/account-1/profiles', () => HttpResponse.json({ items: [] })),
       http.get('/api/events/upcoming', ({ request }) => {
@@ -122,7 +135,7 @@ describe('HomePage', () => {
 
     renderWithProviders(<HomePage theme="venue" mode="light" />)
 
-    expect(await screen.findByText('No open mic series found near Cork yet.')).toBeInTheDocument()
+    expect(await screen.findByText('No open mic series found within 50 km of Cork. Search farther away or choose another city.')).toBeInTheDocument()
     await waitFor(() => {
       expect(eventRequests).toHaveLength(1)
       expect(seriesRequests).toHaveLength(1)
@@ -164,7 +177,7 @@ describe('HomePage', () => {
     expect(screen.queryByRole('button', { name: /use my location/i })).not.toBeInTheDocument()
   })
 
-  it('points signed-in users with no saved city and no location to their account page', async () => {
+  it('lets signed-in users explore a city without changing their account preferences', async () => {
     mockGeolocationPermission('denied')
     window.localStorage.setItem('openmic-simulated-auth-token', 'organizer-token')
     server.use(
@@ -177,7 +190,7 @@ describe('HomePage', () => {
 
     renderWithProviders(<HomePage theme="venue" mode="light" />)
 
-    expect(await screen.findByRole('link', { name: /add a city on your account page/i })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /choose a city/i })).toBeInTheDocument()
   })
 
   it('does not show the add-city hint for anonymous visitors', async () => {
@@ -192,5 +205,57 @@ describe('HomePage', () => {
 
     await screen.findByText('Rooms worth showing up for')
     expect(screen.queryByRole('link', { name: /add a city on your account page/i })).not.toBeInTheDocument()
+  })
+
+  it('expands both previews only after the suggested action is selected', async () => {
+    mockGeolocationPermission('granted', { lat: 53.35, lng: -6.26 })
+    const radii: { events: string[]; series: string[] } = { events: [], series: [] }
+    server.use(
+      ...anonymousHandlers,
+      http.get('/api/events/upcoming', ({ request }) => {
+        radii.events.push(new URL(request.url).searchParams.get('radius_km')!)
+        return HttpResponse.json([])
+      }),
+      http.get('/api/open-mics', ({ request }) => {
+        radii.series.push(new URL(request.url).searchParams.get('radius_km')!)
+        return HttpResponse.json({ items: [], pagination: { page: 1, page_size: 3, total: 0 } })
+      }),
+      http.get('/api/discovery/suggestions', ({ request }) => HttpResponse.json({
+        expansion: new URL(request.url).searchParams.get('radius_km') === '50' ? { radius_km: 135, additional_count: 22 } : null,
+        cities: [],
+      })),
+    )
+    renderWithProviders(<HomePage theme="venue" mode="light" />)
+    const expand = await screen.findByRole('button', { name: /expand to 135 km.*22 more open mics/i })
+    expect(radii.events).toEqual(['50'])
+    expect(radii.series).toEqual(['50'])
+    await userEvent.setup().click(expand)
+    await waitFor(() => {
+      expect(radii.events).toEqual(['50', '135'])
+      expect(radii.series).toEqual(['50', '135'])
+    })
+    expect(screen.getByRole('link', { name: /view all upcoming events/i })).toHaveAttribute('href', expect.stringContaining('/discover'))
+  })
+
+  it('offers a smaller inventory at 200 km alongside cities with public listings', async () => {
+    mockGeolocationPermission('granted', { lat: 53.35, lng: -6.26 })
+    const origins: string[] = []
+    server.use(
+      ...anonymousHandlers,
+      http.get('/api/events/upcoming', () => HttpResponse.json([])),
+      http.get('/api/open-mics', ({ request }) => {
+        origins.push(new URL(request.url).searchParams.get('near')!)
+        return HttpResponse.json({ items: [], pagination: { page: 1, page_size: 3, total: 0 } })
+      }),
+      http.get('/api/discovery/suggestions', () => HttpResponse.json({
+        expansion: { radius_km: 200, additional_count: 8 },
+        cities: [{ ...cork, open_mic_count: 4, distance_km: 218 }],
+      })),
+    )
+    renderWithProviders(<HomePage theme="venue" mode="light" />)
+    expect(await screen.findByRole('button', { name: /show 8 more open mics within 200 km/i })).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: /Cork, Ireland.*4 open mics/i }))
+    await waitFor(() => expect(origins).toContain('51.8985,-8.4756'))
+    expect(screen.getByText('Near Cork, Ireland · Within 50 km')).toBeInTheDocument()
   })
 })

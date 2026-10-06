@@ -24,6 +24,8 @@ tags:
   - name: Media
   - name: Admin
   - name: Geocoding
+  - name: Cities
+  - name: Discovery
 paths:
   /openapi.json:
     get:
@@ -384,6 +386,124 @@ paths:
           $ref: "#/components/responses/GeocodingRateLimited"
         "503":
           $ref: "#/components/responses/GeocodingUnavailable"
+  /cities/search:
+    get:
+      tags:
+        - Cities
+      operationId: searchCities
+      description: Searches the bounded local city catalogue using Unicode and ASCII city/country spellings. Results rank exact names, then prefixes, then other matches, with population descending within each tier.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: country
+          in: query
+          required: false
+          description: Optional ISO 3166-1 alpha-2 country context.
+          schema:
+            type: string
+            pattern: "^[A-Za-z]{2}$"
+      responses:
+        "200":
+          description: At most ten matching catalogue cities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CitySearchResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+  /cities/{id}:
+    get:
+      tags:
+        - Cities
+      operationId: getCity
+      description: Resolves a saved city ID to its canonical catalogue names, country, region and centre coordinates.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Resolved city
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/City"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /cities/search-external:
+    post:
+      tags:
+        - Cities
+      operationId: searchExternalCities
+      description: Explicit city-only LocationIQ lookup. Successful responses, including empty results, are cached for 24 hours and confirmed identities are persisted in the local catalogue. Provider use requires a configured finite GEOCODING_DAILY_LIMIT; cache hits do not consume the shared daily budget.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [q]
+              additionalProperties: false
+              properties:
+                q:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        "200":
+          description: Provider city results, or a successful cache hit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalCitySearchResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/GeocodingRateLimited"
+        "503":
+          $ref: "#/components/responses/GeocodingUnavailable"
+  /discovery/suggestions:
+    get:
+      tags:
+        - Discovery
+      operationId: getDiscoverySuggestions
+      description: Returns the smallest outward-rounded radius containing twenty or more additional active public series outside the current radius (or the positive remaining count at 200 km), plus up to six other catalogue cities with active public series ordered by centre distance. Hidden series are excluded for every caller.
+      parameters:
+        - name: near
+          in: query
+          required: true
+          description: Origin coordinates formatted as lat,lng.
+          schema:
+            type: string
+            pattern: "^-?[0-9]+(?:\\.[0-9]+)?,-?[0-9]+(?:\\.[0-9]+)?$"
+        - name: radius_km
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0
+            maximum: 200
+            default: 50
+        - name: city_id
+          in: query
+          required: false
+          description: Current resolved city to exclude from alternative city suggestions.
+          schema:
+            $ref: "#/components/schemas/Id"
+      responses:
+        "200":
+          description: Expansion and city suggestion metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscoverySuggestions"
+        "400":
+          $ref: "#/components/responses/ValidationError"
   /open-mics:
     get:
       tags:
@@ -663,6 +783,41 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/EventListResponse"
+  /events/discovery:
+    get:
+      tags:
+        - Discovery
+      operationId: listDiscoveryEvents
+      description: Returns a paginated list of publicly visible upcoming events, ordered by start time and stable ID. Optional geographic filtering uses the supplied origin and radius. The existing GET /events/upcoming array contract is unchanged.
+      parameters:
+        - name: near
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^-?[0-9]+(?:\\.[0-9]+)?,-?[0-9]+(?:\\.[0-9]+)?$"
+        - name: radius_km
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0
+            maximum: 200
+            default: 50
+        - $ref: "#/components/parameters/Page"
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          $ref: "#/components/responses/EventListResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
   /events/{id}:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -1955,12 +2110,114 @@ components:
               allOf:
                 - $ref: "#/components/schemas/Id"
               nullable: true
+    City:
+      type: object
+      required:
+        - id
+        - city
+        - city_ascii
+        - country
+        - country_ascii
+        - iso2
+        - iso3
+        - admin_name
+        - lat
+        - lng
+        - population
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        city:
+          type: string
+        city_ascii:
+          type: string
+        country:
+          type: string
+        country_ascii:
+          type: string
+        iso2:
+          type: string
+          pattern: "^[A-Z]{2}$"
+        iso3:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          nullable: true
+        admin_name:
+          type: string
+          nullable: true
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        population:
+          type: integer
+          minimum: 0
+          nullable: true
+    CitySearchResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/City"
+    ExternalCitySearchResponse:
+      type: object
+      required: [items, cached]
+      properties:
+        items:
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/City"
+        cached:
+          type: boolean
+    DiscoverySuggestions:
+      type: object
+      required: [expansion, cities]
+      properties:
+        expansion:
+          type: object
+          nullable: true
+          required: [radius_km, additional_count]
+          properties:
+            radius_km:
+              type: number
+              minimum: 0
+              maximum: 200
+            additional_count:
+              type: integer
+              minimum: 1
+        cities:
+          type: array
+          maxItems: 6
+          items:
+            allOf:
+              - $ref: "#/components/schemas/City"
+              - type: object
+                required: [open_mic_count, distance_km]
+                properties:
+                  open_mic_count:
+                    type: integer
+                    minimum: 1
+                  distance_km:
+                    type: number
+                    minimum: 0
+                  approximate:
+                    type: boolean
     Account:
       type: object
       required:
         - id
         - email
         - display_name
+        - city_id
+        - city_location
         - plan
         - created_at
         - updated_at
@@ -1976,6 +2233,14 @@ components:
           type: string
         city:
           type: string
+          nullable: true
+        city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        city_location:
+          allOf:
+            - $ref: "#/components/schemas/City"
           nullable: true
         preferred_language:
           type: string
@@ -2105,6 +2370,7 @@ components:
         - current_handle
         - name
         - status
+        - city_id
       properties:
         id:
           $ref: "#/components/schemas/Id"
@@ -2143,6 +2409,14 @@ components:
           type: string
         country:
           type: string
+        city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        distance_km:
+          type: number
+          minimum: 0
+          description: Present on geographically scoped public results.
         lat:
           type: number
           minimum: -90
@@ -2218,6 +2492,7 @@ components:
         - time_zone
         - status
         - phase
+        - city_id
       properties:
         id:
           $ref: "#/components/schemas/Id"
@@ -2264,6 +2539,14 @@ components:
           type: string
         country:
           type: string
+        city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+        distance_km:
+          type: number
+          minimum: 0
+          description: Present on geographically scoped discovery results.
         lat:
           type: number
           minimum: -90
@@ -2310,6 +2593,7 @@ components:
         - submission_channel
         - organizer_supervised
         - visibility_state
+        - performer_city_id
       properties:
         id:
           $ref: "#/components/schemas/Id"
@@ -2323,6 +2607,10 @@ components:
           type: string
         performer_city:
           type: string
+          nullable: true
+        performer_city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
           nullable: true
         contact_email:
           type: string
@@ -2873,6 +3161,11 @@ components:
           type: string
         city:
           type: string
+          nullable: true
+        city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
         preferred_language:
           type: string
     CurrentProfileRequest:
@@ -2965,8 +3258,6 @@ components:
         - name
         - venue_name
         - address_line1
-        - city
-        - country
         - time_zone
       properties:
         name:
@@ -2987,6 +3278,11 @@ components:
           type: string
         country:
           type: string
+        city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: Selected catalogue city. When set to a UUID, the server validates and derives canonical city/country snapshots; null leaves free-text snapshots unlinked.
         lat:
           type: number
           minimum: -90
@@ -3082,6 +3378,11 @@ components:
           type: string
         country:
           type: string
+        city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: Omission preserves the reference; null clears it. Changing free-text city or country without a selected ID clears a stale reference.
         lat:
           type: number
           minimum: -90
@@ -3180,6 +3481,11 @@ components:
           type: string
         country:
           type: string
+        city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: The selected city must match the location snapshot; on inherited locations omission inherits the parent series' city reference.
         lat:
           type: number
           minimum: -90
@@ -3247,6 +3553,11 @@ components:
           type: string
         country:
           type: string
+        city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: The selected city must match the supplied complete location snapshot. Null may clear the link without changing snapshots.
         lat:
           type: number
           minimum: -90
@@ -3289,6 +3600,11 @@ components:
           type: string
         performer_city:
           type: string
+        performer_city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: Selected city is validated against and supplies the canonical performer_city snapshot.
         contact_email:
           type: string
           format: email
@@ -3320,6 +3636,11 @@ components:
           type: string
         performer_city:
           type: string
+        performer_city_id:
+          allOf:
+            - $ref: "#/components/schemas/Id"
+          nullable: true
+          description: Omission preserves the reference; null clears it. Changing free-text performer_city without a selected ID clears a stale reference.
         contact_email:
           type: string
           format: email

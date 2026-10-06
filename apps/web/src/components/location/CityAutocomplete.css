@@ -1,0 +1,8 @@
+.city-picker { position: relative; display: grid; gap: .4rem; min-width: 0; }
+.city-picker-input { display: flex; gap: .5rem; }
+.city-picker-input input { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); padding: 13px 14px; }
+.city-picker-input input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.city-picker-options { list-style: none; margin: 0; padding: .25rem; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: .5rem; max-height: 18rem; overflow-y: auto; }
+.city-picker-options li { display: grid; gap: .15rem; padding: .65rem; cursor: pointer; border-radius: .35rem; }
+.city-picker-options li:hover, .city-picker-active { background: var(--surface-2); outline: 2px solid var(--focus); outline-offset: -2px; }
+.city-picker-options span { font-size: .85em; }

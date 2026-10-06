@@ -20,6 +20,7 @@ export interface EventRow {
   address_line2: string | null;
   postcode: string | null;
   city: string;
+  city_id: string | null;
   country: string;
   lat: string | null;
   lng: string | null;
@@ -30,6 +31,7 @@ export interface EventRow {
   entry_fee_amount: string | null;
   entry_fee_currency: string | null;
   entry_fee_note: string | null;
+  distance_km?: string | number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -50,6 +52,7 @@ export interface InsertEventInput {
   addressLine2?: string | null;
   postcode?: string | null;
   city?: string;
+  cityId?: string | null;
   country?: string;
   lat?: number | null;
   lng?: number | null;
@@ -66,12 +69,12 @@ export async function insertEvent(client: PoolClient, input: InsertEventInput): 
   const result = await client.query<EventRow>(
     `INSERT INTO events (
       open_mic_id, title, starts_at, ends_at, time_zone, status, registrations_closed_at,
-      venue_name, address_line1, address_line2, postcode, city, country, lat, lng,
+      venue_name, address_line1, address_line2, postcode, city, country, city_id, lat, lng,
       activities, tags, capacity, notes, entry_fee_amount, entry_fee_currency, entry_fee_note
     ) VALUES (
       $1, $2, $3, $4, $5, $6, $7,
-      $8, $9, $10, $11, $12, $13, $14, $15,
-      $16, COALESCE($17, '{}'::text[]), $18, $19, $20, $21, $22
+      $8, $9, $10, $11, $12, $13, $14, $15, $16,
+      $17, COALESCE($18, '{}'::text[]), $19, $20, $21, $22, $23
     ) RETURNING *`,
     [
       input.openMicId,
@@ -87,6 +90,7 @@ export async function insertEvent(client: PoolClient, input: InsertEventInput): 
       input.postcode ?? null,
       input.city ?? null,
       input.country ?? null,
+      input.cityId ?? null,
       input.lat ?? null,
       input.lng ?? null,
       input.activities ?? null,
@@ -187,6 +191,33 @@ export async function findUpcomingEvents(
   return result.rows;
 }
 
+export async function findDiscoveryEvents(
+  client: Queryable,
+  options: { page: number; pageSize: number; geo?: { lat: number; lng: number; radiusKm: number } },
+): Promise<{ rows: EventRow[]; total: number }> {
+  const values: unknown[] = [];
+  const conditions = ['e.deleted_at IS NULL', 'o.deleted_at IS NULL', "o.status = 'active'", "e.status = 'published'", 'e.starts_at >= now()'];
+  if (options.geo) {
+    values.push(options.geo.lng, options.geo.lat, options.geo.radiusKm * 1000);
+    conditions.push('ST_DWithin(e.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $3)');
+  }
+  const where = conditions.join(' AND ');
+  const count = await client.query<{ total: string }>(
+    `SELECT count(*)::text AS total FROM events e JOIN open_mics o ON o.id = e.open_mic_id WHERE ${where}`,
+    values,
+  );
+  const distance = options.geo
+    ? ', ST_Distance(e.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0 AS distance_km'
+    : '';
+  const rows = await client.query<EventRow>(
+    `SELECT e.*${distance} FROM events e JOIN open_mics o ON o.id = e.open_mic_id
+     WHERE ${where} ORDER BY e.starts_at ASC, e.id ASC
+     LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+    [...values, options.pageSize, (options.page - 1) * options.pageSize],
+  );
+  return { rows: rows.rows, total: Number(count.rows[0].total) };
+}
+
 export async function findNextEventByOpenMicId(client: Queryable, openMicId: string): Promise<EventRow | null> {
   const result = await client.query<EventRow>(
     `SELECT * FROM events
@@ -269,6 +300,7 @@ export async function updateEvent(pool: Queryable, id: string, changes: Partial<
     postcode: 'postcode',
     city: 'city',
     country: 'country',
+    cityId: 'city_id',
     lat: 'lat',
     lng: 'lng',
     activities: 'activities',
@@ -327,6 +359,7 @@ export function serializeEvent(row: EventRow, now = new Date()): Record<string, 
     address_line2: row.address_line2,
     postcode: row.postcode,
     city: row.city,
+    city_id: row.city_id ?? null,
     country: row.country,
     lat: row.lat ? Number(row.lat) : null,
     lng: row.lng ? Number(row.lng) : null,
@@ -339,6 +372,7 @@ export function serializeEvent(row: EventRow, now = new Date()): Record<string, 
     entry_fee_note: row.entry_fee_note,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    ...(row.distance_km === undefined ? {} : { distance_km: Number(row.distance_km) }),
   };
 }
 

@@ -8,6 +8,7 @@ export type RegistrationRow = {
   profile_id: string | null;
   performer_name: string;
   performer_city: string | null;
+  performer_city_id: string | null;
   contact_email: string | null;
   contact_phone: string | null;
   song_names: string[];
@@ -39,6 +40,7 @@ export type InsertRegistrationInput = {
   profileId?: string | null;
   performerName: string;
   performerCity?: string | null;
+  performerCityId?: string | null;
   contactEmail?: string | null;
   contactPhone?: string | null;
   songNames?: string[];
@@ -59,19 +61,20 @@ export type InsertRegistrationInput = {
 export async function insertRegistration(client: PoolClient, input: InsertRegistrationInput): Promise<RegistrationRow> {
   const result = await client.query<RegistrationRow>(
     `INSERT INTO registrations (
-      event_id, profile_id, performer_name, performer_city, contact_email, contact_phone, song_names,
+      event_id, profile_id, performer_name, performer_city, performer_city_id, contact_email, contact_phone, song_names,
       bio, submission_channel, organizer_supervised, referred_by_profile_id, media_consent, reminders_opt_in,
       edit_token_hash, edit_token_expires_at, email_verification_token_hash,
       email_verification_token_expires_at, verification_method, email_verified_at
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, COALESCE($7, '{}'::text[]), $8, $9, $10, $11, COALESCE($12, true), COALESCE($13, false),
-      $14, $15, $16, $17, $18, $19
+      $1, $2, $3, $4, $5, $6, $7, COALESCE($8, '{}'::text[]), $9, $10, $11, $12, COALESCE($13, true), COALESCE($14, false),
+      $15, $16, $17, $18, $19, $20
     ) RETURNING *`,
     [
       input.eventId,
       input.profileId ?? null,
       input.performerName,
       input.performerCity ?? null,
+      input.performerCityId ?? null,
       input.contactEmail ?? null,
       input.contactPhone ?? null,
       input.songNames ?? null,
@@ -154,7 +157,7 @@ export async function updateRegistration(
   changes: Partial<Record<string, unknown>>,
 ): Promise<RegistrationRow | null> {
   const allowed = new Set([
-    'performer_name', 'performer_city', 'contact_email', 'contact_phone', 'song_names', 'bio', 'media_consent', 'reminders_opt_in', 'adopted_profile_id',
+    'performer_name', 'performer_city', 'performer_city_id', 'contact_email', 'contact_phone', 'song_names', 'bio', 'media_consent', 'reminders_opt_in', 'adopted_profile_id',
     'claimed_by_account_id', 'claimed_at', 'verification_method', 'email_verified_at',
     'email_verification_token_hash', 'email_verification_token_expires_at',
   ]);
@@ -215,6 +218,7 @@ export function serializeRegistration(row: RegistrationRow) {
     profile_id: row.profile_id,
     performer_name: row.performer_name,
     performer_city: row.performer_city,
+    performer_city_id: row.performer_city_id ?? null,
     contact_email: row.contact_email,
     contact_phone: row.contact_phone,
     song_names: row.song_names ?? [],

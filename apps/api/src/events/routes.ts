@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import { withTransaction } from '../db.js';
 import type { AuthenticatedAccount } from '../auth/types.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { findCityById, matchesCityName, matchesCountryName } from '../cities/repository.js';
 import { parseGeoFilter } from '../geo.js';
 import { findOpenMicByIdOrPublicCode } from '../open-mics/repository.js';
 import { assertEventCapacityAllowed, assertEventCountQuota, DEFAULT_PLAN } from '../media/plan.js';
@@ -16,6 +17,7 @@ import {
   findNextRegistrableEventByOpenMicId,
   findRunningEventByOpenMicId,
   findUpcomingEvents,
+  findDiscoveryEvents,
   insertEvent,
   restoreEvent,
   serializeEvent,
@@ -23,7 +25,7 @@ import {
   updateEvent,
 } from './repository.js';
 import { notifyRoster, rosterChannelName, signKioskRegistrationToken, signStreamToken, verifyKioskRegistrationToken, verifyStreamToken } from './roster-stream.js';
-import { createEventSchema, publicEventsQuerySchema, updateEventSchema } from './validation.js';
+import { createEventSchema, discoveryEventsQuerySchema, publicEventsQuerySchema, updateEventSchema } from './validation.js';
 
 export type EventsPluginOptions = { pool: Pool; streamTokenSecret: string };
 
@@ -60,6 +62,23 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
           [openMic.id],
         );
         assertEventCountQuota(DEFAULT_PLAN, Number(eventCount.rows[0].count));
+        const hasLocationOverride = input.venue_name !== undefined;
+        let cityId = hasLocationOverride ? null : openMic.city_id;
+        let city = hasLocationOverride ? input.city : openMic.city;
+        let country = hasLocationOverride ? input.country : openMic.country;
+        if (input.city_id) {
+          const selected = await findCityById(pool, input.city_id);
+          if (!selected) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+          if ((input.city && !matchesCityName(selected, input.city))
+            || (input.country && !matchesCountryName(selected, input.country))) {
+            throw new ValidationError('city and country must match the selected city', { field: 'city_id' });
+          }
+          cityId = input.city_id;
+          city = selected.city;
+          country = selected.country;
+        } else if (!hasLocationOverride && input.city_id === null) {
+          cityId = null;
+        }
         return insertEvent(client, {
           openMicId: openMic.id,
           title: input.title,
@@ -73,8 +92,9 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
           addressLine1: input.address_line1 ?? openMic.address_line1,
           addressLine2: input.address_line2 ?? openMic.address_line2,
           postcode: input.postcode ?? openMic.postcode,
-          city: input.city ?? openMic.city,
-          country: input.country ?? openMic.country,
+          city,
+          country,
+          cityId,
           lat: input.lat ?? (openMic.lat ? Number(openMic.lat) : null),
           lng: input.lng ?? (openMic.lng ? Number(openMic.lng) : null),
           activities: input.activities,
@@ -158,6 +178,36 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     },
   );
 
+  app.get<{ Querystring: { near?: string; radius_km?: string; page?: string; page_size?: string } }>(
+    '/events/discovery',
+    async (request) => {
+      const parsed = discoveryEventsQuerySchema.safeParse(request.query);
+      if (!parsed.success) throw new ValidationError('Invalid event discovery query', parsed.error.flatten());
+      if (!parsed.data.near && request.query.radius_km !== undefined) {
+        throw new ValidationError('radius_km requires near', { field: 'radius_km' });
+      }
+      let geo: { lat: number; lng: number; radiusKm: number } | undefined;
+      if (parsed.data.near) {
+        const [latText, lngText] = parsed.data.near.split(',');
+        const lat = Number(latText);
+        const lng = Number(lngText);
+        if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+          throw new ValidationError('near must contain valid latitude and longitude');
+        }
+        geo = { lat, lng, radiusKm: parsed.data.radius_km };
+      }
+      const result = await findDiscoveryEvents(pool, {
+        page: parsed.data.page,
+        pageSize: parsed.data.page_size,
+        geo,
+      });
+      return {
+        items: result.rows.map((row) => serializeEvent(row)),
+        pagination: { page: parsed.data.page, page_size: parsed.data.page_size, total: result.total },
+      };
+    },
+  );
+
   app.get<{ Params: { id: string }; Querystring: { kiosk_token?: string } }>('/events/:id', { preHandler: app.authenticateOptional }, async (request, reply) => {
     const event = await findEventByIdOrPublicCode(pool, request.params.id);
     if (!event) throw new NotFoundError('Event not found');
@@ -229,6 +279,19 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (parsed.data.entry_fee_amount !== undefined) changes.entryFeeAmount = parsed.data.entry_fee_amount;
       if (parsed.data.entry_fee_currency !== undefined) changes.entryFeeCurrency = parsed.data.entry_fee_currency;
       if (parsed.data.entry_fee_note !== undefined) changes.entryFeeNote = parsed.data.entry_fee_note;
+      if (parsed.data.city_id) {
+        const selected = await findCityById(pool, parsed.data.city_id);
+        if (!selected) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+        if ((parsed.data.city && !matchesCityName(selected, parsed.data.city))
+          || (parsed.data.country && !matchesCountryName(selected, parsed.data.country))) {
+          throw new ValidationError('city and country must match the selected city', { field: 'city_id' });
+        }
+        changes.city = selected.city;
+        changes.country = selected.country;
+        changes.cityId = parsed.data.city_id;
+      } else if (parsed.data.city_id === null || parsed.data.city !== undefined || parsed.data.country !== undefined) {
+        changes.cityId = null;
+      }
 
       const effectiveStartsAt = parsed.data.starts_at ?? existing.starts_at;
       const effectiveEndsAt = parsed.data.ends_at ?? existing.ends_at;
@@ -236,7 +299,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (effectiveStatus === 'published' && (!effectiveEndsAt || new Date(effectiveEndsAt) <= new Date(effectiveStartsAt))) {
         throw new ValidationError('A published event requires an end time after its start time', { field: 'ends_at' });
       }
-      const updated = await updateEvent(pool, existing.id, changes as any);
+      const updated = await updateEvent(pool, existing.id, changes as Parameters<typeof updateEvent>[2]);
       if (!updated) throw new NotFoundError('Event not found after update');
 
       reply.send(serializeEvent(updated));

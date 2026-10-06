@@ -5,6 +5,7 @@ import { RegistrationEditModal } from '../views/EventRosterPage'
 import type { RosterRegistration } from '../features/organizer'
 import { renderWithProviders } from './render'
 import { server } from './server'
+import { dublinCity } from './city-fixtures'
 
 const registration = {
   id: 'registration-1', performer_name: 'Ava', performer_city: null,
@@ -18,6 +19,24 @@ function renderEdit(onClose = vi.fn()) {
 }
 
 describe('RegistrationEditModal', () => {
+  it('loads the linked city and clears optional text with a null reference', async () => {
+    const onClose = vi.fn()
+    let submitted: Record<string, unknown> | undefined
+    server.use(
+      http.get('/api/cities/city-dublin', () => HttpResponse.json(dublinCity)),
+      http.patch('/api/registrations/registration-1', async ({ request }) => {
+        submitted = await request.json() as Record<string, unknown>
+        return HttpResponse.json({ ...registration, ...submitted })
+      }),
+    )
+    renderWithProviders(<main className="app"><RegistrationEditModal eventId="event-1" registration={{ ...registration, performer_city: 'Dublin', performer_city_id: dublinCity.id }} onClose={onClose} /></main>)
+    expect(await screen.findByText('Dublin, Ireland')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear city' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(submitted).toMatchObject({ performer_city: null, performer_city_id: null }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('tracks changes and confirms cancellation in an app dialog', async () => {
     const onClose = renderEdit()
     const editDialog = await screen.findByRole('dialog', { name: 'Edit registration for Ava' })

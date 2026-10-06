@@ -149,5 +149,5 @@ export function LanguageSelector() {
 
 export function SiteFooter({ theme, mode }: ThemeProps) {
   const { t } = useTranslation()
-  return <footer className="footer app" data-theme={theme} data-mode={mode}><div className="footer-content"><span>{t('copyrightNotice', { year: new Date().getFullYear() })}</span><LanguageSelector /><Link className="footer-link" to="/settings/theme">{t('appearance')}</Link></div></footer>
+  return <footer className="footer app" data-theme={theme} data-mode={mode}><div className="footer-content"><span>{t('copyrightNotice', { year: new Date().getFullYear() })}</span><LanguageSelector /><Link className="footer-link" to="/settings/theme">{t('appearance')}</Link><span><a className="footer-link" href="https://simplemaps.com/data/world-cities">{t('discoveryCityData')}</a> · <a className="footer-link" href="https://creativecommons.org/licenses/by/4.0/">{t('discoveryCityDataLicense')}</a></span></div></footer>
 }

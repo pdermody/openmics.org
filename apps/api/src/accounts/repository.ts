@@ -8,6 +8,11 @@ export type AccountRow = {
   email: string;
   display_name: string | null;
   city: string | null;
+  city_id: string | null;
+  city_location: {
+    id: string; city: string; city_ascii: string; country: string; country_ascii: string;
+    iso2: string; iso3: string | null; admin_name: string | null; lat: number; lng: number; population: number | null;
+  } | null;
   preferred_language: string | null;
   current_profile_id: string | null;
   is_platform_admin: boolean;
@@ -18,7 +23,24 @@ export type AccountRow = {
 
 export async function findAccountById(pool: Pool, id: string): Promise<AccountRow | null> {
   const result = await pool.query<AccountRow>(
-    'SELECT id, cognito_id, email, display_name, city, preferred_language, current_profile_id, is_platform_admin, plan, created_at, updated_at FROM accounts WHERE id = $1',
+    `SELECT a.id, a.cognito_id, a.email, a.display_name, a.city, a.city_id, a.preferred_language,
+            a.current_profile_id, a.is_platform_admin, a.plan, a.created_at, a.updated_at,
+            CASE WHEN c.id IS NULL THEN NULL ELSE json_build_object(
+              'id', c.id, 'city', c.city, 'city_ascii', c.city_ascii, 'country', c.country,
+              'country_ascii', c.country_ascii, 'iso2', c.iso2, 'iso3', c.iso3, 'admin_name', c.admin_name,
+              'lat', c.lat, 'lng', c.lng, 'population', c.population
+            ) END AS city_location
+     FROM accounts a
+     LEFT JOIN LATERAL (
+       SELECT cities.* FROM cities
+       WHERE (a.city_id IS NOT NULL AND cities.id = a.city_id)
+          OR (a.city_id IS NULL AND a.city IS NOT NULL
+            AND (lower(cities.city) = lower(a.city) OR lower(cities.city_ascii) = lower(a.city))
+            AND (SELECT count(*) FROM cities matched
+                 WHERE lower(matched.city) = lower(a.city) OR lower(matched.city_ascii) = lower(a.city)) = 1)
+       LIMIT 1
+     ) c ON true
+     WHERE a.id = $1`,
     [id],
   );
   return result.rows[0] ?? null;
@@ -64,7 +86,7 @@ export async function setCurrentProfile(pool: Pool, accountId: string, profileId
   return result.rows[0];
 }
 
-const UPDATABLE_ACCOUNT_COLUMNS = ['display_name', 'city', 'preferred_language'] as const;
+const UPDATABLE_ACCOUNT_COLUMNS = ['display_name', 'city', 'city_id', 'preferred_language'] as const;
 
 export async function updateAccount(
   pool: Pool,
@@ -90,7 +112,8 @@ export async function updateAccount(
     `UPDATE accounts SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
     values,
   );
-  return result.rows[0] ?? null;
+  if (!result.rows[0]) return null;
+  return findAccountById(pool, id);
 }
 
 export function serializeAccount(row: AccountRow) {
@@ -100,6 +123,8 @@ export function serializeAccount(row: AccountRow) {
     email: row.email,
     display_name: row.display_name,
     city: row.city,
+    city_id: row.city_id,
+    city_location: row.city_location,
     preferred_language: row.preferred_language,
     current_profile_id: row.current_profile_id,
     is_platform_admin: row.is_platform_admin,

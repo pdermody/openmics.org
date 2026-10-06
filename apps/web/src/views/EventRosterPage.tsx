@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { CityAutocomplete } from '../components/location/CityAutocomplete'
+import { useCity } from '../features/cities'
+import { registrationFormSchema, type RegistrationFormValues } from '../features/registration-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, DoorOpen, Eye, Image, ImagePlus, Lock, LockOpen, MapPin, Pencil } from 'lucide-react'
@@ -111,27 +116,27 @@ export function RegistrationEditModal({ eventId, registration, onClose }: { even
   const { t } = useTranslation()
   const updateRegistration = useUpdateRegistration(eventId)
   const [discardModalOpen, setDiscardModalOpen] = useState(false)
-  const [form, setForm] = useState({
+  const { watch, setValue, handleSubmit, formState: { isDirty, errors } } = useForm<RegistrationFormValues>({
+    resolver: zodResolver(registrationFormSchema),
+    defaultValues: {
     performer_name: registration.performer_name,
     performer_city: registration.performer_city ?? '',
+    performer_city_id: registration.performer_city_id ?? null,
     contact_email: registration.contact_email ?? '',
     contact_phone: registration.contact_phone ?? '',
     song_names: registration.song_names.join(', '),
     media_consent: registration.media_consent,
+    },
   })
-  const isDirty = form.performer_name !== registration.performer_name
-    || form.performer_city !== (registration.performer_city ?? '')
-    || form.contact_email !== (registration.contact_email ?? '')
-    || form.contact_phone !== (registration.contact_phone ?? '')
-    || form.song_names !== registration.song_names.join(', ')
-    || form.media_consent !== registration.media_consent
+  const form = watch()
+  const selectedCity = useCity(form.performer_city_id)
   const requestClose = () => { if (isDirty) setDiscardModalOpen(true); else onClose() }
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
+  const submit = () => {
     const input: RegistrationEditInput = {
       performer_name: form.performer_name.trim(),
-      performer_city: form.performer_city.trim(),
+      performer_city: form.performer_city.trim() || null,
+      performer_city_id: form.performer_city_id,
       contact_email: form.contact_email.trim(),
       contact_phone: form.contact_phone.trim(),
       song_names: form.song_names.split(',').map((name) => name.trim()).filter(Boolean),
@@ -141,13 +146,17 @@ export function RegistrationEditModal({ eventId, registration, onClose }: { even
   }
 
   return <><Modal title={`Edit registration for ${registration.performer_name}`} onClose={requestClose}>
-    <form className="registration-form" onSubmit={submit}>
-      <label><span>{t('performerName')}<Required /></span><input required value={form.performer_name} onChange={(event) => setForm({ ...form, performer_name: event.target.value })} /></label>
-      <label>{t('city')}<input value={form.performer_city} onChange={(event) => setForm({ ...form, performer_city: event.target.value })} /></label>
-      <label>{t('email')}<input type="email" value={form.contact_email} onChange={(event) => setForm({ ...form, contact_email: event.target.value })} /></label>
-      <label>{t('phone')}<input type="tel" value={form.contact_phone} onChange={(event) => setForm({ ...form, contact_phone: event.target.value })} /></label>
-      <label>{t('songsComma')}<input value={form.song_names} onChange={(event) => setForm({ ...form, song_names: event.target.value })} /></label>
-      <label className="checkbox-label"><input type="checkbox" checked={form.media_consent} onChange={(event) => setForm({ ...form, media_consent: event.target.checked })} /> {t('mediaConsent')}</label>
+    <form className="registration-form" onSubmit={handleSubmit(submit)}>
+      <label><span>{t('performerName')}<Required /></span><input required value={form.performer_name} onChange={(event) => setValue('performer_name', event.target.value, { shouldDirty: true })} /></label>
+      <CityAutocomplete value={form.performer_city} selectedCity={selectedCity.data} onChange={(value, city) => {
+        setValue('performer_city', value, { shouldDirty: true })
+        setValue('performer_city_id', city?.id ?? null, { shouldDirty: true })
+      }} />
+      <label>{t('email')}<input type="email" value={form.contact_email} onChange={(event) => setValue('contact_email', event.target.value, { shouldDirty: true })} /></label>
+      <label>{t('phone')}<input type="tel" value={form.contact_phone} onChange={(event) => setValue('contact_phone', event.target.value, { shouldDirty: true })} /></label>
+      <label>{t('songsComma')}<input value={form.song_names} onChange={(event) => setValue('song_names', event.target.value, { shouldDirty: true })} /></label>
+      <label className="checkbox-label"><input type="checkbox" checked={form.media_consent} onChange={(event) => setValue('media_consent', event.target.checked, { shouldDirty: true })} /> {t('mediaConsent')}</label>
+      {errors.contact_email && <p className="form-error" role="alert">{t('cityPickerEmailInvalid')}</p>}
       <RequiredFieldsNote />
       {updateRegistration.isError && <p className="form-error">{friendlyApiErrorMessage(updateRegistration.error, 'Could not save those changes.')}</p>}
       <div className="dashboard-series-card-actions">

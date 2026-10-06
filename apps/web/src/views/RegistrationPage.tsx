@@ -1,9 +1,14 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { CalendarDays, Clock3, MapPin, Users } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { ApiError, api } from '../api/client'
 import { useAccountContext } from '../features/account'
+import { CityAutocomplete } from '../components/location/CityAutocomplete'
+import { useCity } from '../features/cities'
+import { registrationFormSchema, type RegistrationFormValues } from '../features/registration-form'
 import { markEventRegisteredLocally } from '../features/guestRegistrations'
 import { isRegistrationClosed, usePublicEvent, usePublicOpenMic } from '../features/publicReads'
 import type { ThemeProps } from './shared'
@@ -14,6 +19,7 @@ type Registration = {
   event_id: string
   performer_name: string
   performer_city: string | null
+  performer_city_id?: string | null
   contact_phone: string | null
   song_names: string[]
   media_consent: boolean
@@ -100,12 +106,19 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
         : registrationMode === 'external'
           ? 'This open mic is using an external registration link, so self-serve signups are disabled here.'
           : 'Online registration is not available for this open mic.'
-  const [performerName, setPerformerName] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [performerCity, setPerformerCity] = useState('')
-  const [contactPhone, setContactPhone] = useState('')
-  const [songNames, setSongNames] = useState('')
-  const [mediaConsent, setMediaConsent] = useState(true)
+  const { watch, setValue, handleSubmit, formState: { errors } } = useForm<RegistrationFormValues>({
+    resolver: zodResolver(registrationFormSchema),
+    defaultValues: { performer_name: '', performer_city: '', performer_city_id: null, contact_email: '', contact_phone: '', song_names: '', media_consent: true },
+  })
+  const { performer_name: performerName, contact_email: contactEmail, performer_city: performerCity, performer_city_id: performerCityId,
+    contact_phone: contactPhone, song_names: songNames, media_consent: mediaConsent } = watch()
+  const setPerformerName = (value: string) => setValue('performer_name', value, { shouldDirty: true })
+  const setContactEmail = (value: string) => setValue('contact_email', value, { shouldDirty: true })
+  const setPerformerCity = (value: string) => setValue('performer_city', value, { shouldDirty: true })
+  const setContactPhone = (value: string) => setValue('contact_phone', value, { shouldDirty: true })
+  const setSongNames = (value: string) => setValue('song_names', value, { shouldDirty: true })
+  const setMediaConsent = (value: boolean) => setValue('media_consent', value, { shouldDirty: true })
+  const selectedCity = useCity(performerCityId)
   const [state, setState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const [editRegistration, setEditRegistration] = useState<Registration | null>(null)
@@ -127,6 +140,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
       setEditState('loaded')
       setPerformerName(current.performer_name)
       setPerformerCity(current.performer_city ?? '')
+      setValue('performer_city_id', current.performer_city_id ?? null)
       setContactPhone(current.contact_phone ?? '')
       setSongNames(current.song_names.join(', '))
       setMediaConsent(current.media_consent)
@@ -170,10 +184,9 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
         stripMagicLinkParams()
       }
     })()
-  }, [eventCode])
+  }, [eventCode, setValue])
 
-  async function submit(eventObject: FormEvent<HTMLFormElement>) {
-    eventObject.preventDefault()
+  async function submit() {
     if (standardRegistrationDisabled) {
       setState('error')
       setMessage(registrationUnavailableMessage)
@@ -196,8 +209,11 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            performer_name: performerName,
-            performer_city: performerCity || undefined,
+            ...(!performerProfile ? {
+              performer_name: performerName,
+              performer_city: performerCity.trim() || null,
+              performer_city_id: performerCityId,
+            } : {}),
             song_names: songNames.split(',').map((song) => song.trim()).filter(Boolean),
             media_consent: mediaConsent,
           }),
@@ -213,7 +229,10 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
           profile_id: performerProfile?.id,
           performer_name: performerProfile?.profile_name ?? performerName,
           contact_email: performerProfile || !contactEmail ? undefined : contactEmail,
-          performer_city: performerCity || undefined,
+          ...(!performerProfile ? {
+            performer_city: performerCity.trim() || null,
+            performer_city_id: performerCityId,
+          } : {}),
           contact_phone: contactPhone || undefined,
           song_names: songNames.split(',').map((song) => song.trim()).filter(Boolean),
           media_consent: mediaConsent,
@@ -261,21 +280,22 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
           {needsPerformerProfile && !editRegistration && <div className="profile-context profile-context-warning" role="alert">{t('switchPerformerWarning')}</div>}
           {performerProfile && !editRegistration && <div className="profile-context" role="status">{t('registeringAs')} <strong>{performerProfile.profile_name}</strong> · {t('performerProfile')}</div>}
           {performerProfile && editRegistration && <div className="profile-context" role="status">{t('performerFieldsStay', { name: editRegistration.performer_name })}</div>}
-          {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong>{!editRegistration && !performerProfile && !kioskMode && <p>{t('pendingEmailConfirmation')}</p>}</div> : (needsPerformerProfile && !editRegistration) || (standardRegistrationDisabled && !editRegistration) || editState === 'loading' ? null : <form className="registration-form" noValidate onSubmit={submit}>
+          {state === 'success' ? <div className="success-panel" role="status"><strong>{message}</strong>{!editRegistration && !performerProfile && !kioskMode && <p>{t('pendingEmailConfirmation')}</p>}</div> : (needsPerformerProfile && !editRegistration) || (standardRegistrationDisabled && !editRegistration) || editState === 'loading' ? null : <form className="registration-form" noValidate onSubmit={handleSubmit(submit)}>
             {(!performerProfile || editRegistration) && <RequiredFieldsNote />}
             {!performerProfile && !editRegistration && <>
               <label><span>{t('performerName')}<Required /></span><input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
               <label><span>{t('contactEmail')}{!kioskMode && <Required />}</span>{kioskMode && <span className="field-hint">{t('kioskEmailHint')}</span>}<input required={!kioskMode} type="email" value={contactEmail} onChange={(input) => setContactEmail(input.target.value)} /></label>
-              <label>{t('city')} <span className="field-hint">{t('optional')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
+              <CityAutocomplete value={performerCity} selectedCity={selectedCity.data} onChange={(value, city) => { setPerformerCity(value); setValue('performer_city_id', city?.id ?? null, { shouldDirty: true }) }} />
               <label>{t('phone')} <span className="field-hint">{t('phoneOptional')}</span><input type="tel" value={contactPhone} onChange={(input) => setContactPhone(input.target.value)} /></label>
             </>}
             {editRegistration && !performerProfile && <>
               <label><span>{t('performerName')}<Required /></span><input required value={performerName} onChange={(input) => setPerformerName(input.target.value)} /></label>
-              <label>{t('city')} <span className="field-hint">{t('optional')}</span><input value={performerCity} onChange={(input) => setPerformerCity(input.target.value)} /></label>
+              <CityAutocomplete value={performerCity} selectedCity={selectedCity.data} onChange={(value, city) => { setPerformerCity(value); setValue('performer_city_id', city?.id ?? null, { shouldDirty: true }) }} />
             </>}
             <label>{t('performanceSongs')} <span className="field-hint">{t('performanceHint')}</span><input value={songNames} onChange={(input) => setSongNames(input.target.value)} /></label>
             <label className="checkbox-label"><input type="checkbox" checked={mediaConsent} onChange={(input) => setMediaConsent(input.target.checked)} /><span>{t('mediaConsentFull')}</span></label>
             {state === 'error' && <p className="form-error" role="alert">{message}</p>}
+            {errors.contact_email && <p className="form-error" role="alert">{t('cityPickerEmailInvalid')}</p>}
             <button className="primary-button" type="submit" disabled={state === 'submitting'}>{state === 'submitting' ? t('sending') : editRegistration ? t('saveChanges') : t('register')}</button>
           </form>}
         </>}

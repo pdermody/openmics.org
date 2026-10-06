@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { AccountPage } from '../views/AccountPage'
 import { renderWithProviders } from './render'
 import { server } from './server'
+import { dublinCity } from './city-fixtures'
 
 function mockGeolocationPermission(state: PermissionState) {
   Object.defineProperty(navigator, 'permissions', {
@@ -24,6 +25,34 @@ afterEach(() => {
 })
 
 describe('AccountPage', () => {
+  it('saves a selected city identity and explicitly clears both city text and reference', async () => {
+    const user = userEvent.setup()
+    mockGeolocationPermission('prompt')
+    window.localStorage.setItem('openmic-simulated-auth-token', 'organizer-token')
+    const account = { id: 'account-1', email: 'organizer@example.test', display_name: 'Organizer', city: null, city_id: null, preferred_language: 'en', current_profile_id: null, is_platform_admin: false, plan: 'free' }
+    let patch: Record<string, unknown> | undefined
+    server.use(
+      http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
+      http.get('/api/me', () => HttpResponse.json(account)),
+      http.get('/api/accounts/account-1/profiles', () => HttpResponse.json({ items: [] })),
+      http.get('/api/cities/search', () => HttpResponse.json({ items: [dublinCity] })),
+      http.patch('/api/accounts/account-1', async ({ request }) => {
+        patch = await request.json() as Record<string, unknown>
+        return HttpResponse.json({ ...account, ...patch })
+      }),
+    )
+    renderWithProviders(<AccountPage theme="venue" mode="light" />)
+    await screen.findByDisplayValue('Organizer')
+    await user.type(screen.getByRole('combobox', { name: 'City' }), 'Dub')
+    await user.click(await screen.findByRole('option'))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(patch).toMatchObject({ city: 'Dublin', city_id: dublinCity.id }))
+    await user.click(await screen.findByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Clear city' }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(patch).toMatchObject({ city: null, city_id: null }))
+  })
+
   it('shows the signed-in account details and saves edits', async () => {
     const user = userEvent.setup()
     let accountPatch: Record<string, unknown> | undefined
@@ -74,6 +103,7 @@ describe('AccountPage', () => {
     await waitFor(() => expect(accountPatch).toEqual({
       display_name: 'Updated Organizer',
       city: 'Cork',
+      city_id: null,
       preferred_language: 'en',
     }))
   })

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Pool } from 'pg';
 
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
+import { findCityById } from '../cities/repository.js';
 import { serializeProfile } from '../profiles/repository.js';
 import { findAccountById, findAccountProfiles, serializeAccount, setCurrentProfile, updateAccount } from './repository.js';
 import { updateAccountSchema } from './validation.js';
@@ -32,7 +33,18 @@ export const accountsRoutes: FastifyPluginAsync<AccountsPluginOptions> = async (
     const parsed = updateAccountSchema.safeParse(request.body);
     if (!parsed.success) throw new ValidationError('Invalid account payload', parsed.error.flatten());
 
-    const updated = await updateAccount(pool, request.params.id, parsed.data);
+    const changes: Record<string, unknown> = { ...parsed.data };
+    if (parsed.data.city_id) {
+      const city = await findCityById(pool, parsed.data.city_id);
+      if (!city) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+      if (parsed.data.city && parsed.data.city.toLocaleLowerCase() !== city.city.toLocaleLowerCase()) {
+        throw new ValidationError('city must match the selected city', { field: 'city_id' });
+      }
+      changes.city = city.city;
+    } else if (parsed.data.city_id === null || parsed.data.city !== undefined) {
+      changes.city_id = null;
+    }
+    const updated = await updateAccount(pool, request.params.id, changes);
     if (!updated) throw new NotFoundError('Account not found');
     reply.send(serializeAccount(updated));
   });

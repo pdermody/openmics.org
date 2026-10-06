@@ -1,0 +1,20 @@
+World Cities Database (Basic)
+
+Source: Simplemaps / Pareto Software, LLC
+https://simplemaps.com/data/world-cities
+
+Licence: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+The Basic edition permits commercial use and requires attribution.
+The Pro and Comprehensive editions have different terms; this notice
+does not grant permission to redistribute those editions.
+
+The application's city catalogue is derived from the user-supplied Basic
+CSV. Import preserves source names, identities, coordinates and available
+population data and adds application identifiers, normalized search
+spellings and spatial indexing. Catalogue changes are not endorsed by
+Simplemaps.
+
+Public pages credit Simplemaps and link to the source and licence.
+This attribution concerns the city dataset, not the application's code.
