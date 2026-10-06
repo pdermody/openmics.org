@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Pool } from 'pg';
 
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
-import { findCityById } from '../cities/repository.js';
+import { requireActiveCityById } from '../cities/repository.js';
 import { serializeProfile } from '../profiles/repository.js';
 import { findAccountById, findAccountProfiles, serializeAccount, setCurrentProfile, updateAccount } from './repository.js';
 import { updateAccountSchema } from './validation.js';
@@ -35,14 +35,16 @@ export const accountsRoutes: FastifyPluginAsync<AccountsPluginOptions> = async (
 
     const changes: Record<string, unknown> = { ...parsed.data };
     if (parsed.data.city_id) {
-      const city = await findCityById(pool, parsed.data.city_id);
-      if (!city) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+      const city = await requireActiveCityById(pool, parsed.data.city_id, 'city_id');
       if (parsed.data.city && parsed.data.city.toLocaleLowerCase() !== city.city.toLocaleLowerCase()) {
         throw new ValidationError('city must match the selected city', { field: 'city_id' });
       }
       changes.city = city.city;
     } else if (parsed.data.city_id === null || parsed.data.city !== undefined) {
       changes.city_id = null;
+    } else {
+      const existing = await findAccountById(pool, request.params.id);
+      if (existing?.city_id) await requireActiveCityById(pool, existing.city_id, 'city_id');
     }
     const updated = await updateAccount(pool, request.params.id, changes);
     if (!updated) throw new NotFoundError('Account not found');

@@ -391,7 +391,7 @@ paths:
       tags:
         - Cities
       operationId: searchCities
-      description: Searches the bounded local city catalogue using Unicode and ASCII city/country spellings. Results rank exact names, then prefixes, then other matches, with population descending within each tier.
+      description: Searches the packaged, versioned JSON city catalogue using Unicode and ASCII city/country spellings. Retired entries are excluded. Results rank exact city matches, then prefixes, then other city/country matches, with population descending and stable ties. Matching source identities are resolved to existing database UUIDs; missing mappings fail explicitly and require a manual catalogue import.
       parameters:
         - name: q
           in: query
@@ -416,6 +416,8 @@ paths:
                 $ref: "#/components/schemas/CitySearchResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
+        "503":
+          $ref: "#/components/responses/CityCatalogueImportRequired"
   /cities/{id}:
     get:
       tags:
@@ -435,38 +437,6 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "404":
           $ref: "#/components/responses/NotFound"
-  /cities/search-external:
-    post:
-      tags:
-        - Cities
-      operationId: searchExternalCities
-      description: Explicit city-only LocationIQ lookup. Successful responses, including empty results, are cached for 24 hours and confirmed identities are persisted in the local catalogue. Provider use requires a configured finite GEOCODING_DAILY_LIMIT; cache hits do not consume the shared daily budget.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [q]
-              additionalProperties: false
-              properties:
-                q:
-                  type: string
-                  minLength: 2
-                  maxLength: 100
-      responses:
-        "200":
-          description: Provider city results, or a successful cache hit
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ExternalCitySearchResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "429":
-          $ref: "#/components/responses/GeocodingRateLimited"
-        "503":
-          $ref: "#/components/responses/GeocodingUnavailable"
   /discovery/suggestions:
     get:
       tags:
@@ -1874,7 +1844,10 @@ components:
             items:
               $ref: "#/components/schemas/Handle"
     ValidationError:
-      description: Validation error
+      description:
+        Validation error. When a detail mutation references a retired city,
+        `error.code` is `VALIDATION_ERROR` and `error.details.field` identifies
+        `city_id` or `performer_city_id`; lifecycle-only operations are unaffected.
       content:
         application/json:
           schema:
@@ -1965,6 +1938,14 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
     GeocodingUnavailable:
       description: Geocoding is not configured on this server (no provider API key set).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    CityCatalogueImportRequired:
+      description:
+        A JSON search candidate has no database UUID mapping. Run the explicit
+        city catalogue import and retry; no partial results are returned.
       content:
         application/json:
           schema:
@@ -2124,6 +2105,7 @@ components:
         - lat
         - lng
         - population
+        - retired
       properties:
         id:
           $ref: "#/components/schemas/Id"
@@ -2157,6 +2139,8 @@ components:
           type: integer
           minimum: 0
           nullable: true
+        retired:
+          type: boolean
     CitySearchResponse:
       type: object
       required: [items]
@@ -2166,17 +2150,6 @@ components:
           maxItems: 10
           items:
             $ref: "#/components/schemas/City"
-    ExternalCitySearchResponse:
-      type: object
-      required: [items, cached]
-      properties:
-        items:
-          type: array
-          maxItems: 10
-          items:
-            $ref: "#/components/schemas/City"
-        cached:
-          type: boolean
     DiscoverySuggestions:
       type: object
       required: [expansion, cities]
@@ -3156,6 +3129,9 @@ components:
           nullable: true
     AccountUpdateRequest:
       type: object
+      description:
+        Detail edits preserve omitted fields. A selected city must be active;
+        retired selections are readable but must be explicitly cleared or replaced.
       properties:
         display_name:
           type: string
@@ -3166,6 +3142,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
+          description: Selected active catalogue city; null clears the reference and permits existing free-text behavior.
         preferred_language:
           type: string
     CurrentProfileRequest:
@@ -3254,6 +3231,7 @@ components:
             $ref: "#/components/schemas/ProfileLink"
     OpenMicCreateRequest:
       type: object
+      description: A selected city must be active; unmatched free-text city details remain supported.
       required:
         - name
         - venue_name
@@ -3282,7 +3260,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-          description: Selected catalogue city. When set to a UUID, the server validates and derives canonical city/country snapshots; null leaves free-text snapshots unlinked.
+          description: Selected active catalogue city. When set to a UUID, the server validates and derives canonical city/country snapshots; null leaves free-text snapshots unlinked.
         lat:
           type: number
           minimum: -90
@@ -3359,6 +3337,10 @@ components:
           nullable: true
     OpenMicUpdateRequest:
       type: object
+      description:
+        Detail changes require an active effective city reference unless it is
+        explicitly cleared or replaced. A status-only update is lifecycle-only
+        and does not require city replacement.
       properties:
         name:
           type: string
@@ -3382,7 +3364,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-          description: Omission preserves the reference; null clears it. Changing free-text city or country without a selected ID clears a stale reference.
+          description: Selected city must be active. Omission preserves the reference; null clears it. Changing free-text city or country without a selected ID clears a stale reference.
         lat:
           type: number
           minimum: -90
@@ -3435,6 +3417,9 @@ components:
           type: string
     EventCreateRequest:
       type: object
+      description:
+        A newly created event cannot inherit a retired parent-series city
+        reference; explicitly send city_id null to clear that reference.
       required:
         - title
         - starts_at
@@ -3485,7 +3470,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-          description: The selected city must match the location snapshot; on inherited locations omission inherits the parent series' city reference.
+          description: The selected city must be active and match the location snapshot; on inherited locations omission inherits the parent series' reference, which must also be active.
         lat:
           type: number
           minimum: -90
@@ -3513,6 +3498,10 @@ components:
           type: string
     EventUpdateRequest:
       type: object
+      description:
+        Detail changes require an active effective city reference unless it is
+        explicitly cleared or replaced. Updates containing only status and/or
+        registrations_closed_at are lifecycle-only and do not require city replacement.
       properties:
         title:
           type: string
@@ -3585,6 +3574,7 @@ components:
           type: string
     RegistrationCreateRequest:
       type: object
+      description: Newly selected performer cities must be active.
       required:
         - performer_name
         - submission_channel
@@ -3604,7 +3594,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-          description: Selected city is validated against and supplies the canonical performer_city snapshot.
+          description: Selected active city is validated against and supplies the canonical performer_city snapshot.
         contact_email:
           type: string
           format: email
@@ -3631,6 +3621,9 @@ components:
           description: Presence token from the kiosk QR code. Requires submission_channel=kiosk_qr and organizer_supervised=false; contact_email becomes optional.
     RegistrationUpdateRequest:
       type: object
+      description:
+        Detail edits require an active effective city reference unless it is
+        explicitly cleared or replaced. Separate lifecycle actions are unaffected.
       properties:
         performer_name:
           type: string
@@ -3640,7 +3633,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/Id"
           nullable: true
-          description: Omission preserves the reference; null clears it. Changing free-text performer_city without a selected ID clears a stale reference.
+          description: Selected city must be active. Omission preserves the reference; null clears it. Changing free-text performer_city without a selected ID clears a stale reference.
         contact_email:
           type: string
           format: email

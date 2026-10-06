@@ -84,6 +84,7 @@ export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: 
   const { t } = useTranslation()
   const { context, activeProfile: selected, isOrganizer, isOrganizerPending } = useOrganizerProfile()
   const openMics = useOrganizerOpenMics(selected?.id, isOrganizer)
+  const hasOrganizerProfile = context.profiles.data?.items.some((profile) => profile.profile_kind === 'organizer') ?? false
   const hasNoOpenMics = isOrganizer && !openMics.isPending && (openMics.data?.length ?? 0) === 0
 
   return <main className="app" data-theme={theme} data-mode={mode}>
@@ -97,7 +98,7 @@ export function OrganizerDashboardPage({ theme, mode }: { theme: ThemeId; mode: 
       {!isOrganizerPending && context.account.data && !isOrganizer && <ReadState message={t('selectOrganizer')} />}
       {isOrganizer && selected && <>
         <p className="detail-lede">{t('workingAs', { name: selected.profile_name })}</p>
-        <div className="dashboard-series-card-actions"><Link className="quiet-button" to="/dashboard/series/new">{t('dashboardCreateSeries')}</Link></div>
+        {!hasOrganizerProfile && <div className="dashboard-series-card-actions"><Link className="quiet-button" to="/dashboard/series/new">{t('dashboardCreateSeries')}</Link></div>}
         {hasNoOpenMics && <div className="dashboard-card"><span className="panel-label">{t('getStarted')}</span><h2>{t('setupFirst')}</h2><p>{t('noSeriesYet')}</p></div>}
         <div className="dashboard-series-list">
           {openMics.isPending && <ReadState message={t('loading')} />}

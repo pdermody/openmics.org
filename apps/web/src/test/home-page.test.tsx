@@ -47,7 +47,7 @@ const signedInAccount = {
 
 const cork = {
   id: 'city-cork', city: 'Cork', city_ascii: 'Cork', country: 'Ireland', country_ascii: 'Ireland',
-  iso2: 'IE', iso3: 'IRL', admin_name: null, lat: 51.8985, lng: -8.4756, population: 222333,
+  iso2: 'IE', iso3: 'IRL', admin_name: null, lat: 51.8985, lng: -8.4756, population: 222333, retired: false,
 }
 
 describe('HomePage', () => {

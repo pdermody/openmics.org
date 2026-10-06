@@ -1,7 +1,7 @@
 import { useId, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '../../api/client'
-import { useCitySearch, useExternalCitySearch, useRememberCity, type City } from '../../features/cities'
+import { useCitySearch, type City } from '../../features/cities'
 import './CityAutocomplete.css'
 
 export type { CityAutocompleteValue } from '../../features/cities'
@@ -26,24 +26,17 @@ export function CityAutocomplete({ value = '', selectedCity, onChange, id, name,
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const local = useCitySearch(value, open && !selectedCity && !disabled)
-  const external = useExternalCitySearch()
-  const rememberCity = useRememberCity()
   const query = value.trim()
-  const externalCurrent = external.variables?.q === query
-  const searching = local.isFetching || (externalCurrent && external.isPending)
-  const items = !selectedCity && query.length >= 2
-    ? [...(local.data?.items ?? []), ...(externalCurrent ? external.data?.items ?? [] : [])]
-      .filter((city, index, all) => all.findIndex((other) => other.id === city.id) === index)
-    : []
+  const searching = local.isFetching
+  const items = !selectedCity && query.length >= 2 ? local.data?.items ?? [] : []
   const expanded = open && !disabled && items.length > 0
   const activeIndex = active >= items.length ? -1 : active
-  const error = externalCurrent && external.error ? external.error : local.error
-  const errorKey = error instanceof ApiError && error.status === 429 ? 'cityPickerRateLimited'
+  const error = local.error
+  const errorKey = error instanceof ApiError && error.code === 'CITY_CATALOGUE_IMPORT_REQUIRED' ? 'cityPickerImportRequired'
     : error instanceof ApiError && error.status === 400 ? 'cityPickerInvalidQuery'
       : 'cityPickerUnavailable'
 
   function select(city: City) {
-    rememberCity(city)
     onChange(city.city, city)
     setOpen(false)
     setActive(-1)
@@ -79,16 +72,16 @@ export function CityAutocomplete({ value = '', selectedCity, onChange, id, name,
         onBlur={() => { setOpen(false); onBlur?.() }}
         onChange={(event) => {
           onChange(event.target.value, null)
-          external.reset()
           setActive(-1)
           setOpen(true)
         }}
         onKeyDown={onKeyDown}
       />
       {value && <button type="button" className="quiet-button" disabled={disabled} aria-label={t('cityPickerClear')}
-        onClick={() => { onChange('', null); external.reset(); setActive(-1); setOpen(false) }}>{t('cityPickerClear')}</button>}
+        onClick={() => { onChange('', null); setActive(-1); setOpen(false) }}>{t('cityPickerClear')}</button>}
     </div>
     {selectedCity && <p className="field-hint">{[selectedCity.admin_name, selectedCity.country].filter(Boolean).join(', ')}</p>}
+    {selectedCity?.retired && <p role="status" className="field-hint">{t('cityPickerRetired')}</p>}
     {expanded && <ul id={listId} role="listbox" className="city-picker-options" aria-label={t('cityPickerSuggestions')}>
       {items.map((city, index) => <li key={city.id} id={`${listId}-${index}`} role="option" aria-selected={activeIndex === index}
         className={activeIndex === index ? 'city-picker-active' : undefined}
@@ -100,7 +93,5 @@ export function CityAutocomplete({ value = '', selectedCity, onChange, id, name,
     {open && searching && <p role="status" className="field-hint">{t('cityPickerSearching')}</p>}
     {open && !searching && query.length >= 2 && !selectedCity && !items.length && !error && <p role="status" className="field-hint">{t('cityPickerNoMatches')}</p>}
     {open && error && <p role="alert" className="form-error">{t(errorKey)}</p>}
-    {query.length >= 2 && !selectedCity && <button type="button" className="quiet-button" disabled={disabled || external.isPending}
-      onClick={() => { setOpen(true); setActive(-1); external.mutate({ q: query }) }}>{t('cityPickerSearchMore')}</button>}
   </div>
 }

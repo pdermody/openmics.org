@@ -39,10 +39,11 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 - Empty upcoming-event and series sections remain independent and offer city search and any available expansion. Fewer than 20 additional series within the ceiling are still offered with an accurate count.
 - City suggestions contain public listings themselves and are ordered by distance. A selected city starts a new 50 km search and does not change account preferences.
 - Home retains three-card previews; `/discover` provides separate series/events tabs and numbered pagination. Geographic series results are nearest-first.
-- City autocomplete searches a seeded catalogue in bounded requests, matches Unicode/ASCII spelling and displays country/region. Population ranks equally relevant matches.
+- City autocomplete searches the packaged, versioned JSON catalogue in bounded requests, matches Unicode/ASCII city and country spellings and displays country/region. Exact city matches rank before prefixes and other matches; population ranks within each tier. Retired entries are excluded. Search explicitly reports when a candidate's database UUID is missing and the catalogue import is required.
 - All existing city fields use this autocomplete, while preserving optionality and unmatched free text. Selected cities supply country; unmatched organizer city input exposes a country selector.
 - City-centre venue pins require explicit organizer confirmation/refinement before saving. Exact venue locations and historical registration snapshots must remain distinct from catalogue centres.
-- LocationIQ fallback requires an explicit action and a configured daily budget. Discovery remains usable when external lookup is unavailable.
+- City search never calls LocationIQ. Organizer address search and reverse geocoding continue to use the authenticated, budgeted provider adapter.
+- Retired city references remain readable, but saving resource details requires an active selected city or clearing the reference under the existing optional/free-text rules. Lifecycle-only actions (including status changes, check-in and registration closure) remain available; mixed detail/lifecycle updates validate city selection.
 - Browsing location/radius survives in-app navigation, not refresh or a new visit. Maps and personalized/social recommendations remain outside this slice.
 
 ---

@@ -17,7 +17,7 @@ vi.mock('../components/location/LocationPicker', () => ({
 
 const city = {
   id: 'city-cork', city: 'Cork', city_ascii: 'Cork', country: 'Ireland', country_ascii: 'Ireland',
-  iso2: 'IE', iso3: 'IRL', admin_name: 'Cork', lat: 51.89, lng: -8.47, population: 220000,
+  iso2: 'IE', iso3: 'IRL', admin_name: 'Cork', lat: 51.89, lng: -8.47, population: 220000, retired: false,
 }
 const series = {
   id: 'series-1', owner_profile_id: 'profile-1', name: 'Friday Open Mic', description: null,
@@ -71,7 +71,7 @@ describe('City references and venue pin confirmation', () => {
     await screen.findByDisplayValue(kind === 'series' ? series.name : event.title)
     fireEvent.click(screen.getByRole('tab', { name: 'Location' }))
     await selectCork()
-    expect(screen.queryByRole('combobox', { name: /country/i })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: /country/i })).not.toBeInTheDocument())
     expect(screen.getByLabelText('Venue coordinates')).toHaveTextContent('51.89, -8.47')
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Confirm or refine the venue pin before saving.')

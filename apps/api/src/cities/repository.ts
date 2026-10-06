@@ -1,6 +1,5 @@
 import type { Pool } from 'pg';
-import { withTransaction } from '../db.js';
-import type { ProviderCity } from '../geocoding/service.js';
+import { ValidationError } from '../errors.js';
 
 export type CityRow = {
   id: string;
@@ -14,6 +13,7 @@ export type CityRow = {
   lat: string | number;
   lng: string | number;
   population: string | number | null;
+  retired: boolean;
 };
 
 export type City = {
@@ -28,6 +28,7 @@ export type City = {
   lat: number;
   lng: number;
   population: number | null;
+  retired: boolean;
 };
 
 export function serializeCity(row: CityRow): City {
@@ -43,6 +44,7 @@ export function serializeCity(row: CityRow): City {
     lat: Number(row.lat),
     lng: Number(row.lng),
     population: row.population === null ? null : Number(row.population),
+    retired: row.retired,
   };
 }
 
@@ -58,82 +60,33 @@ export function matchesCountryName(city: Pick<CityRow, 'country' | 'country_asci
 
 export async function findCityById(pool: Pool, id: string): Promise<CityRow | null> {
   const result = await pool.query<CityRow>(
-    `SELECT id, city, city_ascii, country, country_ascii, iso2, iso3, admin_name, lat, lng, population
+    `SELECT id, city, city_ascii, country, country_ascii, iso2, iso3, admin_name, lat, lng, population, retired
      FROM cities WHERE id = $1`,
     [id],
   );
   return result.rows[0] ?? null;
 }
 
-export async function searchCities(pool: Pool, query: string, country?: string): Promise<CityRow[]> {
-  const normalized = query.trim();
-  const escaped = normalized.replace(/[\\%_]/g, '\\$&');
-  const values: unknown[] = [normalized, `${escaped}%`, `%${escaped}%`];
-  const countryCondition = country ? `AND lower(iso2) = lower($4)` : '';
-  if (country) values.push(country.trim());
-  const result = await pool.query<CityRow>(
-    `SELECT id, city, city_ascii, country, country_ascii, iso2, iso3, admin_name, lat, lng, population
-     FROM cities
-     WHERE (
-       lower(city) = lower($1) OR lower(city_ascii) = lower($1)
-       OR lower(city) LIKE lower($2) ESCAPE E'\\\\' OR lower(city_ascii) LIKE lower($2) ESCAPE E'\\\\'
-       OR lower(country) LIKE lower($3) ESCAPE E'\\\\' OR lower(country_ascii) LIKE lower($3) ESCAPE E'\\\\'
-       OR city ILIKE $3 ESCAPE E'\\\\' OR city_ascii ILIKE $3 ESCAPE E'\\\\' OR country ILIKE $3 ESCAPE E'\\\\'
-     ) ${countryCondition}
-     ORDER BY
-       CASE
-         WHEN lower(city) = lower($1) OR lower(city_ascii) = lower($1) THEN 0
-         WHEN lower(city) LIKE lower($2) ESCAPE E'\\\\' OR lower(city_ascii) LIKE lower($2) ESCAPE E'\\\\' THEN 1
-         ELSE 2
-       END,
-       population DESC NULLS LAST, lower(country), lower(admin_name), lower(city), id
-     LIMIT 10`,
-    values,
-  );
-  return result.rows;
+export async function requireActiveCityById(pool: Pool, id: string, field: string): Promise<CityRow> {
+  const city = await findCityById(pool, id);
+  if (!city) throw new ValidationError(`${field} does not identify a known city`, { field });
+  if (city.retired) {
+    throw new ValidationError('The selected city is retired. Choose an active city or clear the city reference.', {
+      field,
+      reason: 'retired',
+    });
+  }
+  return city;
 }
 
-export async function persistExternalCitySearch(
-  pool: Pool,
-  query: string,
-  providerCities: ProviderCity[],
-): Promise<City[]> {
-  return withTransaction(pool, async (client) => {
-    const saved: City[] = [];
-    for (const city of providerCities) {
-      const result = await client.query<CityRow>(
-        `INSERT INTO cities (
-           source, source_id, city, city_ascii, country, country_ascii, iso2, iso3, admin_name,
-           lat, lng, population, source_metadata
-         ) VALUES ('locationiq', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, '{"provider":"LocationIQ"}'::jsonb)
-         ON CONFLICT (source, source_id) DO UPDATE SET
-           city = EXCLUDED.city, city_ascii = EXCLUDED.city_ascii, country = EXCLUDED.country,
-           country_ascii = EXCLUDED.country_ascii, iso2 = EXCLUDED.iso2, iso3 = EXCLUDED.iso3,
-           admin_name = EXCLUDED.admin_name, lat = EXCLUDED.lat, lng = EXCLUDED.lng, updated_at = now()
-         RETURNING id, city, city_ascii, country, country_ascii, iso2, iso3, admin_name, lat, lng, population`,
-        [city.sourceId, city.city, city.cityAscii, city.country, city.countryAscii, city.iso2, city.iso3, city.adminName, city.lat, city.lng],
-      );
-      saved.push(serializeCity(result.rows[0]));
-    }
-    const key = query.trim().toLocaleLowerCase();
-    await client.query(
-      `INSERT INTO city_search_cache (query, results, expires_at)
-       VALUES ($1, $2::jsonb, now() + interval '24 hours')
-       ON CONFLICT (query) DO UPDATE SET results = EXCLUDED.results,
-         expires_at = EXCLUDED.expires_at, updated_at = now()`,
-      [key, JSON.stringify(saved)],
-    );
-    await client.query('DELETE FROM city_search_cache WHERE expires_at <= now() AND query <> $1', [key]);
-    return saved;
-  });
-}
-
-export async function findExternalCitySearchCache(pool: Pool, query: string): Promise<City[] | null> {
-  const result = await pool.query<{ results: City[] }>(
-    `SELECT results FROM city_search_cache WHERE query = $1 AND expires_at > now()`,
-    [query.trim().toLocaleLowerCase()],
+export async function findCityIdsBySourceIds(pool: Pool, sourceIds: string[]): Promise<Map<string, string>> {
+  if (!sourceIds.length) return new Map();
+  const result = await pool.query<{ source_id: string; id: string }>(
+    `SELECT source_id, id FROM cities
+     WHERE source = 'worldcities' AND source_id = ANY($1::text[])`,
+    [sourceIds],
   );
-  return result.rows[0]?.results ?? null;
+  return new Map(result.rows.map((row) => [row.source_id, row.id]));
 }
 
 export type DiscoverySuggestions = {
@@ -207,6 +160,7 @@ export async function findDiscoverySuggestions(
          'country', suggestions.country, 'country_ascii', suggestions.country_ascii,
          'iso2', suggestions.iso2, 'iso3', suggestions.iso3, 'admin_name', suggestions.admin_name,
          'lat', suggestions.lat, 'lng', suggestions.lng, 'population', suggestions.population,
+         'retired', suggestions.retired,
          'open_mic_count', suggestions.open_mic_count, 'distance_km', suggestions.distance_km
        ) ORDER BY suggestions.distance_km, lower(suggestions.country), lower(suggestions.city), suggestions.id)
          FILTER (WHERE suggestions.id IS NOT NULL), '[]'::json) AS cities

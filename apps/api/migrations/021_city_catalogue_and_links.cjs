@@ -1,7 +1,5 @@
 exports.up = (pgm) => {
   pgm.sql(`
-    CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
     CREATE TABLE cities (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       source text NOT NULL,
@@ -20,6 +18,7 @@ exports.up = (pgm) => {
       ) STORED,
       population bigint,
       source_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      retired boolean NOT NULL DEFAULT false,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now(),
       CONSTRAINT cities_source_identity_unique UNIQUE (source, source_id),
@@ -29,24 +28,7 @@ exports.up = (pgm) => {
       CONSTRAINT cities_lng_check CHECK (lng BETWEEN -180 AND 180),
       CONSTRAINT cities_population_check CHECK (population IS NULL OR population >= 0)
     );
-    CREATE INDEX cities_city_lower_idx ON cities (lower(city));
-    CREATE INDEX cities_city_ascii_lower_idx ON cities (lower(city_ascii));
-    CREATE INDEX cities_country_lower_idx ON cities (lower(country));
-    CREATE INDEX cities_city_prefix_idx ON cities (lower(city) text_pattern_ops);
-    CREATE INDEX cities_city_ascii_prefix_idx ON cities (lower(city_ascii) text_pattern_ops);
-    CREATE INDEX cities_city_trgm_idx ON cities USING gin (city gin_trgm_ops);
-    CREATE INDEX cities_city_ascii_trgm_idx ON cities USING gin (city_ascii gin_trgm_ops);
-    CREATE INDEX cities_country_trgm_idx ON cities USING gin (country gin_trgm_ops);
-    CREATE INDEX cities_country_ascii_trgm_idx ON cities USING gin (country_ascii gin_trgm_ops);
     CREATE INDEX cities_centre_gist_idx ON cities USING gist (centre);
-
-    CREATE TABLE city_search_cache (
-      query text PRIMARY KEY,
-      results jsonb NOT NULL,
-      expires_at timestamptz NOT NULL,
-      updated_at timestamptz NOT NULL DEFAULT now()
-    );
-    CREATE INDEX city_search_cache_expiry_idx ON city_search_cache (expires_at);
 
     CREATE TABLE geocoding_daily_usage (
       usage_date date PRIMARY KEY,
@@ -80,7 +62,6 @@ exports.down = (pgm) => {
     ALTER TABLE accounts DROP COLUMN IF EXISTS city_id;
     DROP TABLE IF EXISTS geocoding_daily_usage;
     DROP TABLE IF EXISTS geocoding_provider_schedule;
-    DROP TABLE IF EXISTS city_search_cache;
     DROP TABLE IF EXISTS cities;
   `);
 };

@@ -14,6 +14,7 @@ import { handlesRoutes, type HandlesPluginOptions } from './handles/routes.js';
 import { createGeocodingService } from './geocoding/service.js';
 import { geocodingRoutes, type GeocodingPluginOptions } from './geocoding/routes.js';
 import { citiesRoutes } from './cities/routes.js';
+import type { CityCatalogue } from './cities/catalogue.js';
 import { createMediaConsentHooks } from './media/consent.js';
 import {
   createMediaStorageAdapter,
@@ -40,6 +41,7 @@ export type BuildAppOptions = {
   emailAdapter?: EmailAdapter;
   mediaStorage?: MediaStorageAdapter;
   renditionsQueue?: RenditionsQueueAdapter;
+  cityCatalogue?: CityCatalogue;
 };
 
 // Real Cognito verification is only used once a user pool and app client are actually
@@ -142,7 +144,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get('/health', async () => ({ status: 'ok' }));
   app.register(handlesRoutes, { ...handlesOptions, prefix: '/api' });
   app.register(geocodingRoutes, { ...geocodingOptions, prefix: '/api' });
-  app.register(citiesRoutes, { pool, geocoding: geocodingOptions.service, prefix: '/api' });
+  app.register(citiesRoutes, { pool, catalogue: options.cityCatalogue, prefix: '/api' });
   app.register(profilesRoutes, { pool, prefix: '/api' });
   app.register(openMicsRoutes, { pool, prefix: '/api' });
   app.register(eventsRoutes, { pool, streamTokenSecret: config.streamTokenSecret, prefix: '/api' });

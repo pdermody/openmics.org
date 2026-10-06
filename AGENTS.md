@@ -23,6 +23,7 @@ When sources disagree, resolve the decision in `docs/decisions.md` before changi
 
 ## Validation
 
+- Use [VALIDATION.md](./VALIDATION.md) for task-based validation profiles and command details; choose the narrowest checks that cover the change.
 - `npm run typecheck:api` checks the API TypeScript boundary.
 - `npm run test` runs API typecheck/unit/API/integration tests and the web suite; integration tests require Docker/Testcontainers.
 - Run `npm run validate:openapi` and `npm run lint:openapi` after contract changes.

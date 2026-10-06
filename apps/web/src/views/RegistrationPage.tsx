@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { CalendarDays, Clock3, MapPin, Users } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import { ApiError, api } from '../api/client'
+import { ApiError, api, friendlyApiErrorMessage } from '../api/client'
 import { useAccountContext } from '../features/account'
 import { CityAutocomplete } from '../components/location/CityAutocomplete'
 import { useCity } from '../features/cities'
@@ -28,6 +28,10 @@ type Registration = {
 
 function registrationErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return 'We could not complete your registration. Please try again.'
+  if (error.code === 'CITY_CATALOGUE_IMPORT_REQUIRED'
+    || (error.details as { reason?: string } | undefined)?.reason === 'retired') {
+    return friendlyApiErrorMessage(error)
+  }
   const fieldErrors = (error.details as { fieldErrors?: Record<string, string[]> } | undefined)?.fieldErrors
   if (fieldErrors?.contact_email?.length) return 'Please enter a valid email address, such as you@example.com.'
   if (fieldErrors?.performer_name?.length) return 'Please enter the name you would like the organizer to call.'

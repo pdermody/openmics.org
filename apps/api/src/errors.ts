@@ -59,6 +59,21 @@ export class GeocodingUnavailableError extends AppError {
   }
 }
 
+export class CityCatalogueImportRequiredError extends AppError {
+  constructor(sourceIds: string[]) {
+    super(
+      503,
+      'CITY_CATALOGUE_IMPORT_REQUIRED',
+      'The city catalogue is not synchronized with the database. Run the explicit city catalogue import.',
+      {
+        action: 'npm run db:import:cities',
+        missing_count: sourceIds.length,
+        missing_source_ids: sourceIds.slice(0, 10),
+      },
+    );
+  }
+}
+
 export class HandleConflictError extends AppError {
   constructor(
     public readonly holderType: 'profile' | 'open_mic' | null,

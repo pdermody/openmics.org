@@ -41,10 +41,19 @@ export function friendlyApiErrorMessage(error: unknown, fallback = 'Something we
     case 'GONE':
       return 'This page is no longer available.'
     case 'VALIDATION_ERROR':
+      if (isRetiredCitySelection(error.details)) return i18n.t('cityPickerRetiredError')
       return 'Some details need attention before we can continue.'
+    case 'CITY_CATALOGUE_IMPORT_REQUIRED':
+      return i18n.t('cityPickerImportRequired')
     default:
       return error.message || fallback
   }
+}
+
+function isRetiredCitySelection(details: unknown): boolean {
+  if (!details || typeof details !== 'object') return false
+  const value = details as { field?: unknown; reason?: unknown }
+  return value.reason === 'retired' && (value.field === 'city_id' || value.field === 'performer_city_id')
 }
 
 export type ApiClientOptions = {

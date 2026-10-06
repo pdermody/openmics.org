@@ -15,11 +15,11 @@ Cross-cutting decisions live in [decisions.md](../decisions.md). When this docum
 
 ### City catalogue boundary
 
-The location-discovery slice adds an indexed `cities` catalogue with stable source identity, Unicode/ASCII city and country names, ISO2/ISO3, administrative region, centre coordinates/geography and nullable population. The import is explicit and idempotent; refreshing source records preserves referenced identities. City/country names are not a unique key.
+The location-discovery slice keeps a UUID-backed `cities` table with stable source identity, Unicode/ASCII city and country names, ISO2/ISO3, administrative region, centre coordinates/geography, nullable population and retirement state. The packaged versioned JSON catalogue is the city-search authority; API startup validates the JSON but neither reads nor compares the full database catalogue. Explicit import synchronizes JSON into PostgreSQL by source identity, preserving UUIDs and refusing removal of managed source identities. Search resolves candidate UUIDs by source identity; missing mappings produce an explicit import-required error.
 
 Nullable `city_id` on accounts, series and events, and `performer_city_id` on registrations supplement existing text snapshots. Resolved selection supplies canonical city/country, while free-text edits unlink stale references. Partial updates distinguish omitted fields from explicit clearing. Ambiguous legacy records remain unresolved; account ownership/adoption and catalogue refresh never rewrite guest provenance. Exact venue coordinates are separate from city centres.
 
-Shared provider-budget/cache persistence supports explicit external city lookup without distributing the raw catalogue or relying on process-local cost limits. Dataset seeding and distribution must preserve the applicable source licence. See [decisions.md](../decisions.md#city-catalogue-and-public-discovery).
+The cities table remains authoritative for saved-city reads, selection validation and PostGIS calculations, so temporary JSON/database differences are permitted until an explicit import. Retired rows remain readable and eligible for public discovery when they have public series, but are excluded from autocomplete and cannot be newly selected for detail edits. No city-provider cache is stored. Dataset packaging and attribution must preserve the applicable source licence. See [decisions.md](../decisions.md#city-catalogue-and-public-discovery).
 
 ```sql
 Accounts

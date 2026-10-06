@@ -12,6 +12,7 @@ export type AccountRow = {
   city_location: {
     id: string; city: string; city_ascii: string; country: string; country_ascii: string;
     iso2: string; iso3: string | null; admin_name: string | null; lat: number; lng: number; population: number | null;
+    retired: boolean;
   } | null;
   preferred_language: string | null;
   current_profile_id: string | null;
@@ -28,7 +29,7 @@ export async function findAccountById(pool: Pool, id: string): Promise<AccountRo
             CASE WHEN c.id IS NULL THEN NULL ELSE json_build_object(
               'id', c.id, 'city', c.city, 'city_ascii', c.city_ascii, 'country', c.country,
               'country_ascii', c.country_ascii, 'iso2', c.iso2, 'iso3', c.iso3, 'admin_name', c.admin_name,
-              'lat', c.lat, 'lng', c.lng, 'population', c.population
+              'lat', c.lat, 'lng', c.lng, 'population', c.population, 'retired', c.retired
             ) END AS city_location
      FROM accounts a
      LEFT JOIN LATERAL (

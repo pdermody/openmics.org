@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
-import { findCityById, matchesCityName, matchesCountryName } from '../cities/repository.js';
+import { matchesCityName, matchesCountryName, requireActiveCityById } from '../cities/repository.js';
 import { parseGeoFilter } from '../geo.js';
 import { assignHandle } from '../handles/service.js';
 import { assertSeriesQuota, DEFAULT_PLAN } from '../media/plan.js';
@@ -23,8 +23,7 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     let country = input.country;
     const cityId = input.city_id ?? null;
     if (cityId) {
-      const selected = await findCityById(pool, cityId);
-      if (!selected) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+      const selected = await requireActiveCityById(pool, cityId, 'city_id');
       if ((city && !matchesCityName(selected, city)) || (country && !matchesCountryName(selected, country))) {
         throw new ValidationError('city and country must match the selected city', { field: 'city_id' });
       }
@@ -142,9 +141,9 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
     const existing = await requireOwnedOpenMic(request);
 
     const changes: Record<string, unknown> = { ...parsed.data };
+    const lifecycleOnly = Object.keys(parsed.data).every((field) => field === 'status');
     if (parsed.data.city_id) {
-      const selected = await findCityById(pool, parsed.data.city_id);
-      if (!selected) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+      const selected = await requireActiveCityById(pool, parsed.data.city_id, 'city_id');
       if ((parsed.data.city && !matchesCityName(selected, parsed.data.city))
         || (parsed.data.country && !matchesCountryName(selected, parsed.data.country))) {
         throw new ValidationError('city and country must match the selected city', { field: 'city_id' });
@@ -153,6 +152,8 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
       changes.country = selected.country;
     } else if (parsed.data.city_id === null || parsed.data.city !== undefined || parsed.data.country !== undefined) {
       changes.city_id = null;
+    } else if (!lifecycleOnly && existing.city_id) {
+      await requireActiveCityById(pool, existing.city_id, 'city_id');
     }
     const updated = await updateOpenMic(pool, existing.id, changes as Parameters<typeof updateOpenMic>[2]);
     reply.send(serializeOpenMic(updated!));

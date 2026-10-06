@@ -1,132 +1,108 @@
-import { parse } from 'csv-parse/sync';
 import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
+import type { CityCatalogue } from './catalogue.js';
 
-const REQUIRED_HEADERS = ['id', 'admin_name', 'city', 'city_ascii', 'country', 'iso2', 'iso3', 'lat', 'lng', 'population'] as const;
+type ExistingCity = { source_id: string };
+type UnexpectedSource = { source: string; count: string };
 
-export type CityImportRow = {
-  sourceId: string;
-  adminName: string | null;
-  city: string;
-  cityAscii: string;
-  country: string;
-  countryAscii: string;
-  iso2: string;
-  iso3: string | null;
-  lat: number;
-  lng: number;
-  population: number | null;
-  metadata: { capital: string | null };
+export type CityImportStats = {
+  parsed: number;
+  inserted: number;
+  updated: number;
+  linked: number;
+  unexpectedSources: Array<{ source: string; count: number }>;
 };
 
-export type CityImportStats = { parsed: number; inserted: number; updated: number; duplicates: number; linked: number };
+export type CityImportPreview = {
+  parsed: number;
+  existingManaged: number;
+  toInsert: number;
+  toUpdate: number;
+  missingSourceIds: string[];
+  unexpectedSources: Array<{ source: string; count: number }>;
+};
 
-function asciiSearchName(value: string): string {
-  return value.normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^\x00-\x7F]/g, '');
+async function inspectDatabase(pool: Pool, catalogue: CityCatalogue) {
+  const [existing, unexpected] = await Promise.all([
+    pool.query<ExistingCity>("SELECT source_id FROM cities WHERE source = 'worldcities'"),
+    pool.query<UnexpectedSource>(
+      "SELECT source, count(*)::text AS count FROM cities WHERE source <> 'worldcities' GROUP BY source ORDER BY source",
+    ),
+  ]);
+  const importedIds = new Set(catalogue.cities.map((city) => city.source_id));
+  const existingIds = new Set(existing.rows.map((city) => city.source_id));
+  const missingSourceIds = [...existingIds].filter((sourceId) => !importedIds.has(sourceId)).sort();
+  const toInsert = catalogue.cities.reduce((count, city) => count + Number(!existingIds.has(city.source_id)), 0);
+  return {
+    existingManaged: existingIds.size,
+    toInsert,
+    toUpdate: catalogue.cities.length - toInsert,
+    missingSourceIds,
+    unexpectedSources: unexpected.rows.map((row) => ({ source: row.source, count: Number(row.count) })),
+  };
 }
 
-export function parseCityCsv(contents: string): { rows: CityImportRow[]; duplicates: number } {
-  const records = parse(contents, {
-    bom: true,
-    columns: true,
-    skip_empty_lines: true,
-    trim: true,
-    relax_quotes: false,
-  }) as Record<string, string>[];
-  if (records.length === 0) throw new Error('City CSV contains no data rows');
-  const headers = Object.keys(records[0]);
-  const missing = REQUIRED_HEADERS.filter((header) => !headers.includes(header));
-  if (missing.length) throw new Error(`City CSV is missing required headers: ${missing.join(', ')}`);
-
-  const bySourceId = new Map<string, CityImportRow>();
-  let duplicates = 0;
-  for (const [index, record] of records.entries()) {
-    const line = index + 2;
-    const sourceId = record.id?.trim();
-    const city = record.city?.trim();
-    const country = record.country?.trim();
-    const iso2 = record.iso2?.trim().toUpperCase();
-    const iso3 = record.iso3?.trim().toUpperCase() || null;
-    const lat = Number(record.lat);
-    const lng = Number(record.lng);
-    const population = record.population?.trim() ? Number(record.population) : null;
-    const cityAscii = record.city_ascii?.trim() || (city ? asciiSearchName(city) : '');
-    if (!sourceId || !city || !cityAscii || !country || !iso2 || !/^[A-Z]{2}$/.test(iso2)) {
-      throw new Error(`City CSV line ${line} has a missing or invalid identity field`);
-    }
-    if (iso3 !== null && !/^[A-Z]{3}$/.test(iso3)) throw new Error(`City CSV line ${line} has an invalid ISO3 code`);
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
-      throw new Error(`City CSV line ${line} has invalid coordinates`);
-    }
-    if (population !== null && (!Number.isSafeInteger(population) || population < 0)) {
-      throw new Error(`City CSV line ${line} has an invalid population`);
-    }
-    const row: CityImportRow = {
-      sourceId,
-      adminName: record.admin_name?.trim() || null,
-      city,
-      cityAscii,
-      country,
-      countryAscii: asciiSearchName(country),
-      iso2,
-      iso3,
-      lat,
-      lng,
-      population,
-      metadata: { capital: record.capital?.trim() || null },
-    };
-    const existing = bySourceId.get(sourceId);
-    if (existing) {
-      if (JSON.stringify(existing) !== JSON.stringify(row)) {
-        throw new Error(`City CSV has conflicting duplicate source id ${sourceId} at line ${line}`);
-      }
-      duplicates += 1;
-      continue;
-    }
-    bySourceId.set(sourceId, row);
-  }
-  return { rows: [...bySourceId.values()], duplicates };
+export async function previewCityCatalogueImport(pool: Pool, catalogue: CityCatalogue): Promise<CityImportPreview> {
+  return {
+    parsed: catalogue.cities.length,
+    ...await inspectDatabase(pool, catalogue),
+  };
 }
 
-export async function importCityCsv(pool: Pool, contents: string): Promise<CityImportStats> {
-  const parsed = parseCityCsv(contents);
-  let inserted = 0;
-  let updated = 0;
-  let linked = 0;
-  await withTransaction(pool, async (client) => {
-    for (let offset = 0; offset < parsed.rows.length; offset += 500) {
-      const batch = parsed.rows.slice(offset, offset + 500);
+export async function importCityCatalogue(pool: Pool, catalogue: CityCatalogue): Promise<CityImportStats> {
+  return withTransaction(pool, async (client) => {
+    const current = await client.query<ExistingCity>("SELECT source_id FROM cities WHERE source = 'worldcities'");
+    const importedIds = new Set(catalogue.cities.map((city) => city.source_id));
+    const removed = [...new Set(current.rows.map((city) => city.source_id))]
+      .filter((sourceId) => !importedIds.has(sourceId))
+      .sort();
+    if (removed.length) {
+      const sample = removed.slice(0, 10).join(', ');
+      throw new Error(
+        `City catalogue omits ${removed.length} existing Simplemaps source identity/identities (${sample}). Retire entries instead of removing them.`,
+      );
+    }
+
+    const unexpected = await client.query<UnexpectedSource>(
+      "SELECT source, count(*)::text AS count FROM cities WHERE source <> 'worldcities' GROUP BY source ORDER BY source",
+    );
+    let inserted = 0;
+    for (let offset = 0; offset < catalogue.cities.length; offset += 500) {
+      const batch = catalogue.cities.slice(offset, offset + 500);
       const values: unknown[] = [];
-      const tuples = batch.map((row) => {
+      const tuples = batch.map((city) => {
         const base = values.length;
         values.push(
-          'worldcities', row.sourceId, row.city, row.cityAscii, row.country, row.countryAscii,
-          row.iso2, row.iso3, row.adminName, row.lat, row.lng, row.population, JSON.stringify(row.metadata),
+          'worldcities', city.source_id, city.city, city.city_ascii, city.country, city.country_ascii,
+          city.iso2, city.iso3, city.admin_name, city.lat, city.lng, city.population,
+          JSON.stringify({ capital: city.capital }), city.retired,
         );
-        return `(${Array.from({ length: 13 }, (_, i) => `$${base + i + 1}`).join(', ')})`;
+        return `(${Array.from({ length: 14 }, (_, index) => `$${base + index + 1}`).join(', ')})`;
       });
       const result = await client.query<{ inserted: boolean }>(
         `INSERT INTO cities (
-           source, source_id, city, city_ascii, country, country_ascii, iso2, iso3, admin_name, lat, lng, population, source_metadata
+           source, source_id, city, city_ascii, country, country_ascii, iso2, iso3, admin_name,
+           lat, lng, population, source_metadata, retired
          ) VALUES ${tuples.join(', ')}
          ON CONFLICT (source, source_id) DO UPDATE SET
            city = EXCLUDED.city, city_ascii = EXCLUDED.city_ascii, country = EXCLUDED.country,
            country_ascii = EXCLUDED.country_ascii, iso2 = EXCLUDED.iso2, iso3 = EXCLUDED.iso3,
            admin_name = EXCLUDED.admin_name, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
            population = EXCLUDED.population, source_metadata = EXCLUDED.source_metadata,
-           updated_at = now()
+           retired = EXCLUDED.retired, updated_at = now()
          RETURNING (xmax = 0) AS inserted`,
         values,
       );
       inserted += result.rows.filter((row) => row.inserted).length;
     }
+
     const accountLinks = await client.query(
       `WITH matches AS (
          SELECT a.id AS account_id, (array_agg(c.id))[1] AS city_id
          FROM accounts a JOIN cities c
            ON lower(c.city) = lower(a.city) OR lower(c.city_ascii) = lower(a.city)
-         WHERE a.city_id IS NULL AND a.city IS NOT NULL
+         WHERE a.city_id IS NULL AND a.city IS NOT NULL AND c.retired = false
          GROUP BY a.id HAVING count(*) = 1
        )
        UPDATE accounts a SET city_id = matches.city_id
@@ -138,7 +114,7 @@ export async function importCityCsv(pool: Pool, contents: string): Promise<CityI
          FROM open_mics om JOIN cities c
            ON (lower(c.city) = lower(om.city) OR lower(c.city_ascii) = lower(om.city))
           AND (lower(c.country) = lower(om.country) OR lower(c.country_ascii) = lower(om.country))
-         WHERE om.city_id IS NULL
+         WHERE om.city_id IS NULL AND c.retired = false
          GROUP BY om.id HAVING count(*) = 1
        )
        UPDATE open_mics om SET city_id = matches.city_id
@@ -150,7 +126,7 @@ export async function importCityCsv(pool: Pool, contents: string): Promise<CityI
          FROM events e JOIN cities c
            ON (lower(c.city) = lower(e.city) OR lower(c.city_ascii) = lower(e.city))
           AND (lower(c.country) = lower(e.country) OR lower(c.country_ascii) = lower(e.country))
-         WHERE e.city_id IS NULL
+         WHERE e.city_id IS NULL AND c.retired = false
          GROUP BY e.id HAVING count(*) = 1
        )
        UPDATE events e SET city_id = matches.city_id
@@ -161,14 +137,20 @@ export async function importCityCsv(pool: Pool, contents: string): Promise<CityI
          SELECT r.id AS registration_id, (array_agg(c.id))[1] AS city_id
          FROM registrations r JOIN cities c
            ON lower(c.city) = lower(r.performer_city) OR lower(c.city_ascii) = lower(r.performer_city)
-         WHERE r.performer_city_id IS NULL AND r.performer_city IS NOT NULL
+         WHERE r.performer_city_id IS NULL AND r.performer_city IS NOT NULL AND c.retired = false
          GROUP BY r.id HAVING count(*) = 1
        )
        UPDATE registrations r SET performer_city_id = matches.city_id
        FROM matches WHERE r.id = matches.registration_id`,
     );
-    linked = [accountLinks, seriesLinks, eventLinks, registrationLinks]
+    const linked = [accountLinks, seriesLinks, eventLinks, registrationLinks]
       .reduce((sum, result) => sum + (result.rowCount ?? 0), 0);
+    return {
+      parsed: catalogue.cities.length,
+      inserted,
+      updated: catalogue.cities.length - inserted,
+      linked,
+      unexpectedSources: unexpected.rows.map((row) => ({ source: row.source, count: Number(row.count) })),
+    };
   });
-  return { parsed: parsed.rows.length, inserted, updated: parsed.rows.length - inserted, duplicates: parsed.duplicates, linked };
 }

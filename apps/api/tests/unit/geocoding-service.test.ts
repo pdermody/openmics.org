@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { GeocodingUnavailableError, RateLimitedError } from '../../src/errors.js';
-import { createGeocodingService, parseProviderCities } from '../../src/geocoding/service.js';
+import { createGeocodingService } from '../../src/geocoding/service.js';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
@@ -26,33 +26,9 @@ describe('createGeocodingService', () => {
     expect(fetchImpl).toHaveBeenCalledWith(expect.stringContaining('key=test-key'), expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
-  it('accepts only typed city-layer LocationIQ results with complete identity and coordinates', () => {
-    expect(parseProviderCities([
-      {
-        place_id: '123', lat: '53.3', lon: '-6.2', type: 'city',
-        address: { city: 'Dublin', country: 'Ireland', country_code: 'ie', state: 'Leinster' },
-      },
-      {
-        place_id: '456', lat: '53.4', lon: '-6.1', type: 'village',
-        address: { village: 'Small place', country: 'Ireland', country_code: 'ie' },
-      },
-      {
-        place_id: '789', lat: '91', lon: '-6.1', type: 'city',
-        address: { city: 'Invalid', country: 'Ireland', country_code: 'ie' },
-      },
-    ])).toEqual([{
-      sourceId: '123',
-      city: 'Dublin',
-      cityAscii: 'Dublin',
-      country: 'Ireland',
-      countryAscii: 'Ireland',
-      iso2: 'IE',
-      iso3: null,
-      adminName: 'Leinster',
-      lat: 53.3,
-      lng: -6.2,
-      population: null,
-    }]);
+  it('does not expose a city-search provider operation', () => {
+    const service = createGeocodingService({ apiKey: '', baseUrl: 'https://example.invalid' });
+    expect(Object.keys(service)).toEqual(['searchAddress', 'reverseGeocode']);
   });
 
   it('returns null from reverse geocoding when LocationIQ finds nothing', async () => {

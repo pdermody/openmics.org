@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 
 export type City = {
@@ -14,6 +14,7 @@ export type City = {
   lat: number
   lng: number
   population: number | null
+  retired: boolean
 }
 
 export type CityAutocompleteValue = { text: string; city: City | null }
@@ -27,7 +28,8 @@ export function useCity(id: string | null | undefined) {
     queryKey: cityKeys.detail(id),
     queryFn: ({ signal }) => api<City>(`/cities/${encodeURIComponent(id!)}`, { signal }),
     enabled: Boolean(id),
-    staleTime: Infinity,
+    staleTime: 0,
+    refetchOnMount: 'always',
     retry: false,
   })
 }
@@ -46,20 +48,4 @@ export function useCitySearch(q: string, enabled = true) {
     staleTime: 60_000,
     retry: false,
   })
-}
-
-export function useExternalCitySearch() {
-  return useMutation({
-    mutationFn: ({ q }: { q: string }) => api<{ items: City[] }>('/cities/search-external', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q }),
-    }),
-  })
-}
-
-/** Selecting caches the complete place, so loading a saved reference never reseeds a venue pin. */
-export function useRememberCity() {
-  const client = useQueryClient()
-  return (city: City) => client.setQueryData(cityKeys.detail(city.id), city)
 }

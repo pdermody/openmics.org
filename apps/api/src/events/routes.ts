@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import { withTransaction } from '../db.js';
 import type { AuthenticatedAccount } from '../auth/types.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors.js';
-import { findCityById, matchesCityName, matchesCountryName } from '../cities/repository.js';
+import { matchesCityName, matchesCountryName, requireActiveCityById } from '../cities/repository.js';
 import { parseGeoFilter } from '../geo.js';
 import { findOpenMicByIdOrPublicCode } from '../open-mics/repository.js';
 import { assertEventCapacityAllowed, assertEventCountQuota, DEFAULT_PLAN } from '../media/plan.js';
@@ -67,8 +67,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
         let city = hasLocationOverride ? input.city : openMic.city;
         let country = hasLocationOverride ? input.country : openMic.country;
         if (input.city_id) {
-          const selected = await findCityById(pool, input.city_id);
-          if (!selected) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+          const selected = await requireActiveCityById(pool, input.city_id, 'city_id');
           if ((input.city && !matchesCityName(selected, input.city))
             || (input.country && !matchesCountryName(selected, input.country))) {
             throw new ValidationError('city and country must match the selected city', { field: 'city_id' });
@@ -78,6 +77,8 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
           country = selected.country;
         } else if (!hasLocationOverride && input.city_id === null) {
           cityId = null;
+        } else if (!hasLocationOverride && input.city_id === undefined && cityId) {
+          await requireActiveCityById(pool, cityId, 'city_id');
         }
         return insertEvent(client, {
           openMicId: openMic.id,
@@ -279,9 +280,9 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (parsed.data.entry_fee_amount !== undefined) changes.entryFeeAmount = parsed.data.entry_fee_amount;
       if (parsed.data.entry_fee_currency !== undefined) changes.entryFeeCurrency = parsed.data.entry_fee_currency;
       if (parsed.data.entry_fee_note !== undefined) changes.entryFeeNote = parsed.data.entry_fee_note;
+      const lifecycleOnly = Object.keys(parsed.data).every((field) => field === 'status' || field === 'registrations_closed_at');
       if (parsed.data.city_id) {
-        const selected = await findCityById(pool, parsed.data.city_id);
-        if (!selected) throw new ValidationError('city_id does not identify a known city', { field: 'city_id' });
+        const selected = await requireActiveCityById(pool, parsed.data.city_id, 'city_id');
         if ((parsed.data.city && !matchesCityName(selected, parsed.data.city))
           || (parsed.data.country && !matchesCountryName(selected, parsed.data.country))) {
           throw new ValidationError('city and country must match the selected city', { field: 'city_id' });
@@ -291,6 +292,8 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
         changes.cityId = parsed.data.city_id;
       } else if (parsed.data.city_id === null || parsed.data.city !== undefined || parsed.data.country !== undefined) {
         changes.cityId = null;
+      } else if (!lifecycleOnly && existing.city_id) {
+        await requireActiveCityById(pool, existing.city_id, 'city_id');
       }
 
       const effectiveStartsAt = parsed.data.starts_at ?? existing.starts_at;

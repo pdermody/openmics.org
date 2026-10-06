@@ -57,39 +57,27 @@ describe('CityAutocomplete', () => {
     expect(input).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('keeps unmatched text and only uses the provider after an explicit action', async () => {
-    const external = vi.fn()
+  it('keeps unmatched free text without offering a provider fallback', async () => {
     const changed = vi.fn()
     server.use(
       http.get('/api/cities/search', () => HttpResponse.json({ items: [] })),
-      http.post('/api/cities/search-external', async ({ request }) => {
-        external(await request.json())
-        return HttpResponse.json({ items: [dublin] })
-      }),
     )
     renderWithProviders(<Picker onChange={changed} />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'My hometown' } })
-    expect(await screen.findByText('No cities found. Keep your text or search more places.')).toBeInTheDocument()
+    expect(await screen.findByText('No matching cities. Keep your text or try a different search.')).toBeInTheDocument()
     expect(changed).toHaveBeenLastCalledWith({ text: 'My hometown', city: null })
-    expect(external).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Search more places' }))
-    fireEvent.click(await screen.findByRole('option'))
-    expect(external).toHaveBeenCalledExactlyOnceWith({ q: 'My hometown' })
-    expect(changed).toHaveBeenLastCalledWith({ text: 'Dublin', city: dublin })
+    expect(screen.queryByRole('button', { name: /search more places/i })).not.toBeInTheDocument()
   })
 
   it.each([
-    [400, 'Please enter a valid city search.'],
-    [429, 'Place search has reached its limit.'],
-    [503, 'City search is unavailable.'],
-  ])('shows typed external %s failures without losing free text', async (status, message) => {
+    [400, 'VALIDATION_ERROR', 'Please enter a valid city search.'],
+    [503, 'CITY_CATALOGUE_IMPORT_REQUIRED', 'City search needs a catalogue update. Please try again later.'],
+  ])('shows city-search %s failures without losing free text', async (status, code, message) => {
     server.use(
-      http.get('/api/cities/search', () => HttpResponse.json({ items: [] })),
-      http.post('/api/cities/search-external', () => HttpResponse.json({ error: { code: 'CITY_SEARCH_ERROR', message: 'failed' } }, { status })),
+      http.get('/api/cities/search', () => HttpResponse.json({ error: { code, message: 'failed' } }, { status })),
     )
     renderWithProviders(<Picker />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Missing city' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Search more places' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(message)
     expect(screen.getByRole('combobox')).toHaveValue('Missing city')
   })
@@ -106,25 +94,13 @@ describe('CityAutocomplete', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
-  it('does not offer stale catalogue or external results after the query changes', async () => {
-    let completeExternal: () => void = () => undefined
-    server.use(
-      http.get('/api/cities/search', () => HttpResponse.json({ items: [] })),
-      http.post('/api/cities/search-external', async () => {
-        await new Promise<void>((resolve) => { completeExternal = resolve })
-        return HttpResponse.json({ items: [dublin] })
-      }),
-    )
-    renderWithProviders(<Picker />)
-    const input = screen.getByRole('combobox')
-    fireEvent.change(input, { target: { value: 'Dub' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Search more places' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Search more places' })).toBeDisabled())
-    fireEvent.change(input, { target: { value: 'Cork' } })
-    completeExternal()
-    await screen.findByText('No cities found. Keep your text or search more places.')
-    expect(screen.queryByRole('option')).not.toBeInTheDocument()
-    expect(input).toHaveValue('Cork')
+  it('guides users to replace or clear a retired saved city', () => {
+    const changed = vi.fn()
+    const retired = { ...dublin, retired: true }
+    renderWithProviders(<Picker initial={{ text: retired.city, city: retired }} onChange={changed} />)
+    expect(screen.getByRole('status')).toHaveTextContent('This saved city has been retired.')
+    fireEvent.click(screen.getByRole('button', { name: 'Clear city' }))
+    expect(changed).toHaveBeenLastCalledWith({ text: '', city: null })
   })
 
   it('ignores a late catalogue response from a previous query', async () => {

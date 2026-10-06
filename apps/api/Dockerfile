@@ -9,6 +9,7 @@ COPY package.json package-lock.json tsconfig.json ./
 RUN npm ci
 
 COPY apps/api ./apps/api
+COPY scripts/copy-city-catalogue.mjs ./scripts/copy-city-catalogue.mjs
 RUN npm run build:api
 
 FROM node:20-alpine AS runtime

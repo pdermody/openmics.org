@@ -3,7 +3,7 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 
 import { withTransaction } from '../db.js';
-import { findCityById } from '../cities/repository.js';
+import { requireActiveCityById } from '../cities/repository.js';
 import type { EmailAdapter } from '../email/index.js';
 import { AppError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../errors.js';
 import type { MediaConsentHooks } from '../media/consent.js';
@@ -100,8 +100,7 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       let performerCity = input.performer_city ?? null;
       let performerCityId = input.performer_city_id ?? null;
       if (performerCityId) {
-        const selected = await findCityById(pool, performerCityId);
-        if (!selected) throw new ValidationError('performer_city_id does not identify a known city', { field: 'performer_city_id' });
+        const selected = await requireActiveCityById(pool, performerCityId, 'performer_city_id');
         if (performerCity && ![selected.city, selected.city_ascii].some((name) => name.toLocaleLowerCase() === performerCity!.toLocaleLowerCase())) {
           throw new ValidationError('performer_city must match the selected city', { field: 'performer_city_id' });
         }
@@ -343,8 +342,7 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
       }
       const changes: Record<string, unknown> = { ...parsed.data, media_consent_updated_at: undefined };
       if (parsed.data.performer_city_id) {
-        const selected = await findCityById(pool, parsed.data.performer_city_id);
-        if (!selected) throw new ValidationError('performer_city_id does not identify a known city', { field: 'performer_city_id' });
+        const selected = await requireActiveCityById(pool, parsed.data.performer_city_id, 'performer_city_id');
         if (parsed.data.performer_city && ![selected.city, selected.city_ascii].some((name) =>
           name.toLocaleLowerCase() === parsed.data.performer_city!.toLocaleLowerCase())) {
           throw new ValidationError('performer_city must match the selected city', { field: 'performer_city_id' });
@@ -352,6 +350,8 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
         changes.performer_city = selected.city;
       } else if (parsed.data.performer_city_id === null || parsed.data.performer_city !== undefined) {
         changes.performer_city_id = null;
+      } else if (registration.performer_city_id) {
+        await requireActiveCityById(pool, registration.performer_city_id, 'performer_city_id');
       }
       const consentChanging =
         parsed.data.media_consent !== undefined && parsed.data.media_consent !== registration.media_consent;

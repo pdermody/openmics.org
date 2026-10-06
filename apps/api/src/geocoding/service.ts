@@ -17,21 +17,6 @@ export type GeocodingServiceOptions = {
 export type GeocodingService = {
   searchAddress(query: string): Promise<GeocodeCandidate[]>;
   reverseGeocode(lat: number, lng: number): Promise<GeocodeCandidate | null>;
-  searchCities?(query: string): Promise<ProviderCity[]>;
-};
-
-export type ProviderCity = {
-  sourceId: string;
-  city: string;
-  cityAscii: string;
-  country: string;
-  countryAscii: string;
-  iso2: string;
-  iso3: string | null;
-  adminName: string | null;
-  lat: number;
-  lng: number;
-  population: null;
 };
 
 type LocationIqPlace = {
@@ -48,52 +33,6 @@ type LocationIqPlace = {
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
-
-function toAscii(value: string): string {
-  return value.normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^\x00-\x7F]/g, '');
-}
-
-export function parseProviderCities(body: unknown): ProviderCity[] {
-  if (!Array.isArray(body)) throw new GeocodingUnavailableError('The city lookup provider returned an invalid response.');
-  const cities: ProviderCity[] = [];
-  const seen = new Set<string>();
-  for (const raw of body) {
-    if (!raw || typeof raw !== 'object') continue;
-    const place = raw as LocationIqPlace;
-    const address = place.address;
-    if (!address || typeof address !== 'object') continue;
-    const city = asString(address.city) ?? asString(address.town) ?? asString(address.village) ?? asString(address.municipality);
-    const country = asString(address.country);
-    const iso2 = asString(address.country_code)?.toUpperCase();
-    const type = asString(place.type)?.toLowerCase();
-    const acceptedTypes = new Set(['city', 'town', 'municipality']);
-    const lat = Number(place.lat);
-    const lng = Number(place.lon);
-    const sourceId = place.osm_type && place.osm_id
-      ? `${String(place.osm_type)}:${String(place.osm_id)}`
-      : place.place_id === undefined ? null : String(place.place_id);
-    if (!city || !country || !iso2 || !/^[A-Z]{2}$/.test(iso2) || !type || !acceptedTypes.has(type)
-      || !sourceId || !Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) continue;
-    const key = `${iso2}:${city.toLocaleLowerCase()}:${sourceId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const iso3 = asString(address['ISO3166-2-lvl4']);
-    cities.push({
-      sourceId,
-      city,
-      cityAscii: toAscii(city),
-      country,
-      countryAscii: toAscii(country),
-      iso2,
-      iso3: iso3 && /^[A-Za-z]{3}$/.test(iso3) ? iso3.toUpperCase() : null,
-      adminName: asString(address.state) ?? asString(address.region),
-      lat,
-      lng,
-      population: null,
-    });
-  }
-  return cities;
 }
 
 function parseAddressCandidate(place: LocationIqPlace): GeocodeCandidate {
@@ -184,16 +123,5 @@ export function createGeocodingService(options: GeocodingServiceOptions): Geocod
       return parseAddressCandidate(body);
     },
 
-    async searchCities(query: string): Promise<ProviderCity[]> {
-      requireApiKey();
-      if (dailyLimit <= 0) throw new GeocodingUnavailableError('External city search is disabled.');
-      const url = `${baseUrl}/v1/autocomplete?key=${encodeURIComponent(apiKey)}&q=${encodeURIComponent(query)}&format=json&limit=10&layers=city&tag=!place:village&dedupe=1`;
-      const response = await throttledFetch(url);
-      if (!response.ok) {
-        if (response.status === 404) return [];
-        throw new Error(`LocationIQ city search failed with status ${response.status}`);
-      }
-      return parseProviderCities(await response.json());
-    },
   };
 }

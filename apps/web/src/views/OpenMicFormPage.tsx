@@ -5,7 +5,7 @@ import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
 import { CircleAlert, CircleCheck } from 'lucide-react'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ApiError } from '../api/client'
+import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
 import { CityAutocomplete } from '../components/location/CityAutocomplete'
 import { useCity, type City } from '../features/cities'
@@ -104,6 +104,10 @@ const DEFAULT_VALUES: OpenMicFormValues = {
 
 function openMicErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return 'We could not save this open mic. Please try again.'
+  if (error.code === 'CITY_CATALOGUE_IMPORT_REQUIRED'
+    || (error.details as { reason?: string } | undefined)?.reason === 'retired') {
+    return friendlyApiErrorMessage(error)
+  }
   if (error.code === 'HANDLE_UNAVAILABLE') return 'That handle is already taken. Please choose another.'
   const fieldErrors = (error.details as { fieldErrors?: Record<string, string[]> } | undefined)?.fieldErrors
   const firstField = fieldErrors && Object.keys(fieldErrors)[0]

@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
 import { z } from 'zod'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ApiError } from '../api/client'
+import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
 import { CityAutocomplete } from '../components/location/CityAutocomplete'
 import { useCity, type City } from '../features/cities'
@@ -125,6 +125,10 @@ const DEFAULT_VALUES: EventFormValues = {
 
 function eventErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return 'We could not save this event. Please try again.'
+  if (error.code === 'CITY_CATALOGUE_IMPORT_REQUIRED'
+    || (error.details as { reason?: string } | undefined)?.reason === 'retired') {
+    return friendlyApiErrorMessage(error)
+  }
   const fieldErrors = (error.details as { fieldErrors?: Record<string, string[]> } | undefined)?.fieldErrors
   const firstField = fieldErrors && Object.keys(fieldErrors)[0]
   if (firstField) return `${firstField.replace(/_/g, ' ')}: ${fieldErrors![firstField][0]}`

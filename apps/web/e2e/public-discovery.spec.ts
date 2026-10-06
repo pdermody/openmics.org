@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const cork = {
   id: 'city-cork', city: 'Cork', city_ascii: 'Cork', country: 'Ireland', country_ascii: 'Ireland',
-  iso2: 'IE', iso3: 'IRL', admin_name: null, lat: 51.8985, lng: -8.4756, population: 222333,
+  iso2: 'IE', iso3: 'IRL', admin_name: null, lat: 51.8985, lng: -8.4756, population: 222333, retired: false,
 }
 
 const series = (index: number) => ({
@@ -24,14 +24,12 @@ for (const mobile of [false, true]) {
     await context.grantPermissions(['geolocation'])
     await context.setGeolocation({ latitude: 53.35, longitude: -6.26 })
     const resultQueries: URL[] = []
-    let externalLookups = 0
     await page.route((url) => url.pathname.startsWith('/api/'), async (route) => {
       const url = new URL(route.request().url())
       const path = url.pathname
       let body: unknown
       if (path === '/api/dev/simulated-auth/config') body = { enabled: false, roles: [] }
       else if (path === '/api/cities/search') body = { items: [cork] }
-      else if (path === '/api/cities/search-external') { externalLookups++; body = { items: [] } }
       else if (path === '/api/discovery/suggestions') body = {
         expansion: url.searchParams.get('radius_km') === '50' ? { radius_km: 135, additional_count: 22 } : null,
         cities: [{ ...cork, distance_km: 218, open_mic_count: 4 }],
@@ -70,7 +68,6 @@ for (const mobile of [false, true]) {
     await page.getByRole('combobox', { name: 'Choose a city', exact: true }).fill('Cork')
     await page.getByRole('option', { name: /Cork.*Ireland/ }).click()
     await expect(page.getByText('Near Cork, Ireland · Within 50 km')).toBeVisible()
-    expect(externalLookups).toBe(0)
 
     await page.getByRole('button', { name: /Expand to 135 km.*22 more/ }).click()
     await expect(page.getByText('Near Cork, Ireland · Within 135 km')).toBeVisible()
@@ -91,7 +88,6 @@ for (const mobile of [false, true]) {
 
     await page.reload()
     await expect(page.getByText('Near your location · Within 50 km')).toBeVisible()
-    expect(externalLookups).toBe(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
 }

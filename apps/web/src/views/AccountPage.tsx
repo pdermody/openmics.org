@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { friendlyApiErrorMessage } from '../api/client'
 import { LocateFixed, MapPin } from 'lucide-react'
 import { Select } from '../components/radix-select'
 import { changeLanguage } from '../i18n'
@@ -135,7 +136,7 @@ export function AccountPage({ theme, mode }: { theme: ThemeId; mode: ColorMode }
         </button>
       </form>
 
-      {context.updateAccount.isError && <p className="form-error" role="alert">{t('profileSaveError')}</p>}
+      {context.updateAccount.isError && <p className="form-error" role="alert">{friendlyApiErrorMessage(context.updateAccount.error, t('profileSaveError'))}</p>}
     </section>
 
     {savedModalOpen && <Modal title={t('accountDetails')} onClose={() => setSavedModalOpen(false)}>
