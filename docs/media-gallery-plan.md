@@ -2,7 +2,7 @@
 
 Implement `media-gallery-design.md` across API, web, and infra. Execution and deployment happen on other machines. Resource identifiers supplied at deploy time.
 
-**TL;DR.** The design doc's open shape questions have been settled (see "Confirmed decisions" below) and the Phase 0 prerequisite numbers — Plan quotas plus kiosk `media_consent` behavior — are now recorded in [docs/decisions.md](decisions.md). Implementation is ten phases spanning contract → schema → infra → storage adapter → routes → rendition Lambda → server-rendered OG → frontend → tests → verification. Deployment is strictly ordered because the API Docker image bakes in `apps/web/dist/index.html` for OG injection, and the dedicated `media.openmics.org` subdomain requires its ACM SAN to be issued before the MediaStack can bind the certificate.
+**TL;DR.** The design doc's open shape questions have been settled (see "Confirmed decisions" below) and the Phase 0 prerequisite numbers — Plan quotas plus kiosk `media_consent` behavior — are now recorded in [docs/decisions.md](decisions.md). Implementation is ten phases spanning contract → schema → infra → storage adapter → routes → rendition Lambda → server-rendered OG → frontend → tests → verification. Deployment is strictly ordered because the API Docker image bakes in `apps/web/dist/index.html` for OG injection, and the shared wildcard ACM certificate in `us-east-1` must be issued before the MediaStack can bind the certificate.
 
 ## Confirmed decisions (from Q&A)
 
@@ -155,13 +155,13 @@ renditions/{mediaId}/lightbox.webp                  sharp-generated, 2048px shor
   - `route53.ARecord` for `media.openmics.org` (and `media-${env}.openmics.org` in non-prod) targeting the distribution.
   - `sqs.Queue` `openmic-media-renditions-${env}` + DLQ (3 retries). Visibility timeout 2 min.
   - `NodejsFunction` `openmic-media-renditions-${env}` (entry `infra/lib/lambda/media-renditions/index.ts`) with sharp bundled via Docker (`forceDockerBundling: true`), 1024 MB memory, 2 min timeout.
-  - `NodejsFunction` `openmic-media-purge-${env}` scheduled hourly via EventBridge rule for `PendingS3Deletions` processing. Reads DB (shares the DB secret), deletes S3 objects past `scheduled_for`, marks `processed_at`.
-  - Grants: rendition Lambda reads/writes bucket; purge Lambda reads/writes bucket; both read DB secret.
+  - A once-daily EventBridge rule `openmic-media-purge-${env}` starts a one-off Fargate task in public subnets with a public IP, on its own `openmic-media-workers-${env}` cluster. The API release image runs `apps/api/src/media/purge-cli.ts` compiled to JavaScript; ECS injects the DB credentials from the database secret. It pages through all records due at run start in batches of 500 within a five-minute runtime cap, marks successful deletions processed, and skips failed rows until the next daily run. All queue reasons share this schedule. No NAT gateway or interface endpoint is needed.
+  - Grants: rendition Lambda reads/writes the media bucket and reads the callback secret; purge task can delete media-bucket objects and its execution role reads the DB secret. Its security group can connect to the database.
   - Outputs: `MediaBucketName`, `MediaDistributionDomainName`, `MediaCdnBaseUrl` (= `https://media.openmics.org` prod / `https://media-${env}.openmics.org` non-prod), `RenditionsQueueUrl`.
 
 ### Updates
 
-- [infra/lib/certificate-stack.ts](../infra/lib/certificate-stack.ts): add `media.openmics.org` (and the per-env `media-${env}.openmics.org`) to the ACM certificate's SAN list (us-east-1).
+- [infra/lib/certificate-stack.ts](../infra/lib/certificate-stack.ts): use a single-label wildcard SAN (`*.<domain>`) alongside the apex and `www`, covering `media.openmics.org` and the per-env `media-${env}.openmics.org` on the ACM certificate in us-east-1.
 - [infra/lib/api-stack.ts](../infra/lib/api-stack.ts):
   - Accept `mediaBucket`, `mediaCdnBaseUrl`, `renditionsQueue` from props.
   - Grant task role `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on the bucket's ARN + `/*`.
@@ -369,14 +369,14 @@ Build order matters because the API image COPYs the built web `index.html`:
 2. `cd infra && npm ci && npm run build && npm run synth` — validates the synthesized template.
 3. `npm run diff -- OpenMicCertificateStack-$OPENMIC_ENVIRONMENT OpenMicMediaStack-$OPENMIC_ENVIRONMENT OpenMicApiStack-$OPENMIC_ENVIRONMENT OpenMicFrontendStack-$OPENMIC_ENVIRONMENT OpenMicMigrationStack-$OPENMIC_ENVIRONMENT` — review intended changes.
 4. **Deploy order** (confirm with user before each `deploy`):
-   1. `cdk deploy OpenMicCertificateStack-$OPENMIC_ENVIRONMENT` — adds `media.openmics.org` to the ACM cert SAN list (us-east-1). ACM may require re-validation of the new SAN via DNS; the stack re-uses the existing hosted zone.
-   2. `cdk deploy OpenMicMediaStack-$OPENMIC_ENVIRONMENT` — new S3 bucket, dedicated `media.openmics.org` CloudFront distribution + Route 53 alias, rendition queue + Lambda, purge Lambda.
-   3. `cdk deploy OpenMicApiStack-$OPENMIC_ENVIRONMENT` — new image including `apps/web/dist/index.html` baked in, new env (`MEDIA_BUCKET`, `MEDIA_CDN_BASE_URL=https://media.openmics.org`, `MEDIA_RENDITIONS_QUEUE_URL`, `MEDIA_PRESIGN_EXPIRY_SECONDS`, `MEDIA_RENDITIONS_CALLBACK_SECRET`), new IAM for S3 + SQS.
-   4. `cdk deploy OpenMicMigrationStack-$OPENMIC_ENVIRONMENT` and run the one-off task (per existing migration workflow) to apply migrations 019 and 020.
-   5. `cdk deploy OpenMicFrontendStack-$OPENMIC_ENVIRONMENT` — new `/media/*` CloudFront behavior → ALB on the main distribution. CloudFront distribution update propagates for ~15 min globally.
+   1. Verify the apex, `www`, and wildcard certificate is issued in `us-east-1` and both consumer exports resolve to its ARN. For a new installation, deploy CertificateStack; for replacement of an in-use certificate, first complete a separately reviewed certificate-only consumer update and export reconciliation without publishing new frontend assets.
+   2. Deploy `OpenMicMigrationStack-$OPENMIC_ENVIRONMENT --exclusively`, preview actual pending SQL and recovery evidence, then confirm/apply pending migrations (including 019, 020, and 021 when absent) and the city import. Verify schema and managed identities before activating media consumers.
+   3. Deploy `OpenMicMediaStack-$OPENMIC_ENVIRONMENT --exclusively` — private bucket, media CloudFront + DNS, rendition queue + Lambda, and scheduled Fargate purge task.
+   4. Deploy `OpenMicApiStack-$OPENMIC_ENVIRONMENT --exclusively` — release image with built SPA, media env/secrets and S3/SQS IAM. Verify healthy rollout and city mapping before proceeding.
+   5. Deploy `OpenMicFrontendStack-$OPENMIC_ENVIRONMENT --exclusively` — new assets and `/media/*` behavior to the ALB; wait for CloudFront deployment and automatic invalidation.
 5. Smoke tests after each deploy (ask operator before destructive action):
    - After MediaStack: `aws s3 ls s3://openmic-media-$env-...` succeeds; SQS queue exists; `dig media.openmics.org` resolves to the new CloudFront distribution; `curl -I https://media.openmics.org/` returns a `403` (empty bucket root, OAC working).
-   - After ApiStack: `curl -I https://$domain/health` 200; `curl -I https://$domain/media/00000000-0000-0000-0000-000000000000` returns 200 HTML with fallback OG tags.
+   - After ApiStack: verify ALB `/health` returns JSON `{"status":"ok"}` and public `/api/cities/search?q=London&country=GB` returns JSON `items`, not a SPA HTML 200 fallback. `/api/health` is not a health route. Verify the media deep-link response through the ALB until the main CloudFront `/media/*` behavior is deployed.
    - After MigrationStack run: `psql ... -c "\dt"` lists new tables; `SELECT COUNT(*) FROM media` succeeds.
    - After FrontendStack: `curl -I https://$domain/media/{real-id}` returns the server-rendered HTML (not the SPA bucket fallback); `curl -I https://media.openmics.org/renditions/{mediaId}/grid.webp` serves image bytes.
 6. CloudFront cache: no manual invalidation needed. `BucketDeployment` already invalidates `/*` on FrontendStack deploys.
@@ -444,4 +444,4 @@ Build order matters because the API image COPYs the built web `index.html`:
 
 **Phase 10 — Verification:** typecheck, OpenAPI, test, synth, check-links.
 
-**Deployment:** build web → build infra → synth → diff → deploy MediaStack → ApiStack → run MigrationStack task → FrontendStack → smoke.
+**Deployment:** build web → build API and infra → synth → review diffs → deploy MigrationStack exclusively → preview and confirm pending SQL/recovery point → apply migrations and import cities → verify schema/catalogue → deploy MediaStack → ApiStack → FrontendStack → smoke. This schema-first order is settled in [decisions.md](decisions.md#media-delivery): the scheduled purge worker requires its tables, and frontend assets require the new API. Sharing a migration/import ECS task does not make the database changes one transaction.

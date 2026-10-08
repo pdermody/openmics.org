@@ -13,6 +13,9 @@ import * as events from 'aws-cdk-lib/aws-events';
 import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
 export type MediaStackProps = cdk.StackProps & {
@@ -22,7 +25,7 @@ export type MediaStackProps = cdk.StackProps & {
   domainName: string;
   /** Must be an ACM certificate issued in us-east-1 whose SAN list covers the media subdomain (see certificate-stack.ts). */
   certificate: acm.ICertificate;
-  /** The purge Lambda reads PendingS3Deletions from the database, so it joins the VPC. */
+  /** The purge task reads PendingS3Deletions from the database, so it joins the VPC. */
   vpc: ec2.IVpc;
   databaseSecret: secretsmanager.ISecret;
   databaseSecurityGroup: ec2.ISecurityGroup;
@@ -44,8 +47,8 @@ export type MediaStackProps = cdk.StackProps & {
  * - An SQS queue + Lambda consumer (mirroring the email pattern) generates sharp
  *   renditions and reports them back to the API's internal callback, signed with a
  *   shared secret generated here and shared with the API task.
- * - A scheduled (hourly) purge Lambda processes PendingS3Deletions rows so S3 bytes are
- *   never deleted inline by the API.
+ * - A scheduled (daily) Fargate purge task processes PendingS3Deletions rows. Its public
+ *   IP lets it reach S3 in the no-NAT VPC; bytes are never deleted inline by the API.
  *
  * The bucket is RemovalPolicy.RETAIN from day one: `cdk destroy` of this stack must never
  * take user media with it.
@@ -56,7 +59,7 @@ export class MediaStack extends cdk.Stack {
   public readonly renditionsQueue: sqs.Queue;
   public readonly renditionsDeadLetterQueue: sqs.Queue;
   public readonly renditionsFunction: NodejsFunction;
-  public readonly purgeFunction: NodejsFunction;
+  public readonly purgeTaskDefinition: ecs.FargateTaskDefinition;
   public readonly renditionsCallbackSecret: secretsmanager.Secret;
   public readonly mediaDomainName: string;
   public readonly mediaCdnBaseUrl: string;
@@ -170,7 +173,7 @@ export class MediaStack extends cdk.Stack {
 
     const purgeSecurityGroup = new ec2.SecurityGroup(this, 'PurgeSecurityGroup', {
       vpc: props.vpc,
-      description: 'Scheduled media purge Lambda (reads PendingS3Deletions, deletes S3 objects)',
+      description: 'Scheduled media purge task (reads PendingS3Deletions, deletes S3 objects)',
     });
 
     new ec2.CfnSecurityGroupIngress(this, 'AllowPurgeLambdaToDatabase', {
@@ -181,43 +184,63 @@ export class MediaStack extends cdk.Stack {
       sourceSecurityGroupId: purgeSecurityGroup.securityGroupId,
     });
 
-    this.purgeFunction = new NodejsFunction(this, 'MediaPurgeFunction', {
-      functionName: `openmic-media-purge-${props.environmentName}`,
-      runtime: lambda.Runtime.NODEJS_24_X,
-      entry: `${__dirname}/lambda/media-purge/index.ts`,
-      handler: 'handler',
-      timeout: cdk.Duration.minutes(5),
-      memorySize: 256,
+    const purgeCluster = new ecs.Cluster(this, 'MediaPurgeCluster', {
       vpc: props.vpc,
-      securityGroups: [purgeSecurityGroup],
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-      allowPublicSubnet: true,
-      bundling: {
-        minify: true,
-        sourceMap: true,
-        // pg lazily requires its optional native binding; never installed, never called.
-        externalModules: ['pg-native'],
-      },
+      clusterName: `openmic-media-workers-${props.environmentName}`,
+    });
+    this.purgeTaskDefinition = new ecs.FargateTaskDefinition(this, 'MediaPurgeTaskDefinition', {
+      cpu: 256,
+      memoryLimitMiB: 512,
+    });
+    this.purgeTaskDefinition.addContainer('MediaPurgeContainer', {
+      image: ecs.ContainerImage.fromAsset(`${__dirname}/../..`, { file: 'apps/api/Dockerfile' }),
+      command: ['node', 'dist/apps/api/src/media/purge-cli.js'],
+      logging: ecs.LogDrivers.awsLogs({
+        streamPrefix: 'purge',
+        logRetention: logs.RetentionDays.ONE_WEEK,
+      }),
       environment: {
-        DB_SECRET_ARN: props.databaseSecret.secretArn,
+        NODE_ENV: 'production',
+        AWS_REGION: cdk.Stack.of(this).region,
         PGHOST: props.databaseHost,
         PGDATABASE: props.databaseName,
         PGSSLMODE: 'no-verify',
+        MEDIA_BUCKET: this.bucket.bucketName,
+      },
+      secrets: {
+        PGUSER: ecs.Secret.fromSecretsManager(props.databaseSecret, 'username'),
+        PGPASSWORD: ecs.Secret.fromSecretsManager(props.databaseSecret, 'password'),
       },
     });
 
-    this.bucket.grantReadWrite(this.purgeFunction);
-    props.databaseSecret.grantRead(this.purgeFunction);
+    this.purgeTaskDefinition.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['s3:DeleteObject'],
+      resources: [this.bucket.arnForObjects('*')],
+    }));
 
     new events.Rule(this, 'MediaPurgeSchedule', {
       ruleName: `openmic-media-purge-${props.environmentName}`,
-      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
-      targets: [new eventsTargets.LambdaFunction(this.purgeFunction)],
+      schedule: events.Schedule.rate(cdk.Duration.days(1)),
+      targets: [new eventsTargets.EcsTask({
+        cluster: purgeCluster,
+        taskDefinition: this.purgeTaskDefinition,
+        taskCount: 1,
+        launchType: ecs.LaunchType.FARGATE,
+        subnetSelection: { subnetType: ec2.SubnetType.PUBLIC },
+        securityGroups: [purgeSecurityGroup],
+        assignPublicIp: true,
+      })],
     });
 
     new cdk.CfnOutput(this, 'MediaBucketName', { value: this.bucket.bucketName });
     new cdk.CfnOutput(this, 'MediaDistributionDomainName', { value: this.distribution.distributionDomainName });
     new cdk.CfnOutput(this, 'MediaCdnBaseUrl', { value: this.mediaCdnBaseUrl });
     new cdk.CfnOutput(this, 'RenditionsQueueUrl', { value: this.renditionsQueue.queueUrl });
+    new cdk.CfnOutput(this, 'PurgeTaskDefinitionArn', { value: this.purgeTaskDefinition.taskDefinitionArn });
+    new cdk.CfnOutput(this, 'PurgeClusterName', { value: purgeCluster.clusterName });
+    new cdk.CfnOutput(this, 'PurgeSecurityGroupId', { value: purgeSecurityGroup.securityGroupId });
+    new cdk.CfnOutput(this, 'PurgePublicSubnetIds', {
+      value: cdk.Fn.join(',', props.vpc.publicSubnets.map((subnet) => subnet.subnetId)),
+    });
   }
 }

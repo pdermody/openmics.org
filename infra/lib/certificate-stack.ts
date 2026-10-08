@@ -5,8 +5,7 @@ import { Construct } from 'constructs';
 
 export type CertificateStackProps = cdk.StackProps & {
   domainName: string;
-  /** e.g. "dev", "staging", "prod" — the media subdomain SAN is env-aware
-   * (`media.<domain>` in prod, `media-<env>.<domain>` otherwise, matching media-stack.ts). */
+  /** e.g. "dev", "staging", "prod". */
   environmentName: string;
 };
 
@@ -26,15 +25,10 @@ export class CertificateStack extends cdk.Stack {
 
     const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', { domainName: props.domainName });
 
-    const mediaSubdomain = props.environmentName === 'prod'
-      ? `media.${props.domainName}`
-      : `media-${props.environmentName}.${props.domainName}`;
-
     this.certificate = new acm.Certificate(this, 'Certificate', {
       domainName: props.domainName,
-      // Include the www variant so it can share this same cert/CloudFront distribution,
-      // plus the dedicated media subdomain served by the MediaStack distribution.
-      subjectAlternativeNames: [`www.${props.domainName}`, mediaSubdomain],
+      // Include www and a single-label wildcard so site and service subdomains can share this certificate.
+      subjectAlternativeNames: [`www.${props.domainName}`, `*.${props.domainName}`],
       validation: acm.CertificateValidation.fromDns(hostedZone),
     });
   }
