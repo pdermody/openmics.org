@@ -10,12 +10,12 @@ import { Lightbox } from './media/Lightbox'
 import { MediaGallery } from './media/MediaGallery'
 import { ReadState } from '../views/shared'
 
-export function PublicDetailTabs({ scope }: { scope: MediaScope }) {
+export function PublicDetailTabs({ scope, canCopyEvents = false, publicView = true }: { scope: MediaScope; canCopyEvents?: boolean; publicView?: boolean }) {
   const { t } = useTranslation()
   const series = scope.kind === 'open-mic'
   const { state, update, shuffleSeed, updateShuffleSeed } = useDetailBrowsing(series)
   const featured = useFeaturedMedia(series ? scope.id : undefined, true)
-  const anchor = useMediaItem(state.media, true)
+  const anchor = useMediaItem(state.media, publicView)
   const featuredAnchor = featured.data?.items.some((item) => item.id === anchor.data?.id)
   const anchorEvent = usePublicEvent(series && featured.isSuccess && !featuredAnchor ? anchor.data?.event_id ?? undefined : undefined)
   const [featuredId, setFeaturedId] = useState<string | null>(null)
@@ -69,11 +69,11 @@ export function PublicDetailTabs({ scope }: { scope: MediaScope }) {
       {series && featured.isError && <ReadState message={t('browseFeaturedError')} retry={() => void featured.refetch()} />}
       {state.media && !resolvingAnchor && !anchorBelongsHere && <p role="status">{t('mediaUnavailableNotice')}</p>}
       {resolvingAnchor && <ReadState message={t('loading')} />}
-      {tab === 'events' ? <PublicSeriesEvents id={scope.id} filters={{ period: state.period, page: state.page, year: state.year, month: state.month }} onChange={update} />
+      {tab === 'events' ? <PublicSeriesEvents id={scope.id} canCopyEvents={canCopyEvents} filters={{ period: state.period, page: state.page, year: state.year, month: state.month }} onChange={update} />
         : <>
           {strip}
           {!resolvingAnchor && (!series || featured.isSuccess) && <MediaGallery key={`${scope.kind}-${scope.id}-${tab}`} scope={scope}
-            fixedType={tab === 'photos' ? 'photo' : 'video'} publicView controlledSort={state.sort}
+            fixedType={tab === 'photos' ? 'photo' : 'video'} publicView={publicView} controlledSort={state.sort}
             initialShuffleSeed={shuffleSeed}
             onShuffleSeedChange={updateShuffleSeed}
             onSortChange={(sort) => update({ sort })} initialOpenId={anchorBelongsHere ? state.media : undefined}

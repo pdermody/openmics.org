@@ -14,6 +14,14 @@ function Picker({ initial = { text: '', city: null }, onChange = vi.fn() }: { in
 }
 
 describe('CityAutocomplete', () => {
+  it('keeps the required marker attached to the city label', () => {
+    renderWithProviders(<CityAutocomplete value="" onChange={vi.fn()} required />)
+    const label = screen.getByText('City').closest('label')
+    const marker = label?.querySelector('.required-mark')
+    expect(marker?.textContent).toBe('\u00a0*')
+    expect(marker).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('opens safely with an empty geographic chooser', () => {
     renderWithProviders(<CityAutocomplete value="" selectedCity={null} onChange={vi.fn()} allowFreeText={false} />)
     fireEvent.focus(screen.getByRole('combobox'))

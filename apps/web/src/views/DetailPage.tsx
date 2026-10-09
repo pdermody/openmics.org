@@ -33,7 +33,14 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
   // Owner actions require the ACTIVE profile to own the series — checking `.some()` across
   // all account profiles leaked them to performer profiles sharing the account (403 on use).
   const ownsOpenMic = Boolean(openMic.data && activeProfile?.id === openMic.data?.owner_profile_id)
+  const canCreateSeriesEvents = ownsOpenMic
+    && activeProfile?.profile_kind === 'organizer'
+    && accountContext.permissions.data?.permissions.includes('profiles:manage')
   const ownsEvent = Boolean(parentOpenMic.data && activeProfile?.id === parentOpenMic.data?.owner_profile_id)
+  const eventGalleryAccessPending = parentOpenMic.isPending
+    || accountContext.account.isPending
+    || accountContext.profiles.isPending
+    || accountContext.permissions.isPending
   const needsPerformerProfile = Boolean(accountContext.account.data) && activeProfile?.profile_kind !== 'performer'
   const registeredEventIds = useMyRegisteredEventIds()
   const isRegisteredForEvent = kind === 'event' && Boolean(event.data) && registeredEventIds.has(event.data!.id)
@@ -98,12 +105,18 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
             <p><time dateTime={highlightedEvent.starts_at}>
               {new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short', timeZone: highlightedEvent.time_zone }).format(new Date(highlightedEvent.starts_at))}
             </time> · {highlightedEvent.venue_name}, {highlightedEvent.city}</p>
+            {canCreateSeriesEvents && <Link className="quiet-button" to="/dashboard/series/$seriesId/events/new" params={{ seriesId: openMic.data!.id }}
+              aria-label={t('eventCopyActionLabel', { title: highlightedEvent.title })}
+              search={{ sourceEventId: highlightedEvent.id, copySchedule: true }}>
+              {t('eventCopyAction')}
+            </Link>}
           </article>}
           <div className="detail-actions">
             {kind === 'open-mic' && ownsOpenMic && <>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/edit" params={{ seriesId: openMic.data?.id ?? '' }} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></Link>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId" params={{ seriesId: openMic.data?.id ?? '' }} aria-label={t('manage')} title={t('manage')}><Settings2 size={17} /></Link>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/media" params={{ seriesId: openMic.data?.id ?? '' }} aria-label={t('mediaManageLink')} title={t('mediaManageLink')}><Image size={17} /></Link>
+              {canCreateSeriesEvents && <Link className="quiet-button" to="/dashboard/series/$seriesId/events/new" params={{ seriesId: openMic.data?.id ?? '' }} search={{ sourceEventId: undefined, copySchedule: false }}>{t('newEvent')}</Link>}
             </>}
             {kind === 'event' && ownsEvent && <>
               <Link className="quiet-button icon-button" to="/dashboard/series/$seriesId/events/$eventId/edit" params={{ seriesId: parentOpenMic.data?.id ?? '', eventId: event.data?.id ?? '' }} aria-label={t('edit')} title={t('edit')}><Pencil size={17} /></Link>
@@ -157,11 +170,15 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
             <p className="field-hint">{t('organizerCannotPerform')}</p>
           )}
           {mediaUnavailableNotice && <p className="media-unavailable-toast" role="status">{t('mediaUnavailableNotice')}</p>}
-          {kind === 'event' && event.data && (
-            <PublicDetailTabs key={event.data.id} scope={{ kind: 'event', id: event.data.id }} />
+          {kind === 'event' && event.data && eventGalleryAccessPending && <ReadState message={t('loading')} />}
+          {kind === 'event' && event.data && parentOpenMic.isError && (
+            <ReadState message={friendlyApiErrorMessage(parentOpenMic.error, 'This page could not be loaded. Please try again.')} retry={() => void parentOpenMic.refetch()} />
+          )}
+          {kind === 'event' && event.data && parentOpenMic.isSuccess && (
+            <PublicDetailTabs key={event.data.id} scope={{ kind: 'event', id: event.data.id }} publicView={!ownsEvent} />
           )}
           {kind === 'open-mic' && openMic.data && (
-            <PublicDetailTabs key={openMic.data.id} scope={{ kind: 'open-mic', id: openMic.data.id }} />
+            <PublicDetailTabs key={openMic.data.id} scope={{ kind: 'open-mic', id: openMic.data.id }} canCopyEvents={canCreateSeriesEvents} />
           )}
           {showProfileGallery && profile.data && (
             <section aria-label={t('mediaGalleryHeading')}>

@@ -67,6 +67,7 @@ function OrganizerDashboardSeriesCard({ openMic }: { openMic: OpenMic }) {
                 { label: t('view'), icon: <Eye size={16} />, onClick: () => void navigate({ to: '/events/$eventId', params: { eventId: event.public_code } }) },
                 { label: t('edit'), icon: <Pencil size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/edit', params: { seriesId: openMic.id, eventId: event.id } }) },
                 { label: t('manage'), icon: <Settings2 size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/$eventId/roster', params: { seriesId: openMic.id, eventId: event.id } }) },
+                { label: t('eventCopyActionLabel', { title: event.title }), icon: <Copy size={16} />, onClick: () => void navigate({ to: '/dashboard/series/$seriesId/events/new', params: { seriesId: openMic.id }, search: { sourceEventId: event.id, copySchedule: true } }) },
                 { label: t('copyLink'), icon: <Copy size={16} />, onClick: () => void copyRegistrationLink(`${window.location.origin}/events/${event.id}/register`) },
                 { label: t('downloadQr'), icon: <QrCode size={16} />, onClick: () => void downloadRegistrationQr(`${window.location.origin}/events/${event.id}/register`, event.public_code) },
               ]}

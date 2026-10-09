@@ -68,6 +68,10 @@ Slices 1\u20135 can be worked in parallel across API/web tracks once slice 1's `
 
 ## 6) Remaining workstreams
 
+### Organizer event creation baseline
+
+Event creation now supports optional source-event copying while retaining series defaults. The source selector shows at most 10 past/upcoming events: up to five on either side of the current time, filling unused slots by proximity. A public series page can offer a “Copy” action for its displayed events; the create form shows editable start/end date-times initialized in the source time zone, including overnight end dates. Organizers change the date directly in “Starts at” without a separate date field or date confirmation. New events reset lifecycle/registration state and never copy attendees. Series-default events start with a three-hour duration; changing the start preserves the current duration. Source date/time interpretation uses the source time zone and rejects daylight-saving gaps/folds for explicit correction.
+
 ### Public detail browsing baseline
 
 Public series pages now provide Events/Photos/Videos. Events uses a separate public-only API with venue-local Year/Month filters and 10-item Previous/Next pagination. Event and performer galleries provide Photos/Videos with explicit empty states. Featured media is series-only, with viewers preserving the active tab. Paused series and their media are hidden publicly, while organizer management endpoints remain available. These decisions are recorded in [decisions.md](decisions.md#public-series-events-and-media-browsing).

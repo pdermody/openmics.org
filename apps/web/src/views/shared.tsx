@@ -16,7 +16,7 @@ export type ThemeProps = { theme: import('../theme').ThemeId; mode: import('../t
 // Visual marker for a required form field, paired with a legend (see RequiredFieldsNote) so
 // screen-reader users get an equivalent text explanation instead of relying on the asterisk alone.
 export function Required() {
-  return <span className="required-mark" aria-hidden="true"> *</span>
+  return <span className="required-mark" aria-hidden="true">{'\u00a0*'}</span>
 }
 
 export function RequiredFieldsNote({ className = '' }: { className?: string }) {

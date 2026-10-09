@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { usePublicSeriesEvents, type PublicEventsFilters } from '../features/publicReads'
 import { ReadState } from '../views/shared'
 
-export function PublicSeriesEvents({ id, filters, onChange }: {
-  id: string; filters: PublicEventsFilters; onChange: (changes: Partial<PublicEventsFilters>, replace?: boolean) => void
+export function PublicSeriesEvents({ id, canCopyEvents = false, filters, onChange }: {
+  id: string; canCopyEvents?: boolean; filters: PublicEventsFilters; onChange: (changes: Partial<PublicEventsFilters>, replace?: boolean) => void
 }) {
   const { t, i18n } = useTranslation()
   const events = usePublicSeriesEvents(id, filters)
@@ -55,6 +55,9 @@ export function PublicSeriesEvents({ id, filters, onChange }: {
         </time></p>
         <span className="event-meta"><MapPin size={15} aria-hidden="true" /> {event.venue_name}, {event.city}</span>
       </div>
+      {canCopyEvents && <Link className="quiet-button" to="/dashboard/series/$seriesId/events/new" params={{ seriesId: id }}
+        aria-label={t('eventCopyActionLabel', { title: event.title })}
+        search={{ sourceEventId: event.id, copySchedule: true }}>{t('eventCopyAction')}</Link>}
     </article>)}
     {events.isSuccess && events.data.pagination.total > 0 && <nav className="event-pagination" aria-label={t('browseEventPages')}>
       <button type="button" className="quiet-button" disabled={filters.page <= 1} onClick={() => page(filters.page - 1)}>{t('browsePrevious')}</button>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type UseFormSetError } from 'react-hook-form'
@@ -8,9 +8,10 @@ import { ApiError, friendlyApiErrorMessage } from '../api/client'
 import { LocationPicker } from '../components/location/LocationPicker'
 import { CityAutocomplete } from '../components/location/CityAutocomplete'
 import { useCity, type City } from '../features/cities'
-import { useCreateEvent, useEventDetail, useOpenMicDetail, useOrganizerProfile, useUpdateEvent, type EventFormInput } from '../features/organizer'
+import { useCreateEvent, useEventDetail, useOpenMicDetail, useOrganizerProfile, useOrganizerSeriesEvents, useUpdateEvent, type EventDetail, type EventFormInput, type OpenMicDetail } from '../features/organizer'
 import { CURRENCIES } from '../features/currencies'
 import { ACTIVITY_LABEL_KEYS, browserTimeZone, COUNTRY_OPTIONS, formatTimeZoneOption, TIME_ZONE_OPTIONS } from '../features/form-options'
+import { formatInstantInTimeZone, instantPlusMilliseconds, millisecondsBetweenLocalDateTimes, resolveLocalDateTime } from '../features/eventDateTime'
 import { baseLocationFieldsSchema } from '../features/location'
 import { isRegistrationClosed } from '../features/publicReads'
 import type { ColorMode, ThemeId } from '../theme'
@@ -25,18 +26,17 @@ const EVENT_TABS = [
   { id: 'registration', labelKey: 'eventTabRegistration', fields: ['activities', 'tags', 'notes', 'entry_fee_amount', 'entry_fee_currency', 'entry_fee_note'] },
 ] as const
 
-function toDatetimeLocalValue(iso: string | null | undefined): string {
+function toDatetimeLocalValue(iso: string | null | undefined, timeZone = browserTimeZone()): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return formatInstantInTimeZone(date, timeZone)
 }
 
-function fromDatetimeLocalValue(value: string): string | undefined {
+function fromDatetimeLocalValue(value: string, timeZone: string): string | undefined {
   if (!value) return undefined
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
+  const resolution = resolveLocalDateTime(value, timeZone)
+  return resolution.kind === 'valid' ? resolution.instant.toISOString() : undefined
 }
 
 const eventFormSchema = z
@@ -71,6 +71,30 @@ const eventFormSchema = z
     country: z.string().trim().min(1, 'Country is required'),
   })
   .superRefine((value, ctx) => {
+    for (const field of ['starts_at', 'ends_at', 'registrations_closed_at'] as const) {
+      if (!value[field]) continue
+      let resolution: ReturnType<typeof resolveLocalDateTime>
+      try {
+        resolution = resolveLocalDateTime(value[field], value.time_zone)
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'eventTimeInvalidZone', path: ['time_zone'] })
+        continue
+      }
+      if (resolution.kind === 'nonexistent') {
+        ctx.addIssue({ code: 'custom', message: 'eventTimeDstGap', path: [field] })
+      }
+    }
+    let duration: number | undefined
+    try {
+      duration = value.starts_at && value.ends_at
+        ? millisecondsBetweenLocalDateTimes(value.starts_at, value.ends_at, value.time_zone)
+        : undefined
+    } catch {
+      duration = undefined
+    }
+    if (duration !== undefined && duration <= 0) {
+      ctx.addIssue({ code: 'custom', message: 'eventEndAfterStart', path: ['ends_at'] })
+    }
     if (value.override_location && value.venue_pin_confirmed === false) {
       ctx.addIssue({ code: 'custom', message: 'cityPickerPinRequired', path: ['lat'] })
     }
@@ -123,6 +147,58 @@ const DEFAULT_VALUES: EventFormValues = {
   entry_fee_note: '',
 }
 
+const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1000
+
+function seriesDefaultValues(openMic: OpenMicDetail): EventFormValues {
+  return {
+    ...DEFAULT_VALUES,
+    time_zone: openMic.time_zone,
+    activities: openMic.activities,
+    venue_name: openMic.venue_name,
+    address_line1: openMic.address_line1,
+    address_line2: openMic.address_line2 ?? '',
+    postcode: openMic.postcode ?? '',
+    city: openMic.city,
+    city_id: openMic.city_id ?? null,
+    venue_pin_confirmed: true,
+    country: openMic.country,
+    lat: openMic.lat ?? undefined,
+    lng: openMic.lng ?? undefined,
+  }
+}
+
+function copiedEventValues(event: EventDetail): EventFormValues {
+  const startsAt = toDatetimeLocalValue(event.starts_at, event.time_zone)
+  const endsAt = event.ends_at
+    ? toDatetimeLocalValue(event.ends_at, event.time_zone)
+    : instantPlusMilliseconds(event.starts_at, DEFAULT_EVENT_DURATION_MS, event.time_zone)
+  return {
+    ...DEFAULT_VALUES,
+    title: event.title,
+    starts_at: startsAt,
+    ends_at: endsAt,
+    time_zone: event.time_zone,
+    capacity: event.capacity ? String(event.capacity) : '',
+    override_location: true,
+    venue_name: event.venue_name,
+    address_line1: event.address_line1,
+    address_line2: event.address_line2 ?? '',
+    postcode: event.postcode ?? '',
+    city: event.city,
+    city_id: event.city_id ?? null,
+    venue_pin_confirmed: true,
+    country: event.country,
+    lat: event.lat ?? undefined,
+    lng: event.lng ?? undefined,
+    activities: event.activities ?? [],
+    tags: (event.tags ?? []).join(', '),
+    notes: event.notes ?? '',
+    entry_fee_amount: event.entry_fee_amount ? String(event.entry_fee_amount) : '',
+    entry_fee_currency: event.entry_fee_currency ?? '',
+    entry_fee_note: event.entry_fee_note ?? '',
+  }
+}
+
 function eventErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return 'We could not save this event. Please try again.'
   if (error.code === 'CITY_CATALOGUE_IMPORT_REQUIRED'
@@ -144,17 +220,22 @@ function applyServerFieldErrors(error: unknown, setError: UseFormSetError<EventF
   })
 }
 
-export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: string; eventId?: string; theme: ThemeId; mode: ColorMode }) {
-  const { t } = useTranslation()
+export function EventFormPage({ seriesId, eventId, sourceEventId: initialSourceEventId, copySchedule = false, theme, mode }: { seriesId: string; eventId?: string; sourceEventId?: string; copySchedule?: boolean; theme: ThemeId; mode: ColorMode }) {
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const isEdit = Boolean(eventId)
   const { context, activeProfile, isOrganizer } = useOrganizerProfile()
   const openMic = useOpenMicDetail(seriesId)
   const existing = useEventDetail(seriesId, eventId)
+  const [sourceEventId, setSourceEventId] = useState(isEdit ? '' : initialSourceEventId ?? '')
+  const sourceEvent = useEventDetail(seriesId, !isEdit ? sourceEventId || undefined : undefined)
+  const canManageSeries = Boolean(isOrganizer && activeProfile && openMic.data?.owner_profile_id === activeProfile.id)
+  const sourceEvents = useOrganizerSeriesEvents(seriesId, !isEdit && canManageSeries)
   const createEvent = useCreateEvent(seriesId)
   const updateEvent = useUpdateEvent(seriesId, eventId)
+  const durationMs = useRef(DEFAULT_EVENT_DURATION_MS)
 
-  const { register, handleSubmit, watch, setValue, setError, reset, formState } = useForm<EventFormValues>({
+  const { register, handleSubmit, watch, setValue, setError, clearErrors, reset, formState } = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: DEFAULT_VALUES,
   })
@@ -177,40 +258,41 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   const activities = watch('activities') ?? []
   const entryFeeAmount = watch('entry_fee_amount')
   const registrationsClosedAt = watch('registrations_closed_at') ?? ''
+  const startValue = watch('starts_at')
+  const endValue = watch('ends_at')
+  const timeZone = watch('time_zone')
   const existingEvent = existing.data
   const onlineRegistrationMode = openMic.data?.registration_mode === 'pre_only' || openMic.data?.registration_mode === 'both'
   const registrationsClosed = Boolean(registrationsClosedAt) && new Date(registrationsClosedAt).getTime() <= Date.now()
   const eventPhase = existingEvent?.phase
 
-  // Prefill sensible defaults from the parent series when creating a new event. The event
-  // always stores its own location snapshot; these values are copied so it saves correctly
-  // even if the organizer never opens the location fields to change them.
+  // New events retain an independent snapshot of the parent series location.
   useEffect(() => {
-    if (isEdit || !openMic.data) return
-    setValue('time_zone', openMic.data.time_zone)
-    setValue('activities', openMic.data.activities)
-    setValue('venue_name', openMic.data.venue_name)
-    setValue('address_line1', openMic.data.address_line1)
-    setValue('address_line2', openMic.data.address_line2 ?? '')
-    setValue('postcode', openMic.data.postcode ?? '')
-    setValue('city', openMic.data.city)
-    setValue('city_id', openMic.data.city_id ?? null)
-    setValue('venue_pin_confirmed', true)
-    setValue('country', openMic.data.country)
-    setValue('lat', openMic.data.lat ?? undefined)
-    setValue('lng', openMic.data.lng ?? undefined)
-  }, [isEdit, openMic.data, setValue])
+    if (isEdit || !openMic.data || sourceEventId) return
+    durationMs.current = DEFAULT_EVENT_DURATION_MS
+    reset(seriesDefaultValues(openMic.data))
+  }, [isEdit, openMic.data, reset, sourceEventId])
+
+  useEffect(() => {
+    const source = sourceEvent.data
+    if (isEdit || !sourceEventId || !source || source.open_mic_id !== seriesId) return
+    reset(copiedEventValues(source))
+    const duration = source.ends_at
+      ? new Date(source.ends_at).getTime() - new Date(source.starts_at).getTime()
+      : DEFAULT_EVENT_DURATION_MS
+    durationMs.current = duration > 0 ? duration : DEFAULT_EVENT_DURATION_MS
+  }, [isEdit, reset, seriesId, sourceEvent.data, sourceEventId, sourceEvents.data])
 
   useEffect(() => {
     if (!existing.data) return
     setRegistrationTogglePending(false)
     reset({
       title: existing.data.title,
-      starts_at: toDatetimeLocalValue(existing.data.starts_at),
-      ends_at: toDatetimeLocalValue(existing.data.ends_at),
+      starts_at: toDatetimeLocalValue(existing.data.starts_at, existing.data.time_zone),
+      ends_at: toDatetimeLocalValue(existing.data.ends_at, existing.data.time_zone),
       time_zone: existing.data.time_zone,
       status: existing.data.status,
-      registrations_closed_at: toDatetimeLocalValue(existing.data.registrations_closed_at),
+      registrations_closed_at: toDatetimeLocalValue(existing.data.registrations_closed_at, existing.data.time_zone),
       open_registrations: !isRegistrationClosed(existing.data),
       capacity: existing.data.capacity ? String(existing.data.capacity) : '',
       override_location: true,
@@ -245,6 +327,88 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
     setValue('activities', next, { shouldDirty: true, shouldValidate: true })
   }
 
+  const sourceEventsNow = Date.now()
+  const nearbyPastEvents = (sourceEvents.data ?? [])
+    .filter((item) => new Date(item.starts_at).getTime() < sourceEventsNow)
+    .sort((left, right) => new Date(right.starts_at).getTime() - new Date(left.starts_at).getTime())
+    .slice(0, 5)
+  const nearbyUpcomingEvents = (sourceEvents.data ?? [])
+    .filter((item) => new Date(item.starts_at).getTime() >= sourceEventsNow)
+    .sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime())
+    .slice(0, 5)
+  const chosenSourceEvents = [...nearbyUpcomingEvents, ...nearbyPastEvents]
+  const chosenSourceIds = new Set(chosenSourceEvents.map((item) => item.id))
+  const remainingSourceEvents = (sourceEvents.data ?? [])
+    .filter((item) => !chosenSourceIds.has(item.id))
+    .sort((left, right) => Math.abs(new Date(left.starts_at).getTime() - sourceEventsNow) - Math.abs(new Date(right.starts_at).getTime() - sourceEventsNow))
+    .slice(0, Math.max(0, 10 - chosenSourceEvents.length))
+  const sourceEventOptions = [...chosenSourceEvents, ...remainingSourceEvents]
+    .sort((left, right) => {
+      const leftFuture = new Date(left.starts_at).getTime() >= sourceEventsNow
+      const rightFuture = new Date(right.starts_at).getTime() >= sourceEventsNow
+      if (leftFuture !== rightFuture) return leftFuture ? -1 : 1
+      const delta = new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime()
+      return leftFuture ? delta : -delta
+    })
+  const linkedSourceEvent = sourceEvent.data?.open_mic_id === seriesId ? sourceEvent.data : undefined
+  const visibleSourceEvents = sourceEventId && linkedSourceEvent
+    && !sourceEventOptions.some((item) => item.id === sourceEventId)
+    ? [...sourceEventOptions.slice(0, 9), linkedSourceEvent]
+    : sourceEventOptions
+  const copyScheduleForEvent = !isEdit && copySchedule && Boolean(sourceEventId)
+
+  function changeStart(event: ChangeEvent<HTMLInputElement>) {
+    const value = event.target.value
+    if (isEdit) {
+      setValue('starts_at', value, { shouldDirty: true, shouldValidate: true })
+      return
+    }
+    setValue('starts_at', value, { shouldDirty: true, shouldValidate: true })
+    if (!value) return
+    try {
+      const resolved = resolveLocalDateTime(value, timeZone)
+      if (resolved.kind !== 'valid') {
+        setError('starts_at', { type: 'validate', message: resolved.kind === 'ambiguous' ? 'eventTimeDstFold' : 'eventTimeDstGap' })
+        return
+      }
+      clearErrors('starts_at')
+      setValue('ends_at', instantPlusMilliseconds(resolved.instant.toISOString(), durationMs.current, timeZone), { shouldDirty: true, shouldValidate: true })
+      clearErrors('ends_at')
+    } catch {
+      setError('time_zone', { type: 'validate', message: 'eventTimeInvalidZone' })
+    }
+  }
+
+  function changeEnd(event: ChangeEvent<HTMLInputElement>) {
+    const value = event.target.value
+    setValue('ends_at', value, { shouldDirty: true, shouldValidate: true })
+    if (isEdit || !startValue || !value) return
+    try {
+      const duration = millisecondsBetweenLocalDateTimes(startValue, value, timeZone)
+      if (duration !== undefined && duration > 0) durationMs.current = duration
+    } catch {
+      setError('time_zone', { type: 'validate', message: 'eventTimeInvalidZone' })
+    }
+  }
+
+  function changeSource(value: string) {
+    setSourceEventId(value)
+    if (!value) durationMs.current = DEFAULT_EVENT_DURATION_MS
+  }
+
+  function changeTimeZone(value: string) {
+    setValue('time_zone', value, { shouldDirty: true, shouldValidate: true })
+    if (isEdit || !startValue) return
+    try {
+      const start = resolveLocalDateTime(startValue, value)
+      if (start.kind === 'valid') {
+        setValue('ends_at', instantPlusMilliseconds(start.instant.toISOString(), durationMs.current, value), { shouldDirty: true, shouldValidate: true })
+      }
+    } catch {
+      setError('time_zone', { type: 'validate', message: 'eventTimeInvalidZone' })
+    }
+  }
+
   const mutation = isEdit ? updateEvent : createEvent
 
   function tabHasErrors(tabIndex: number): boolean {
@@ -273,18 +437,44 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   }, [mutation.error])
 
   function onSubmit(values: EventFormValues) {
+    for (const field of ['starts_at', 'ends_at'] as const) {
+      const resolution = resolveLocalDateTime(values[field], values.time_zone)
+      const original = isEdit && existing.data
+        ? field === 'starts_at' ? existing.data.starts_at : existing.data.ends_at
+        : undefined
+      const unchangedOriginal = Boolean(original && values[field] === toDatetimeLocalValue(original, values.time_zone))
+      if (resolution.kind === 'ambiguous' && !unchangedOriginal) {
+        setError(field, { type: 'validate', message: 'eventTimeDstFold' })
+        return
+      }
+    }
+    if (values.registrations_closed_at) {
+      const closeAt = resolveLocalDateTime(values.registrations_closed_at, values.time_zone)
+      const originalCloseAt = existing.data?.registrations_closed_at
+      const unchangedOriginal = Boolean(originalCloseAt
+        && values.registrations_closed_at === toDatetimeLocalValue(originalCloseAt, values.time_zone))
+      if (closeAt.kind === 'ambiguous' && !unchangedOriginal) {
+        setError('registrations_closed_at', { type: 'validate', message: 'eventTimeDstFold' })
+        return
+      }
+    }
+    const toStoredInstant = (value: string, original?: string | null) => (
+      isEdit && original && value === toDatetimeLocalValue(original, values.time_zone)
+        ? original
+        : fromDatetimeLocalValue(value, values.time_zone)!
+    )
     const input: EventFormInput = {
       title: values.title,
-      starts_at: fromDatetimeLocalValue(values.starts_at)!,
-      ends_at: fromDatetimeLocalValue(values.ends_at)!,
+      starts_at: toStoredInstant(values.starts_at, existing.data?.starts_at),
+      ends_at: toStoredInstant(values.ends_at, existing.data?.ends_at),
       time_zone: values.time_zone,
       status: values.status,
       registrations_closed_at: isEdit
-        ? (values.registrations_closed_at ? fromDatetimeLocalValue(values.registrations_closed_at) : null)
+        ? (values.registrations_closed_at ? toStoredInstant(values.registrations_closed_at, existing.data?.registrations_closed_at) : null)
         : values.open_registrations
           ? undefined
           : values.registrations_closed_at
-            ? fromDatetimeLocalValue(values.registrations_closed_at)
+            ? toStoredInstant(values.registrations_closed_at)
             : new Date().toISOString(),
       capacity: values.capacity ? Number(values.capacity) : undefined,
       activities: values.activities && values.activities.length > 0 ? values.activities : undefined,
@@ -315,7 +505,7 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
   }
 
   function toggleRegistrationAvailability() {
-    setValue('registrations_closed_at', registrationsClosed ? '' : toDatetimeLocalValue(new Date().toISOString()), { shouldDirty: true })
+    setValue('registrations_closed_at', registrationsClosed ? '' : toDatetimeLocalValue(new Date().toISOString(), timeZone), { shouldDirty: true })
     setRegistrationTogglePending(true)
   }
 
@@ -340,7 +530,8 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
     void navigate({ to: '/dashboard/series/$seriesId', params: { seriesId } })
   }
 
-  if (context.account.isPending || context.profiles.isPending || openMic.isPending || (isEdit && existing.isPending)) {
+  if (context.account.isPending || context.profiles.isPending || openMic.isPending || (isEdit && existing.isPending)
+    || (!isEdit && Boolean(sourceEventId) && sourceEvents.isPending)) {
     return <main className="app" data-theme={theme} data-mode={mode}><ReadState message={t('loading')} /></main>
   }
   const isOwner = !openMic.data || openMic.data.owner_profile_id === activeProfile?.id
@@ -369,22 +560,38 @@ export function EventFormPage({ seriesId, eventId, theme, mode }: { seriesId: st
         </div>
 
         <section id="event-tab-details" role="tabpanel" hidden={activeTab !== 0}>
+          {!isEdit && <div className="event-copy-source">
+            <label><span>{t('eventCopySource')}</span><select value={sourceEventId} onChange={(event) => changeSource(event.target.value)}>
+              <option value="">{t('eventCopySeriesDefaults')}</option>
+              {visibleSourceEvents.map((item) => <option key={item.id} value={item.id}>
+                {item.title} — {new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short', timeZone: item.time_zone }).format(new Date(item.starts_at))}
+                {' · '}{item.venue_name}, {item.city} · {t(item.status === 'draft' ? 'statusDraft' : 'statusPublished')}
+              </option>)}
+            </select></label>
+            {sourceEvents.data?.length === 0 && !sourceEventId && <p className="field-hint">{t('eventCopyNoSources')}</p>}
+            {sourceEvents.isError && <div role="alert"><p>{t('eventCopyListError')}</p><button type="button" className="quiet-button" onClick={() => void sourceEvents.refetch()}>{t('eventCopyRetry')}</button></div>}
+            {sourceEventId && (!sourceEvent.data || sourceEvent.data.open_mic_id !== seriesId) && !sourceEvent.isPending && <p className="form-error" role="alert">{t('eventCopyUnavailable')}</p>}
+          </div>}
           <label><span>{t('eventTitle')}<Required /></span><input required {...register('title')} /></label>
           {errors.title && <p className="form-error" role="alert">{errors.title.message}</p>}
-          <label><span>{t('startsAt')}<Required /></span><input required type="datetime-local" {...register('starts_at')} /></label>
-          {errors.starts_at && <p className="form-error" role="alert">{errors.starts_at.message}</p>}
-          <label><span>{t('endsAt')}<Required /></span><input required type="datetime-local" {...register('ends_at')} /></label>
-          {errors.ends_at && <p className="form-error" role="alert">{errors.ends_at.message}</p>}
-          <label>{t('eventPublication')}<select {...register('status')}><option value="draft">{t('statusDraft')}</option><option value="published">{t('statusPublished')}</option></select></label>
+          <label><span>{t('startsAt')}<Required /></span><input required type="datetime-local" {...register('starts_at')} value={startValue} onChange={changeStart} /></label>
+          {errors.starts_at && <p className="form-error" role="alert">{t(errors.starts_at.message ?? '')}</p>}
+          <label><span>{t('endsAt')}<Required /></span><input required type="datetime-local" {...register('ends_at')} value={endValue} onChange={changeEnd} /></label>
+          {errors.ends_at && <p className="form-error" role="alert">{t(errors.ends_at.message ?? '')}</p>}
+          {copyScheduleForEvent && sourceEvent.data && <p className="field-hint">{t('eventCopyScheduleHint', { timeZone: sourceEvent.data.time_zone })}</p>}
+          {!isEdit && !sourceEventId && <p className="field-hint">{t('eventDefaultDurationHint')}</p>}
+          {errors.time_zone && <p className="form-error" role="alert">{t(errors.time_zone.message ?? '')}</p>}
+          {!isEdit && <label>{t('eventPublication')}<select value="draft" disabled><option value="draft">{t('statusDraft')}</option></select></label>}
+          {isEdit && <label>{t('eventPublication')}<select {...register('status')}><option value="draft">{t('statusDraft')}</option><option value="published">{t('statusPublished')}</option></select></label>}
           {isEdit && eventPhase && <p className="field-hint">{t('eventPhaseLabel')}: {t(`eventPhase${eventPhase[0].toUpperCase()}${eventPhase.slice(1)}`)}</p>}
-          <label>{t('capacity')}<Required /><input type="number" min="1" max="50" required {...register('capacity')} /></label>
+          <label><span>{t('capacity')}<Required /></span><input type="number" min="1" max="50" required {...register('capacity')} /></label>
           <p className="field-hint">{t('eventCapacityHint')}</p>
           {errors.capacity && <p className="form-error" role="alert">{errors.capacity.message}</p>}
         </section>
 
         <section id="event-tab-schedule" role="tabpanel" hidden={activeTab !== 1}>
-          <label><span>{t('timeZone')}<Required /></span><select required {...register('time_zone')}>{TIME_ZONE_OPTIONS.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone)}</option>)}</select></label>
-          {errors.time_zone && <p className="form-error" role="alert">{errors.time_zone.message}</p>}
+          <label><span>{t('timeZone')}<Required /></span><select required {...register('time_zone')} value={timeZone} onChange={(event) => changeTimeZone(event.target.value)}>{TIME_ZONE_OPTIONS.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone)}</option>)}</select></label>
+          {errors.time_zone && <p className="form-error" role="alert">{t(errors.time_zone.message ?? '')}</p>}
           <p className="field-hint">{t('timeZoneFormHint')}</p>
           <p className="field-hint">{onlineRegistrationMode ? t('eventOnlineRegistrationEnabled') : t('eventOnlineRegistrationDisabled')}</p>
           {isEdit && eventPhase === 'past' && <p className="field-hint">{t('eventRegistrationEnded')}</p>}

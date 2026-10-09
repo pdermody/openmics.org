@@ -248,10 +248,16 @@ const seriesEventsRoute = createRoute({
 const eventNewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard/series/$seriesId/events/new',
+  validateSearch: (search: Record<string, unknown>) => ({
+    sourceEventId: typeof search.sourceEventId === 'string' && search.sourceEventId.length <= 100 ? search.sourceEventId : undefined,
+    copySchedule: search.copySchedule === true || search.copySchedule === 'true'
+      || search.copyDateOnly === true || search.copyDateOnly === 'true',
+  }),
   component: withPreload(() => {
     const { theme, mode } = useThemeMode()
     const { seriesId } = eventNewRoute.useParams()
-    return <RoutedView theme={theme} mode={mode}><LazyView><EventForm seriesId={seriesId} theme={theme} mode={mode} /></LazyView></RoutedView>
+    const { sourceEventId, copySchedule } = eventNewRoute.useSearch()
+    return <RoutedView theme={theme} mode={mode}><LazyView><EventForm seriesId={seriesId} sourceEventId={sourceEventId} copySchedule={copySchedule} theme={theme} mode={mode} /></LazyView></RoutedView>
   }, EventForm),
 })
 

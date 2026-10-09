@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
@@ -54,6 +54,23 @@ function MapClickAndDrag({ onSelect }: { onSelect: (lat: number, lng: number) =>
   return null
 }
 
+function MapViewportSync({ position }: { position: [number, number] | null }) {
+  const map = useMap()
+  useEffect(() => {
+    const container = map.getContainer()
+    const recenter = () => {
+      if (container.clientWidth <= 0 || container.clientHeight <= 0) return
+      map.invalidateSize({ pan: false })
+      if (position) map.setView(position, Math.max(map.getZoom(), PIN_ZOOM))
+    }
+    recenter()
+    const observer = new ResizeObserver(recenter)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [map, position])
+  return null
+}
+
 /**
  * Reusable venue-location picker: a Leaflet/OpenStreetMap map with a draggable marker, an
  * address search box backed by the server-side geocoding proxy, and always-present numeric
@@ -66,8 +83,6 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
   const geocoding = useGeocoding()
   const [query, setQuery] = useState(addressQuery)
   const [showCandidates, setShowCandidates] = useState(false)
-  const mapRef = useRef<L.Map | null>(null)
-  const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const searchContainerRef = useRef<HTMLDivElement | null>(null)
 
   // Keep the search box pre-filled with the address the user is typing elsewhere in the form,
@@ -94,25 +109,6 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
   const position = useMemo<[number, number] | null>(() => (
     typeof lat === 'number' && typeof lng === 'number' && !Number.isNaN(lat) && !Number.isNaN(lng) ? [lat, lng] : null
   ), [lat, lng])
-
-  useEffect(() => {
-    if (position && mapRef.current) mapRef.current.setView(position, Math.max(mapRef.current.getZoom(), PIN_ZOOM))
-  }, [position])
-
-  // Leaflet can initialize while this picker is inside a hidden form tab. Observe the wrapper so
-  // the map recalculates its tiles and viewport as soon as the Location tab becomes visible.
-  useEffect(() => {
-    const container = mapContainerRef.current
-    if (!container) return
-
-    const invalidateSize = () => {
-      if (container.clientWidth > 0 && container.clientHeight > 0) mapRef.current?.invalidateSize({ pan: false })
-    }
-    const observer = new ResizeObserver(invalidateSize)
-    observer.observe(container)
-    invalidateSize()
-    return () => observer.disconnect()
-  }, [])
 
   function selectCandidate(candidate: GeocodeCandidate) {
     onChange({ lat: candidate.lat, lng: candidate.lng })
@@ -184,13 +180,13 @@ export function LocationPicker({ lat, lng, onChange, addressQuery, disabled, lat
       {t('addressLookupUnavailable')}
     </p>}
 
-    <div ref={mapContainerRef} className="location-picker-map" aria-hidden={disabled ? true : undefined}>
+    <div className="location-picker-map" aria-hidden={disabled ? true : undefined}>
       <MapContainer
         center={position ?? DEFAULT_CENTER}
         zoom={position ? PIN_ZOOM : DEFAULT_ZOOM}
         scrollWheelZoom={false}
-        ref={mapRef}
       >
+        <MapViewportSync position={position} />
         <TileLayer
           attribution={`&copy; <a href="https://www.openstreetmap.org/copyright">${t('mapAttribution')}</a> contributors`}
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

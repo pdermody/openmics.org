@@ -78,6 +78,7 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 - An organizer can create and manage multiple open-mic series.
 - An organizer can create, edit, publish, unpublish, and delete events, and can close event registrations independently. Pausing applies to the parent open-mic series, not to individual events.
 - An organizer can configure registration mode, capacity, schedule, venue, and event details.
+- Event creation retains series defaults and optionally allows copying one of at most 10 nearby-in-time past/upcoming events from the series, balancing up to five from each side of the current time and filling unused slots by proximity. A displayed public-series event may be copied; its editable start/end date-times are prefilled from the source's local schedule in the source time zone, including an overnight end date. Organizers choose the date and time directly in “Starts at” and “Ends at”, without a separate date field or date confirmation. Copies start as drafts with registrations open and no attendees; only reusable event details are copied. Without a source, the end defaults to three hours after the start, and start-time changes retain the selected duration.
 - An organizer can view and manage the event roster.
 - An organizer can add, edit, soft-delete, and recover photos and video links for their series and events.
 - An organizer can hide or remove attendee visibility when required.

@@ -20,6 +20,15 @@ This file records settled decisions that affect more than one planning document.
 - Phase 1 public surfaces are read-only for visitors and include the home, profile, open-mic, event, and registration pages.
 - Performer-authored content, comments, reviews, reactions, private messaging, follows, and social discovery are deferred until later phases.
 
+## Organizer event creation
+
+- Event creation retains the existing series-default path and allows an organizer to optionally choose at most 10 source events: up to five nearest upcoming and five most recent past events, filling unused slots by proximity to the current time.
+- A visible public-series event offers a “Copy” action that preselects the event and prefills editable start/end date-times in the source time zone, including the full end date for overnight events. The organizer changes the date and time directly in “Starts at” and “Ends at”; there is no separate “New event date” field or date confirmation. Changing the start preserves the copied elapsed duration. The series-level create action and dashboard New Event flow may instead select a source event or continue with series defaults.
+- Source event details copied as editable initial values are title, time zone, venue/location snapshot, capacity, activities, tags, notes, and entry-fee details. New events always start as drafts with registrations open; event roster/attendee data, media, IDs, links, QR codes, publication state, and registration-closure state are not copied.
+- Without a source event, the end defaults to three hours after the start. Changing the start preserves the current duration by moving the end; changing the end updates the duration without changing the start.
+- Copied date/time values are interpreted in the source event's time zone. Nonexistent or ambiguous local times at daylight-saving transitions require the organizer to select a different time; the application does not silently adjust them.
+- Public-series creation and copy controls are shown only when the active organizer profile owns the series. API authorization remains authoritative.
+
 ## City catalogue and public discovery
 
 - Home discovery starts within 50 km of browser location, falling back to a resolved saved account city. Both public sections use one origin/radius; searches never widen automatically.

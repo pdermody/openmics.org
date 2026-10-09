@@ -143,13 +143,13 @@ City autocomplete searches the packaged JSON catalogue through `GET /cities/sear
 - `/dashboard` — **Signed-in home.** Post-login landing: current profile, owned open-mics and events, registration activity, and organizer actions. Requires authentication; unauthenticated hits redirect to `/`.
 
 Open-mic series:
-- `/open-mics/:id` — Series details
+- `/open-mics/:id` — Series details. Active owner-organizers can create an event from series defaults or copy a displayed event, editing its date/time directly in the create form's “Starts at” and “Ends at” fields.
 - `/open-mics/new` — Create series (requires `open_mics:create` and an active organizer profile; non-organizers are directed to create or switch to an organizer profile — the page never creates one implicitly)
 - `/open-mics/:id/edit` — Edit series (requires `open_mics:edit` on the owning organizer profile)
 
 Events:
 - `/open-mics/:id/events/:eventId` — Event detail, permitted roster, registration controls, and organizer-owned media
-- `/open-mics/:id/events/new` — Create event under a series (requires `events:manage`)
+- `/open-mics/:id/events/new` — Create event under a series (requires `events:manage`); optional source-event selection is limited to 10 recent/upcoming events (up to five on either side of the current time, filling unused slots by proximity). Without a source event, the end defaults to three hours after the start.
 - `/open-mics/:id/events/:eventId/edit` — Edit event (requires `events:manage`)
 - `/events/:eventId/register` — Public self-registration flow (guest or signed-in); shareable link, reachable via organic browsing, a shared link, an email reminder, a social ad, or a poster QR code — the page and verification behavior are identical regardless of entry point. If `?token=<edit_token>` is present, the server exchanges it for a short-lived HttpOnly edit session, strips the token before rendering, and loads the existing registration for editing without requiring an account. Accepts an optional `?ref=<profile_id>` referral param.
 - `/open-mics/:id/register` (and `/@:handle/register`) — Durable "next scheduled event" registration link for posters/QR codes that never need reprinting; forwards to the soonest upcoming event's register page, or shows the open mic's schedule summary if none is currently open.

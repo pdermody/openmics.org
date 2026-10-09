@@ -60,7 +60,7 @@ export function CityAutocomplete({ value = '', selectedCity, onChange, id, name,
   }
 
   return <div className="city-picker">
-    <label htmlFor={inputId}>{label ?? t('city')}{required && <span aria-hidden="true"> *</span>}</label>
+    <label htmlFor={inputId}><span>{label ?? t('city')}{required && <span className="required-mark" aria-hidden="true">{'\u00a0*'}</span>}</span></label>
     <div className="city-picker-input">
       <input id={inputId} name={name} role="combobox" autoComplete="off"
         aria-autocomplete="list" aria-expanded={expanded} aria-controls={listId}

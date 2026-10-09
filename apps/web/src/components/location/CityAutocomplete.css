@@ -1,4 +1,5 @@
 .city-picker { position: relative; display: grid; gap: .4rem; min-width: 0; }
+.city-picker label .required-mark { color: #b42318; white-space: nowrap; }
 .city-picker-input { display: flex; gap: .5rem; }
 .city-picker-input input { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); padding: 13px 14px; }
 .city-picker-input input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
