@@ -113,8 +113,7 @@ export function assertEventCountQuota(plan: Plan, currentCount: number): void {
 
 export function assertEventCapacityAllowed(plan: Plan, capacity: number | null | undefined): void {
   // The default plan rejects both unlimited capacity (null/omitted) and values above
-  // max_event_capacity. This caps only what the organizer can configure — it does NOT
-  // change the Milestone 2 rule that kiosk sign-ups are exempt from event capacity.
+  // max_event_capacity. This caps configuration, not admission; attendance is a soft warning.
   if (capacity === null || capacity === undefined || capacity > plan.maxEventCapacity) {
     throw new PlanLimitExceededError(
       'event_capacity',

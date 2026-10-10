@@ -74,6 +74,8 @@ Event creation now supports optional source-event copying while retaining series
 
 ### Public detail browsing baseline
 
+The [public landing details design](../PUBLIC-LANDING-PAGE-DESIGN.md) adds dedicated public-safe details/status reads, separate resource-scoped details pages, single-venue lazy maps and driving links, public-information snapshots, and organizer audience counts with soft attendance warnings. This supersedes hard capacity admission rejection, not configured-capacity plan caps. Public map discovery remains deferred. See [the recorded decision](decisions.md#public-landing-page-details-and-attendance).
+
 Public series pages now provide Events/Photos/Videos. Events uses a separate public-only API with venue-local Year/Month filters and 10-item Previous/Next pagination. Event and performer galleries provide Photos/Videos with explicit empty states. Featured media is series-only, with viewers preserving the active tab. Paused series and their media are hidden publicly, while organizer management endpoints remain available. These decisions are recorded in [decisions.md](decisions.md#public-series-events-and-media-browsing).
 
 The workstreams below are the remaining Phase 1 scope. Everything referenced here is either not built or built but not yet validated in staging under CI.

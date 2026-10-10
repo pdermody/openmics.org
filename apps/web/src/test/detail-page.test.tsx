@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { DetailPage } from '../views/DetailPage'
 import { renderWithProviders } from './render'
@@ -45,8 +45,9 @@ function registerHandlers(currentEvent = event) {
   server.use(
     http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
     http.get('/api/me', () => HttpResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Not signed in' } }, { status: 401 })),
-    http.get('/api/events/LIVE1', () => HttpResponse.json(currentEvent)),
-    http.get('/api/open-mics/open-mic-1', () => HttpResponse.json(openMic)),
+    http.get('/api/events/LIVE1/public-details', () => HttpResponse.json(currentEvent)),
+    http.get('/api/open-mics/open-mic-1/public-details', () => HttpResponse.json(openMic)),
+    http.get('/api/events/event-1/attendance-status', () => HttpResponse.json({ status: 'below_limit' })),
     http.get('/api/events/event-1/media', () => HttpResponse.json({ items: [], prev_cursor: null, next_cursor: null })),
   )
 }
@@ -58,6 +59,58 @@ describe('DetailPage event registration action', () => {
 
     expect(await screen.findByRole('heading', { name: 'Friday Stage' })).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'Register for this event' })).toHaveAttribute('href', '/events/LIVE1/register')
+    const details = screen.getByRole('link', { name: 'More details' })
+    const venue = within(details.closest<HTMLElement>('.detail-facts')!).getByText('The Lantern, Dublin')
+    expect(venue.tagName).toBe('SPAN')
+    expect(venue.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'View location for The Lantern' })).not.toBeInTheDocument()
+  })
+
+  describe('DetailPage series facts and registration', () => {
+    function seriesHandlers(hasEvent: boolean, registrationOpen = true) {
+      registerHandlers()
+      server.use(
+        http.get('/api/open-mics/STAGE/public-details', () => HttpResponse.json({ ...openMic, tags: ['acoustic'] })),
+        http.get('/api/open-mics/STAGE/next-event', () => HttpResponse.json({
+          current_event: null, next_event: hasEvent ? event : null,
+          next_registration_event: hasEvent && registrationOpen ? event : null,
+        })),
+        http.get('/api/open-mics/open-mic-1/featured-media', () => HttpResponse.json({ items: [] })),
+        http.get('/api/open-mics/open-mic-1/public-events', () => HttpResponse.json({
+          items: hasEvent ? [event] : [], pagination: { page: 1, page_size: 10, total: hasEvent ? 1 : 0 }, available_years: [],
+        })),
+      )
+    }
+
+    it('places the non-interactive venue after badges and before More details', async () => {
+      seriesHandlers(false)
+      renderWithProviders(<DetailPage kind="open-mic" id="STAGE" theme="venue" mode="light" />)
+      const details = await screen.findByRole('link', { name: 'More details' })
+      const facts = details.closest<HTMLElement>('.detail-facts')!
+      const venue = within(facts).getByText('The Lantern, Dublin')
+      const tag = within(facts).getByText('acoustic')
+      expect(venue.tagName).toBe('SPAN')
+      expect(tag.compareDocumentPosition(venue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(venue.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'View location for The Lantern' })).not.toBeInTheDocument()
+      await screen.findByText('No upcoming events announced yet. You can still browse past events.')
+      expect(screen.queryByRole('link', { name: 'Register for any event' })).not.toBeInTheDocument()
+    })
+
+    it('places registration beside the highlighted event instead of in the header actions', async () => {
+      seriesHandlers(true)
+      renderWithProviders(<DetailPage kind="open-mic" id="STAGE" theme="venue" mode="light" />)
+      const registration = await screen.findByRole('link', { name: 'Register for any event' })
+      expect(registration).toHaveAttribute('href', '/open-mics/STAGE/register')
+      expect(registration.closest('.series-next-event')).not.toBeNull()
+    })
+
+    it('omits registration when upcoming events have no eligible registration event', async () => {
+      seriesHandlers(true, false)
+      renderWithProviders(<DetailPage kind="open-mic" id="STAGE" theme="venue" mode="light" />)
+      await screen.findByText('Next event')
+      expect(screen.queryByRole('link', { name: 'Register for any event' })).not.toBeInTheDocument()
+    })
   })
 
   it('disables registration when the event is closed', async () => {
@@ -69,7 +122,7 @@ describe('DetailPage event registration action', () => {
     expect(screen.queryByRole('link', { name: 'Register for this event' })).not.toBeInTheDocument()
   })
 
-  it('loads an unpublished event owner gallery in management view', async () => {
+  it('does not load an unpublished event on a public page even for its owner', async () => {
     window.localStorage.setItem('openmic-simulated-auth-token', 'organizer-token')
     const publicViewValues: Array<string | null> = []
     server.use(
@@ -82,8 +135,7 @@ describe('DetailPage event registration action', () => {
         items: [{ id: 'organizer-profile', profile_name: 'Organizer', profile_kind: 'organizer' }],
       })),
       http.get('/api/me/permissions', () => HttpResponse.json({ permissions: ['profiles:manage'] })),
-      http.get('/api/events/DRAFT1', () => HttpResponse.json({ ...event, public_code: 'DRAFT1', status: 'draft' })),
-      http.get('/api/open-mics/open-mic-1', () => HttpResponse.json({ ...openMic, owner_profile_id: 'organizer-profile' })),
+      http.get('/api/events/DRAFT1/public-details', () => HttpResponse.json({ error: { code: 'NOT_FOUND', message: 'Event not found' } }, { status: 404 })),
       http.get('/api/events/event-1/media', ({ request }) => {
         publicViewValues.push(new URL(request.url).searchParams.get('public_view'))
         return HttpResponse.json({ items: [], prev_cursor: null, next_cursor: null })
@@ -92,10 +144,8 @@ describe('DetailPage event registration action', () => {
 
     renderWithProviders(<DetailPage kind="event" id="DRAFT1" theme="venue" mode="light" />)
 
-    expect(await screen.findByRole('heading', { name: 'Friday Stage' })).toBeInTheDocument()
-    await waitFor(() => expect(publicViewValues.length).toBeGreaterThan(0))
-    expect(publicViewValues).not.toContain('true')
-    expect(screen.queryByText('The gallery could not be loaded. Please try again.')).not.toBeInTheDocument()
+    await screen.findByText('We could not find that page or event. It may have been removed or is no longer public.')
+    expect(publicViewValues).toHaveLength(0)
   })
 })
 
@@ -114,7 +164,7 @@ describe('DetailPage owner action gating', () => {
         { id: 'organizer-profile', profile_name: 'Organizer', profile_kind: 'organizer' },
       ] })),
       http.get('/api/me/permissions', () => HttpResponse.json({ permissions: ['profiles:manage'] })),
-      http.get('/api/open-mics/STAGE', () => HttpResponse.json(seriesWithOwner)),
+      http.get('/api/open-mics/STAGE/public-details', () => HttpResponse.json(seriesWithOwner)),
       http.get('/api/open-mics/open-mic-1/public-events', () => HttpResponse.json({
         items: [event], pagination: { page: 1, page_size: 10, total: 1 }, available_years: [],
       })),
@@ -143,7 +193,7 @@ describe('DetailPage owner action gating', () => {
         { id: 'organizer-profile', profile_name: 'Organizer', profile_kind: 'organizer' },
       ] })),
       http.get('/api/me/permissions', () => HttpResponse.json({ permissions: ['profiles:manage'] })),
-      http.get('/api/open-mics/STAGE', () => HttpResponse.json(seriesWithOwner)),
+      http.get('/api/open-mics/STAGE/public-details', () => HttpResponse.json(seriesWithOwner)),
       http.get('/api/open-mics/STAGE/next-event', () => HttpResponse.json({
         current_event: null, current_registration_open: false,
         next_event: event, next_registration_event: event,

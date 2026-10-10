@@ -76,6 +76,7 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 ### A) Organizer workflows
 
 - An organizer can create and manage multiple open-mic series.
+- The organizer dashboard exposes a prominent create-series action only when the active authorized organizer's series list successfully loads as empty. Existing series, loading states and failures do not show this dashboard action; series-loading failures show an error rather than the empty state. Additional series can still be created from the series-management page.
 - An organizer can create, edit, publish, unpublish, and delete events, and can close event registrations independently. Pausing applies to the parent open-mic series, not to individual events.
 - An organizer can configure registration mode, capacity, schedule, venue, and event details.
 - Event creation retains series defaults and optionally allows copying one of at most 10 nearby-in-time past/upcoming events from the series, balancing up to five from each side of the current time and filling unused slots by proximity. A displayed public-series event may be copied; its editable start/end date-times are prefilled from the source's local schedule in the source time zone, including an overnight end date. Organizers choose the date and time directly in “Starts at” and “Ends at”, without a separate date field or date confirmation. Copies start as drafts with registrations open and no attendees; only reusable event details are copied. Without a source, the end defaults to three hours after the start, and start-time changes retain the selected duration.
@@ -88,7 +89,7 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 
 - Events record start/end times, time zone, venue snapshot, capacity, registration state, and lifecycle status.
 - Event creation uses sensible defaults from the parent open-mic series.
-- Registration capacity is enforced atomically so concurrent submissions cannot overbook an event. Kiosk sign-ups (organizer kiosk form and kiosk QR) are exempt from capacity but still count toward it for online registrations.
+- Capacity is a soft suggested attendance limit: confirmed performers plus organizer-recorded audience guests produce a public warning at the limit, without blocking online/kiosk registration or confirmation. Configurable-capacity plan constraints remain separate. Manual registration closure still applies to ordinary online sign-up.
 - Organizers can close registrations independently of the event lifecycle.
 - The event roster supports a few dozen registrations initially and remains usable during event-night operation.
 
@@ -151,6 +152,7 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 #### Open-mic page
 
 - Shows series name, description, venue, schedule, activities, upcoming events, registration links, canonical handle, and organizer-owned content.
+- A separate More details page exposes public information, full schedule, tags, performance/age policies, fees, registration explanation, website and full address. Series facts are non-interactive badges followed by plain venue/city text and More details; registration appears beside an upcoming/running event only when registration is available. The single-venue map loads only on request, with Google Maps/Apple Maps driving links.
 - Provides the durable next-event registration link.
 - Events is the default tab, alongside Photos and Videos. Events includes Upcoming/Past, venue-local Year/Month filters, and 10-item Previous/Next pagination. Running events lead Upcoming with a "Happening now" label. Media uses separate tabs with series-only featured strips and no All option.
 - Paused series and their events/media are unavailable publicly; organizer management access remains available.
@@ -158,6 +160,9 @@ Performers can sign up, browse open-mics and events, and register in Phase 1. Th
 #### Event page
 
 - Shows title, date/time, venue, registration state, capacity information where appropriate, permitted roster entries, and organizer-owned photos and video links.
+- Shows venue-local start/end dates and links to a separate More details page with event information, effective fees/activities and the event's saved venue snapshot. Private notes and numerical attendance/capacity are excluded from public reads, including for owners.
+- Public information is copied from series defaults at event creation or from a source event, remains editable and does not change when the source changes. Existing private notes are never used as public information.
+- At-capacity warnings use estimated attendance rather than guaranteed seating. Pending/deleted registrations do not count; confirmed registrations count once unless all their non-deleted sets are cancelled/no-show. Unknown audience attendance remains explicit.
 - Separates organizer controls from public content.
 - Public media uses Photos/Videos tabs, with explicit empty states and no featured strip. Performer-profile galleries use the same tabs subject to their visibility/opt-out rules.
 - Does not expose pending registrations or organizer-hidden attendee details.

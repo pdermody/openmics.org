@@ -9,6 +9,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, DoorOpen, Eye, Image, ImagePlus, Lock, LockOpen, MapPin, Pencil } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
 import { ActionMenu } from '../components/ActionMenu'
+import { OrganizerAttendance } from '../components/OrganizerAttendance'
 import { EventManagementActions } from '../components/EventManagementActions'
 import { copyRegistrationLink, downloadRegistrationQr } from '../components/RegistrationLinkTools'
 import {
@@ -426,7 +427,6 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
 
   const registrationCount = roster.data?.length ?? 0
   const isClosed = Boolean(event.data) && isRegistrationClosed(event.data!)
-  const isFull = Boolean(event.data?.capacity && registrationCount >= event.data.capacity)
   const supportsOnlineRegistration = ['pre_only', 'both'].includes(openMic.data?.registration_mode ?? '')
   // Pending registrations stay behind the Pending filter so the main roster remains focused.
   const showBoard = provenanceFilter !== 'pending'
@@ -453,10 +453,10 @@ export function EventRosterPage({ seriesId, eventId, theme, mode }: { seriesId: 
       {setRegistrationsClosed.isError && <p className="form-error">{friendlyApiErrorMessage(setRegistrationsClosed.error, 'Could not update registration availability.')}</p>}
       {event.data && <div className="roster-summary">
         <span className="roster-badge">{registrationCount} registration{registrationCount === 1 ? '' : 's'}</span>
-        {event.data.capacity && <span className={isFull ? 'roster-badge roster-badge-warning' : 'roster-badge'}>{isFull ? 'Full' : `Capacity ${event.data.capacity}`}</span>}
         {supportsOnlineRegistration && <span className={isClosed ? 'roster-badge roster-badge-warning' : 'roster-badge'}>{isClosed ? 'Registrations closed' : 'Registrations open'}</span>}
         <span className="roster-badge">{event.data.status} · {event.data.phase}</span>
       </div>}
+      {event.data && isOrganizer && <OrganizerAttendance eventId={event.data.id} />}
 
       {!context.account.data && <ReadState message={t('signInRoster')} />}
       {context.account.data && !isOrganizer && <ReadState message="Select an organizer profile to manage this event's roster." />}

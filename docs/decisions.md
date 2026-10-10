@@ -2,6 +2,20 @@
 
 This file records settled decisions that affect more than one planning document.
 
+## Public landing-page details and attendance
+
+- Public series and event landing pages retain compact summaries and link to separate More details pages (`/@:handle/details` and `/@:handle/events/:eventId/details`). Both use non-interactive fact badges, followed by plain venue/city text and More details in the same wrapping row; venue labels are not links. A resource-specific back control returns to the landing page. Direct access, canonical casing and return browsing state are preserved.
+- Series registration actions appear beside the highlighted running/next event only when an eligible registration event exists, not beside the header facts. Featured-strip scroll arrows appear only in directions with additional off-screen media and disappear when all items fit.
+- More details uses a story-led "night at a glance" layout: organizer introduction, activity/tag badges and stage policies alongside a practical visit card. Mobile stacks the same reading order. Descriptive claims are organizer-supplied, never inferred; location anchors, map consent and public-data boundaries are unchanged.
+- Show map opens a roomy venue-map modal, capped on desktop and bounded by the small visible viewport with outer clearance and safe-area allowances at all widths (including tablets using desktop styling); mobile is top-anchored. Browser controls must not obscure its bottom. It supports mouse-wheel zoom, close/Escape dismissal and focus restoration. The map fits the remaining modal space and refreshes its measurements on resize; unusually long header content scrolls within the dialog rather than clipping. The details page remains a separate page; only the map is modal. Address and driving directions remain available without opening it.
+- Dedicated public-only reads exclude private notes, contact fields, numerical capacity and attendance counts even for signed-in owners. Existing organizer reads retain private management data.
+- `public_information` is optional plain text on series and events. Events inherit an editable snapshot at creation; explicit clearing never falls back to current series text. Existing rows remain empty, never populated from private notes.
+- Venue maps are single-pin, read-only Leaflet/OpenStreetMap maps loaded only after Show map. Google Maps/Apple Maps driving links use the saved destination without requesting browser location. Public map discovery remains deferred.
+- Event capacity is now a **soft suggested attendance limit**, superseding earlier hard online-registration capacity rejection and kiosk-capacity exemptions. Capacity never blocks registration or confirmation; other eligibility, duplicate protection and manual closure rules remain unchanged. Configurable capacity plan limits remain enforced independently.
+- Estimated attendance counts confirmed, non-deleted registrations once, plus an organizer-maintained audience guest count excluding performers. Hidden identities still count. A registration with no non-deleted sets counts; one with sets counts unless all are cancelled/no-show. Claims and additional sets do not multiply attendance.
+- Audience count starts at zero for new events and is not copied; existing events have unknown audience attendance until recorded. Audience-only edits are operational and do not require replacing retired city references.
+- Public status is at-capacity, below-limit or incomplete, never a seating guarantee. Known performers alone can establish at-capacity with unknown audience count. No public numerical counts or remaining places are shown. At-capacity warns about possible difficulty finding seating or performing without disabling registration.
+
 ## Public series events and media browsing
 
 - Public series pages have Events, Photos, and Videos tabs, defaulting to Events. Event and performer-profile galleries have Photos and Videos tabs, defaulting to Photos. There is no public All media option; both media tabs remain visible with explicit empty states. Profile gallery visibility and consent rules still apply.

@@ -33,6 +33,8 @@ export function parseDetailBrowse(search: string, series: boolean): DetailBrowse
 }
 
 export function useDetailBrowsing(series: boolean) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const [landingPath] = useState(pathname)
   const search = useRouterState({ select: (state) => state.location.searchStr })
   const historyState = useRouterState({ select: (state) => state.location.state })
   const navigate = useNavigate()
@@ -42,19 +44,22 @@ export function useDetailBrowsing(series: boolean) {
   const state = parseDetailBrowse(search, series)
   if (!new URLSearchParams(search).has('sort')) state.sort = defaultSort
   const update = useCallback((changes: Partial<DetailBrowseState>, replace = false) => {
+    if (pathname !== landingPath) return
     void navigate({
       to: '.', replace, resetScroll: false,
       search: (previous) => ({ ...previous, ...changes, type: undefined }),
       state: (previous) => ({ ...previous, detailGallerySeed: shuffleSeed }),
     })
-  }, [navigate, shuffleSeed])
+  }, [navigate, shuffleSeed, pathname, landingPath])
   const updateShuffleSeed = (seed: number) => {
+    if (pathname !== landingPath) return
     void navigate({ to: '.', replace: true, resetScroll: false, search: (previous) => previous,
       state: (previous) => ({ ...previous, detailGallerySeed: seed }) })
   }
   useEffect(() => {
+    if (pathname !== landingPath) return
     localStorage.setItem('openmic-media-sort', state.sort)
     if (historyState.detailGallerySeed === undefined || !new URLSearchParams(search).has('sort')) update({ sort: state.sort }, true)
-  }, [historyState.detailGallerySeed, search, state.sort, update])
+  }, [pathname, landingPath, historyState.detailGallerySeed, search, state.sort, update])
   return { state, update, shuffleSeed, updateShuffleSeed }
 }

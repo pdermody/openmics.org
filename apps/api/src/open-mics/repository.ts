@@ -7,6 +7,7 @@ export type OpenMicRow = {
   current_handle: string | null;
   name: string;
   description: string | null;
+  public_information?: string | null;
   activities: string[];
   tags: string[];
   venue_name: string;
@@ -57,6 +58,7 @@ export type InsertOpenMicInput = {
   ownerProfileId: string;
   name: string;
   description?: string;
+  publicInformation?: string | null;
   activities: string[];
   tags?: string[];
   venueName: string;
@@ -89,11 +91,11 @@ export async function insertOpenMic(client: PoolClient, input: InsertOpenMicInpu
        owner_profile_id, name, description, activities, tags, venue_name, address_line1, address_line2,
        postcode, city, country, city_id, lat, lng, time_zone, website, contact_email, schedule_summary, schedule_details,
        originals_only, amplification_available, age_policy, registration_mode, external_registration_url,
-       entry_fee_amount, entry_fee_currency, entry_fee_note
+       entry_fee_amount, entry_fee_currency, entry_fee_note, public_information
      ) VALUES (
        $1, $2, $3, $4, COALESCE($5, '{}'::text[]), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
        $17, $18, $19, COALESCE($20, false), COALESCE($21, false), COALESCE($22, 'both'),
-       COALESCE($23, 'both'), $24, COALESCE($25, 0), $26, $27
+       COALESCE($23, 'both'), $24, COALESCE($25, 0), $26, $27, $28
      ) RETURNING *`,
     [
       input.ownerProfileId,
@@ -123,6 +125,7 @@ export async function insertOpenMic(client: PoolClient, input: InsertOpenMicInpu
       input.entryFeeAmount ?? null,
       input.entryFeeCurrency ?? null,
       input.entryFeeNote ?? null,
+      input.publicInformation ?? null,
     ],
   );
   return result.rows[0];
@@ -213,6 +216,7 @@ export async function findOwnedOpenMics(pool: Pool, ownerProfileId: string): Pro
 }
 
 const UPDATABLE_COLUMNS = [
+  'public_information',
   'name',
   'description',
   'activities',
@@ -302,6 +306,7 @@ export function serializeOpenMic(row: OpenMicRow) {
     current_handle: row.current_handle,
     name: row.name,
     description: row.description,
+    public_information: row.public_information ?? null,
     activities: row.activities,
     tags: row.tags,
     venue_name: row.venue_name,

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, apiBaseUrl } from '../api/client'
 import { useAccountContext } from './account'
-import type { Event, OpenMic } from './publicReads'
+import type { AttendanceStatus, Event, OpenMic } from './publicReads'
 
 // Single source of truth for "is this signed-in account currently working as an organizer
 // profile it actually owns", combining the real permission response with the real profile
@@ -38,6 +38,7 @@ export type OpenMicDetail = OpenMic & {
 }
 
 export type OpenMicFormInput = {
+  public_information?: string | null
   name: string
   description?: string
   venue_name: string
@@ -71,6 +72,41 @@ export type OpenMicFormInput = {
 export const organizerKeys = {
   openMics: (profileId: string | undefined) => ['organizer', 'open-mics', profileId] as const,
   openMic: (id: string | undefined) => ['organizer', 'open-mic', id] as const,
+}
+
+export type AttendanceSummary = {
+  status: AttendanceStatus
+  confirmed_performers: number
+  audience_guest_count: number | null
+  attendance_estimate: number | null
+  capacity: number | null
+}
+
+function invalidateAttendance(queryClient: QueryClient, eventId?: string) {
+  void queryClient.invalidateQueries({ queryKey: ['organizer', 'attendance', eventId] })
+  void queryClient.invalidateQueries({ queryKey: ['public', 'attendance', eventId] })
+}
+
+export function useOrganizerAttendance(eventId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['organizer', 'attendance', eventId],
+    queryFn: () => api<AttendanceSummary>(`/events/${eventId}/attendance`),
+    enabled,
+    retry: false,
+  })
+}
+
+export function useSaveAudienceCount(eventId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (audience_guest_count: number) => api(`/events/${eventId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audience_guest_count }),
+    }),
+    onSuccess: () => {
+      invalidateAttendance(queryClient, eventId)
+      void queryClient.invalidateQueries({ queryKey: ['organizer', 'open-mics'] })
+    },
+  })
 }
 
 export function useOrganizerOpenMics(profileId: string | undefined, enabled = true) {
@@ -120,6 +156,7 @@ export function useUpdateOpenMic(openMicId: string | undefined) {
     onSuccess: (updated) => {
       queryClient.setQueryData(organizerKeys.openMic(openMicId), updated)
       queryClient.invalidateQueries({ queryKey: organizerKeys.openMics(updated.owner_profile_id) })
+      void queryClient.invalidateQueries({ queryKey: ['public'] })
     },
   })
 }
@@ -189,6 +226,8 @@ export function useOrganizerSeriesEvents(seriesId: string | undefined, enabled =
 }
 
 export type EventDetail = Event & {
+  capacity: number | null
+  audience_guest_count?: number | null
   city_id?: string | null
   ends_at: string | null
   registrations_closed_at: string | null
@@ -205,6 +244,7 @@ export type EventDetail = Event & {
 }
 
 export type EventFormInput = {
+  public_information?: string | null
   title: string
   starts_at: string
   ends_at: string
@@ -261,6 +301,8 @@ export function useUpdateEvent(openMicId: string | undefined, eventId: string | 
     onSuccess: (updated) => {
       queryClient.setQueryData([...organizerKeys.openMics(openMicId), 'event', eventId], updated)
       queryClient.invalidateQueries({ queryKey: [...organizerKeys.openMics(openMicId), 'events'] })
+      void queryClient.invalidateQueries({ queryKey: ['public'] })
+      invalidateAttendance(queryClient, eventId)
     },
   })
 }
@@ -416,6 +458,7 @@ function consumeSelfCausedChange(key: string): boolean {
 // Cache-only helpers used by the mutations below to fold a mutation's own response into the
 // already-loaded roster array, without ever refetching it.
 function upsertPerformanceInCache(queryClient: QueryClient, eventId: string | undefined, performance: Performance) {
+  invalidateAttendance(queryClient, eventId)
   if (!eventId) return
   queryClient.setQueryData<RosterRegistration[]>(rosterKey(eventId), (registrations) => registrations?.map((registration) => {
     if (registration.id !== performance.registration_id) return registration
@@ -428,6 +471,7 @@ function upsertPerformanceInCache(queryClient: QueryClient, eventId: string | un
 }
 
 function removePerformanceFromCache(queryClient: QueryClient, eventId: string | undefined, performanceId: string) {
+  invalidateAttendance(queryClient, eventId)
   if (!eventId) return
   queryClient.setQueryData<RosterRegistration[]>(rosterKey(eventId), (registrations) => registrations?.map((registration) => (
     registration.performances.some((performance) => performance.id === performanceId)
@@ -437,6 +481,7 @@ function removePerformanceFromCache(queryClient: QueryClient, eventId: string | 
 }
 
 function patchRegistrationInCache(queryClient: QueryClient, eventId: string | undefined, updated: RosterRegistration) {
+  invalidateAttendance(queryClient, eventId)
   if (!eventId) return
   queryClient.setQueryData<RosterRegistration[]>(rosterKey(eventId), (registrations) => registrations?.map((registration) => (
     // The PATCH response has no `performances` field, so keep whatever's already cached for it.
@@ -445,6 +490,7 @@ function patchRegistrationInCache(queryClient: QueryClient, eventId: string | un
 }
 
 function removeRegistrationFromCache(queryClient: QueryClient, eventId: string | undefined, registrationId: string) {
+  invalidateAttendance(queryClient, eventId)
   if (!eventId) return
   queryClient.setQueryData<RosterRegistration[]>(rosterKey(eventId), (registrations) => registrations?.filter((registration) => registration.id !== registrationId))
 }
@@ -607,7 +653,10 @@ export function useRosterLiveUpdates(openMicId: string | undefined, eventId: str
           hasConnectedOnce = true
           setStatus('live')
         })
-        const invalidateRoster = () => void queryClient.invalidateQueries({ queryKey: rosterKey(eventId) })
+        const invalidateRoster = () => {
+          invalidateAttendance(queryClient, eventId)
+          void queryClient.invalidateQueries({ queryKey: rosterKey(eventId) })
+        }
         // Registration/performance events that this same tab just caused are already reflected by
         // the mutation's own onSuccess invalidate; skip the redundant second fetch for those, but
         // always refetch unconditionally for resync/reconnect paths, since those exist precisely to
@@ -625,6 +674,7 @@ export function useRosterLiveUpdates(openMicId: string | undefined, eventId: str
           }
         }
         source.addEventListener('resync_required', invalidateRoster)
+        for (const eventName of [...ROSTER_STREAM_EVENTS, ...EVENT_STREAM_EVENTS]) source.addEventListener(eventName, () => invalidateAttendance(queryClient, eventId))
         for (const eventName of ROSTER_STREAM_EVENTS) source.addEventListener(eventName, refetchRoster)
         for (const eventName of EVENT_STREAM_EVENTS) source.addEventListener(eventName, refetchEvent)
         source.onerror = () => {

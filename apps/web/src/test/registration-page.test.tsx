@@ -21,11 +21,9 @@ const event: Event = {
   country: 'IE',
   activities: ['singing'],
   tags: [],
-  capacity: null,
   registrations_closed_at: null as string | null,
   status: 'published' as const,
   phase: 'future' as const,
-  notes: null,
 }
 
 const openMic = {
@@ -48,8 +46,10 @@ function registerReadHandlers(currentEvent = event) {
   server.use(
     http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
     http.get('/api/me', () => HttpResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Not signed in' } }, { status: 401 })),
+    http.get('/api/events/LIVE1/public-details', () => HttpResponse.json(currentEvent)),
     http.get('/api/events/LIVE1', () => HttpResponse.json(currentEvent)),
-    http.get('/api/open-mics/open-mic-1', () => HttpResponse.json(openMic)),
+    http.get('/api/open-mics/open-mic-1/public-details', () => HttpResponse.json(openMic)),
+    http.get('/api/events/event-1/attendance-status', () => HttpResponse.json({ status: 'below_limit' })),
   )
 }
 
@@ -133,7 +133,7 @@ describe('RegistrationPage', () => {
       http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
       http.get('/api/me', () => HttpResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Not signed in' } }, { status: 401 })),
       http.get('/api/events/LIVE1', ({ request }) => { requestedEventUrl = request.url; return HttpResponse.json({ ...event, registrations_closed_at: '2026-09-01T19:00:00.000Z' }) }),
-      http.get('/api/open-mics/open-mic-1', () => HttpResponse.json({ ...openMic, registration_mode: 'on_night_only' })),
+      http.get('/api/open-mics/open-mic-1/public-details', () => HttpResponse.json({ ...openMic, registration_mode: 'on_night_only' })),
       http.get('/api/cities/search', () => HttpResponse.json({ items: [dublinCity] })),
       http.post('/api/events/LIVE1/registrations', async ({ request }) => {
         submitted = await request.json() as Record<string, unknown>

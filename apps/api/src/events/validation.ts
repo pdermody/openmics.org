@@ -27,7 +27,7 @@ const baseFields = {
   time_zone: z.string().min(1).optional(),
   status: z.enum(['draft', 'published']).optional(),
   registrations_closed_at: z.string().datetime().nullable().optional(),
-  capacity: z.number().min(1).optional(),
+  capacity: z.number().int().min(1).optional(),
   // Location snapshot fields — must all be provided together or all omitted
   venue_name: z.string().min(1).optional(),
   address_line1: z.string().min(1).optional(),
@@ -42,6 +42,7 @@ const baseFields = {
   activities: z.array(activitySchema).optional(),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
+  public_information: z.string().nullable().optional(),
   entry_fee_amount: z.number().min(0).optional(),
   entry_fee_currency: z.string().optional(),
   entry_fee_note: z.string().optional(),
@@ -124,5 +125,8 @@ export const createEventSchema = refineCrossFieldRules(
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 
 const { ...updatableFields } = baseFields;
-export const updateEventSchema = refineCrossFieldRules(z.object(updatableFields).strict());
+export const updateEventSchema = refineCrossFieldRules(z.object({
+  ...updatableFields,
+  audience_guest_count: z.number().int().min(0).max(2147483647).optional(),
+}).strict());
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;

@@ -16,9 +16,10 @@ describe('OrganizerDashboardPage access states', () => {
 
     expect(await screen.findByText('Sign in to open your dashboard.')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Manage series' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Create open mic series' })).not.toBeInTheDocument()
   })
 
-  it('hides the create-series action when the account already has an organizer profile', async () => {
+  it.each(['empty', 'existing', 'error'] as const)('shows first-series creation only for a successful empty response: %s', async (state) => {
     window.localStorage.setItem('openmic-simulated-auth-token', 'organizer-token')
     server.use(
       http.get('/api/dev/simulated-auth/config', () => HttpResponse.json({ enabled: false, roles: [] })),
@@ -31,13 +32,30 @@ describe('OrganizerDashboardPage access states', () => {
         items: [{ id: 'profile-1', profile_name: 'Organizer', profile_kind: 'organizer' }],
       })),
       http.get('/api/me/permissions', () => HttpResponse.json({ permissions: ['profiles:manage'] })),
-      http.get('/api/me/open-mics', () => HttpResponse.json({ items: [] })),
+      http.get('/api/me/open-mics', () => state === 'error'
+        ? HttpResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Could not load series' } }, { status: 500 })
+        : HttpResponse.json({ items: state === 'empty' ? [] : [{
+          id: 'series-1', name: 'Existing series', status: 'draft', venue_name: 'The Venue', city: 'Dublin',
+        }] })),
+      http.get('/api/open-mics/series-1/events', () => HttpResponse.json([])),
       http.get('/api/me/claimable-registrations', () => HttpResponse.json([])),
     )
 
     renderWithProviders(<OrganizerDashboardPage theme="venue" mode="light" />)
 
     expect(await screen.findByText(/You are working as Organizer/)).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Create open mic series' })).not.toBeInTheDocument()
+    if (state === 'empty') {
+      expect(await screen.findByText('Set up your first open mic')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Create open mic series' }).closest('.dashboard-card')).not.toBeNull()
+      expect(screen.getAllByRole('link', { name: 'Create open mic series' })).toHaveLength(1)
+      expect(screen.getByRole('link', { name: 'Create open mic series' })).toHaveAttribute('href', '/dashboard/series/new')
+    } else if (state === 'existing') {
+      await screen.findByRole('link', { name: 'Existing series' })
+      expect(screen.queryByText('Set up your first open mic')).not.toBeInTheDocument()
+    } else {
+      await screen.findByText('We could not load your open mic series.')
+      expect(screen.queryByText('Set up your first open mic')).not.toBeInTheDocument()
+    }
+    if (state !== 'empty') expect(screen.queryByRole('link', { name: 'Create open mic series' })).not.toBeInTheDocument()
   })
 })

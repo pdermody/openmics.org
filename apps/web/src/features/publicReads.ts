@@ -18,11 +18,16 @@ export type Event = {
   country: string
   activities: string[] | null
   tags: string[]
-  capacity: number | null
   registrations_closed_at: string | null
   status: 'draft' | 'published'
   phase: 'future' | 'running' | 'past'
-  notes: string | null
+  public_information?: string | null
+  open_mic_handle?: string | null
+  lat?: number | null
+  lng?: number | null
+  entry_fee_amount?: number | null
+  entry_fee_currency?: string | null
+  entry_fee_note?: string | null
 }
 
 export type OpenMic = {
@@ -32,6 +37,22 @@ export type OpenMic = {
   current_handle: string | null
   name: string
   description: string | null
+  public_information?: string | null
+  address_line1?: string
+  address_line2?: string | null
+  postcode?: string | null
+  lat?: number | null
+  lng?: number | null
+  time_zone?: string
+  website?: string | null
+  schedule_summary?: string | null
+  schedule_details?: string | null
+  originals_only?: boolean
+  amplification_available?: boolean
+  age_policy?: 'adults_only' | 'children_only' | 'both'
+  entry_fee_amount?: number | null
+  entry_fee_currency?: string | null
+  entry_fee_note?: string | null
   venue_name: string
   city: string
   city_id?: string | null
@@ -136,7 +157,7 @@ export function usePublicOpenMics(pageSize = 6, near?: { lat: number; lng: numbe
 export function usePublicEvent(id: string | undefined, kioskToken?: string) {
   return useQuery({
     queryKey: [...publicReadKeys.all, 'event', id, kioskToken],
-    queryFn: () => api<Event>(`/events/${id}${kioskToken ? `?kiosk_token=${encodeURIComponent(kioskToken)}` : ''}`),
+    queryFn: () => api<Event>(kioskToken ? `/events/${id}?kiosk_token=${encodeURIComponent(kioskToken)}` : `/events/${id}/public-details`),
     enabled: Boolean(id),
   })
 }
@@ -144,8 +165,21 @@ export function usePublicEvent(id: string | undefined, kioskToken?: string) {
 export function usePublicOpenMic(id: string | undefined) {
   return useQuery({
     queryKey: [...publicReadKeys.all, 'open-mic', id],
-    queryFn: () => api<OpenMic>(`/open-mics/${id}`),
+    queryFn: () => api<OpenMic>(`/open-mics/${id}/public-details`),
     enabled: Boolean(id),
+  })
+}
+
+export type AttendanceStatus = 'at_capacity' | 'below_limit' | 'incomplete'
+
+export function useAttendanceStatus(id: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: [...publicReadKeys.all, 'attendance', id],
+    queryFn: () => api<{ status: AttendanceStatus }>(`/events/${id}/attendance-status`),
+    enabled: Boolean(id) && enabled,
+    staleTime: 0,
+    refetchOnWindowFocus: 'always',
+    retry: false,
   })
 }
 

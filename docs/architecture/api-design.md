@@ -1,5 +1,19 @@
 # API Design
 
+## Public landing details and attendance
+
+The [public landing design](../../PUBLIC-LANDING-PAGE-DESIGN.md) follows the settled [details/attendance decisions](../decisions.md#public-landing-page-details-and-attendance).
+
+- `GET /open-mics/{id}/public-details` is public-only and active-series-only; it omits contact email even for owners.
+- `GET /events/{id}/public-details` is published/active-parent-only and returns effective activities/fees, canonical parent handle, public-information snapshot and exact event location, never private notes or attendance numbers.
+- `GET /events/{id}/attendance-status` returns only `status: at_capacity | below_limit | incomplete`. Errors remain errors, never an empty-event fallback.
+- Owner/admin-only `GET /events/{id}/attendance` includes confirmed performer count, nullable audience count/estimate, and suggested limit.
+- Owner `PATCH /events/{id}` accepts non-negative integer `audience_guest_count`; audience-only changes are operational and do not force city replacement.
+- Series/event mutations accept nullable `public_information`; event creation inherits only when omitted, while explicit null/empty clears. New events reset audience count to zero.
+- Public event serialization omits private notes and numerical capacity across discovery, public browsing, next-event and anonymous/presence-token detail reads. Authorized organizer reads retain management fields.
+- Registration and confirmation never reject solely because capacity is reached. Existing verification, duplicate, mode/publication/phase/closure rules and configuration plan caps remain intact.
+- Single-pin maps are explicitly loaded public presentation; they do not use anonymous geocoding or introduce deferred map discovery.
+
 **Related:** [../4-open-mic-technical-architecture.md](../4-open-mic-technical-architecture.md)
 
 ---

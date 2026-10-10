@@ -175,16 +175,6 @@ export const registrationsRoutes: FastifyPluginAsync<RegistrationsPluginOptions>
             [event.id],
           );
           if (!lockedEvent.rows[0]) throw new NotFoundError('Event not found');
-          // Kiosk sign-ups are exempt from capacity but still count toward it for online sign-ups.
-          if (!presenceVerified && lockedEvent.rows[0].capacity !== null) {
-            const count = await client.query<{ count: string }>(
-              'SELECT count(*)::text AS count FROM registrations WHERE event_id = $1 AND deleted_at IS NULL',
-              [event.id],
-            );
-            if (Number(count.rows[0].count) >= Number(lockedEvent.rows[0].capacity)) {
-              throw new ConflictError('CAPACITY_EXCEEDED', 'This event has reached capacity');
-            }
-          }
           if (input.contact_email) {
             const existingVerified = await client.query<{ id: string }>(
               `SELECT id FROM registrations

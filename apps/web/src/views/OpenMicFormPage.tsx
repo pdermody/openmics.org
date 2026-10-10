@@ -32,6 +32,7 @@ const openMicFormSchema = z
   .object({
     name: z.string().trim().min(1, 'Series name is required'),
     description: z.string().trim().optional(),
+    public_information: z.string().trim().optional(),
     handle: z.string().trim().optional(),
     venue_name: z.string().trim().min(1, 'Venue name is required'),
     time_zone: z.string().trim().min(1, 'Time zone is required'),
@@ -73,6 +74,7 @@ type OpenMicFormValues = z.infer<typeof openMicFormSchema>
 const DEFAULT_VALUES: OpenMicFormValues = {
   name: '',
   description: '',
+  public_information: '',
   handle: '',
   venue_name: '',
   address_line1: '',
@@ -196,6 +198,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
     reset({
       name: existing.data.name,
       description: existing.data.description ?? '',
+      public_information: existing.data.public_information ?? '',
       handle: '',
       venue_name: existing.data.venue_name,
       address_line1: existing.data.address_line1,
@@ -272,6 +275,7 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
     const input: OpenMicFormInput = {
       name: values.name,
       description: values.description || undefined,
+      public_information: values.public_information || null,
       venue_name: values.venue_name,
       address_line1: values.address_line1,
       address_line2: values.address_line2 || undefined,
@@ -390,6 +394,8 @@ export function OpenMicFormPage({ seriesId, theme, mode }: { seriesId?: string; 
           </select></label>
           <p className="field-hint">{t('seriesStatusHint')}</p>
           <label>{t('description')}<textarea {...register('description')} /></label>
+          <label>{t('publicInformation')}<textarea {...register('public_information')} /></label>
+          <p className="field-hint">{t('publicInformationHint')}</p>
           <p className="field-hint">{t('seriesDescriptionHint')}</p>
           <fieldset>
             <legend>{t('activities')}<Required /></legend>

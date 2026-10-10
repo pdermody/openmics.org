@@ -180,7 +180,7 @@ describe('public browsing tabs', () => {
   })
 
   it.each(['series-1', 'different-series'])('checks event-media anchors against their parent series (%s)', async (parentId) => {
-    server.use(http.get('/api/events/event-1', () => HttpResponse.json({ open_mic_id: parentId })))
+    server.use(http.get('/api/events/event-1/public-details', () => HttpResponse.json({ open_mic_id: parentId })))
     mount({ kind: 'open-mic', id: 'series-1' }, '?media=video-2')
     if (parentId === 'series-1') {
       const user = userEvent.setup()

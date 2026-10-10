@@ -152,7 +152,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.register(performancesRoutes, { pool, prefix: '/api' });
   app.register(accountsRoutes, { pool, prefix: '/api' });
   app.register(mediaRoutes, { pool, config, storage: mediaStorage, renditionsQueue, prefix: '/api' });
-  app.register(spaRoutes, { pool, config });
+  app.register(spaRoutes, { pool, config, resolveHandle: handlesOptions.resolveHandle });
 
   return app;
 }

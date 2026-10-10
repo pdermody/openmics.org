@@ -321,7 +321,7 @@ describe('registration routes (real database)', () => {
       expect((await qrSignup(id, token, 'Second')).statusCode).toBe(201);
     });
 
-    it('lets kiosk sign-ups exceed capacity while still counting them against online sign-ups', async () => {
+    it('allows kiosk and online sign-ups above the soft attendance limit', async () => {
       const id = await createModeEvent('both', { capacity: 1 });
       const online = (name: string) => app.inject({
         method: 'POST',
@@ -340,9 +340,8 @@ describe('registration routes (real database)', () => {
       const token = (await mintToken(id)).json().kiosk_token as string;
       expect((await qrSignup(id, token, 'Phone Walk In')).statusCode).toBe(201);
 
-      const blocked = await online('Online Second');
-      expect(blocked.statusCode).toBe(409);
-      expect(blocked.json().error.code).toBe('CAPACITY_EXCEEDED');
+      const aboveLimit = await online('Online Second');
+      expect(aboveLimit.statusCode).toBe(201);
     });
 
     it('rejects tokens for another event, stream tokens, and tokens minted by non-owners', async () => {
@@ -427,7 +426,7 @@ describe('registration routes (real database)', () => {
     expect(forbidden.statusCode).toBe(403);
   });
 
-  it('enforces event capacity atomically', async () => {
+  it('allows ordinary registration above the soft attendance limit', async () => {
     const capacityEvent = await pool.query<{ id: string }>(
       `INSERT INTO events (open_mic_id, title, starts_at, ends_at, status, time_zone, venue_name, address_line1, city, country, capacity)
        SELECT open_mic_id, 'Capacity Event', now() + interval '8 days', now() + interval '8 days 3 hours', 'published', time_zone, venue_name, address_line1, city, country, 1
@@ -442,8 +441,7 @@ describe('registration routes (real database)', () => {
     });
     expect((await app.inject({ method: 'POST', url: `/api/events/${capacityEvent.rows[0].id}/registrations`, payload: payload('First') })).statusCode).toBe(201);
     const second = await app.inject({ method: 'POST', url: `/api/events/${capacityEvent.rows[0].id}/registrations`, payload: payload('Second') });
-    expect(second.statusCode).toBe(409);
-    expect(second.json().error.code).toBe('CAPACITY_EXCEEDED');
+    expect(second.statusCode).toBe(201);
   });
 
   it('includes each registration\'s performances in the organizer roster listing, and rejects a non-owner', async () => {

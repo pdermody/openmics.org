@@ -10,6 +10,13 @@ const validBase = {
 };
 
 describe('events validation cross-field rules', () => {
+  it('validates separate public information and operational audience edits', () => {
+    expect(createEventSchema.safeParse({ ...validBase, public_information: null }).success).toBe(true);
+    expect(createEventSchema.safeParse({ ...validBase, audience_guest_count: 12 }).success).toBe(false);
+    for (const count of [-1, 1.5, 2147483648]) expect(updateEventSchema.safeParse({ audience_guest_count: count }).success).toBe(false);
+    expect(updateEventSchema.safeParse({ audience_guest_count: 0 }).success).toBe(true);
+    expect(updateEventSchema.safeParse({ public_information: '' }).success).toBe(true);
+  });
   it('accepts a minimal valid create payload', () => {
     const result = createEventSchema.safeParse(validBase);
     expect(result.success).toBe(true);

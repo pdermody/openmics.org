@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useLocation } from '@tanstack/react-router'
 import { Clock3, Image, MapPin, Pencil, Settings2 } from 'lucide-react'
 import { friendlyApiErrorMessage } from '../api/client'
 import { useEffect, useState } from 'react'
@@ -8,6 +8,9 @@ import { useMyRegisteredEventIds } from '../features/myRegistrations'
 import { isRegistrationClosed, useNextEvent, usePublicEvent, usePublicOpenMic, usePublicOwnerOpenMics, usePublicProfile } from '../features/publicReads'
 import { profileKindMeta } from '../features/profileKinds'
 import { PublicDetailTabs } from '../components/PublicDetailTabs'
+import { PublicDetailsLink } from '../components/PublicDetailsLink'
+import { AttendanceWarning } from '../components/AttendanceWarning'
+import { entryFee, eventTimeRange } from '../features/publicDetails'
 import type { ThemeProps } from './shared'
 import { ReadState, SiteHeader, SocialButton } from './shared'
 
@@ -20,6 +23,7 @@ function focusProfileSwitcher() {
 
 export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mic' | 'profile'; id: string } & ThemeProps) {
   const { t, i18n } = useTranslation()
+  const routeLocation = useLocation()
   const event = usePublicEvent(kind === 'event' ? id : undefined)
   const openMic = usePublicOpenMic(kind === 'open-mic' ? id : undefined)
   const nextEvent = useNextEvent(kind === 'open-mic' ? id : undefined)
@@ -82,6 +86,17 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
     }
   }, [search])
   const showProfileGallery = kind === 'profile' && profile.data?.profile_kind === 'performer' && profile.data.show_gig_media !== false
+  const publicResource = kind === 'event' ? event.data : openMic.data
+  const publicHandle = kind === 'event' ? event.data?.open_mic_handle : openMic.data?.current_handle
+  useEffect(() => {
+    if (title) document.title = `${title} | OpenMics.org`
+  }, [title])
+  useEffect(() => {
+    const restoration = routeLocation.state.restorePublicLanding
+    if (!publicResource || restoration?.resource !== `${kind}:${publicResource.id}`) return
+    window.scrollTo({ top: restoration.scrollY, behavior: 'instant' })
+    document.getElementById(restoration.focusId)?.focus({ preventScroll: true })
+  }, [routeLocation.state.restorePublicLanding, publicResource, kind])
 
   return (
     <main className="app" data-theme={theme} data-mode={mode}>
@@ -93,18 +108,40 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
         {!loading && !error && title && <>
           <div className="eyebrow">{kind === 'event' ? t('eventDetail') : kind === 'open-mic' ? t('seriesDetail') : t(profileKind?.titleKey ?? 'publicProfile')}</div>
           <h1>{title}</h1>
-          <p className="detail-lede">{event.data?.notes ?? openMic.data?.description ?? profile.data?.bio ?? 'A welcoming room for new voices.'}</p>
+          <p className={`detail-lede${kind !== 'profile' ? ' public-landing-preview' : ''}`}>{event.data?.public_information ?? openMic.data?.description ?? profile.data?.bio}</p>
+          {publicResource && kind !== 'profile' && (event.data?.public_information || openMic.data?.description) && <PublicDetailsLink kind={kind} id={publicResource.id} handle={publicHandle} section="about">{t('publicReadMore')}</PublicDetailsLink>}
           <div className="detail-facts">
-            {(event.data || openMic.data) && <span><MapPin size={16} /> {event.data?.venue_name ?? openMic.data?.venue_name}, {event.data?.city ?? openMic.data?.city}</span>}
-            {event.data?.starts_at && <span><Clock3 size={16} /> {new Date(event.data.starts_at).toLocaleString()}</span>}
+            {event.data && <span><Clock3 size={16} /> {eventTimeRange(event.data, i18n.language, t)}</span>}
+            {openMic.data?.schedule_summary && <span><Clock3 size={16} /> {openMic.data.schedule_summary}</span>}
+            {publicResource && <span>{entryFee(publicResource, i18n.language, t)}</span>}
+            {publicResource?.activities && <span>{publicResource.activities.map((activity) => t(`activity${activity.charAt(0).toUpperCase()}${activity.slice(1)}`)).join(', ')}</span>}
+            {registrationMode && <span>{t(`publicRegistration_${registrationMode}`)}</span>}
+            {(openMic.data ?? parentOpenMic.data)?.originals_only && <span>{t('originalsOnly')}</span>}
+            {(openMic.data ?? parentOpenMic.data)?.age_policy && <span>{t(`publicAge_${(openMic.data ?? parentOpenMic.data)!.age_policy}`)}</span>}
             {profileKind && <span><profileKind.icon size={16} aria-hidden="true" /> {t(profileKind.labelKey)}</span>}
+            {publicResource?.tags.map((tag) => <span key={tag}>{tag}</span>)}
+            {publicResource && <span className="detail-venue"><MapPin size={16} aria-hidden="true" /> {publicResource.venue_name}, {publicResource.city}</span>}
+            {publicResource && kind !== 'profile' && <PublicDetailsLink kind={kind} id={publicResource.id} handle={publicHandle}>{t('moreDetails')}</PublicDetailsLink>}
           </div>
+          {event.data && <AttendanceWarning eventId={event.data.id} phase={event.data.phase} />}
           {kind === 'open-mic' && highlightedEvent && <article className="series-next-event">
+            <AttendanceWarning eventId={highlightedEvent.id} phase={highlightedEvent.phase} />
             <strong>{t(highlightedEvent.phase === 'running' ? 'browseHappeningNow' : 'browseNextEvent')}</strong>
             <h2><Link to="/events/$eventId" params={{ eventId: highlightedEvent.id }}>{highlightedEvent.title}</Link></h2>
             <p><time dateTime={highlightedEvent.starts_at}>
               {new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short', timeZone: highlightedEvent.time_zone }).format(new Date(highlightedEvent.starts_at))}
             </time> · {highlightedEvent.venue_name}, {highlightedEvent.city}</p>
+            {nextRegistrableEvent && <div className="detail-actions">
+              {isRegisteredForNextEvent ? (
+                <span className="profile-context" role="status">{t('registeredNext')}</span>
+              ) : needsPerformerProfile ? (
+                <button className="primary-button" type="button" onClick={focusProfileSwitcher}>
+                  Switch to a performer profile to register
+                </button>
+              ) : (
+                <Link className="primary-button" to="/open-mics/$openMicId/register" params={{ openMicId: openMic.data?.public_code ?? id }}>{t('registerForAnyEvent')}</Link>
+              )}
+            </div>}
             {canCreateSeriesEvents && <Link className="quiet-button" to="/dashboard/series/$seriesId/events/new" params={{ seriesId: openMic.data!.id }}
               aria-label={t('eventCopyActionLabel', { title: highlightedEvent.title })}
               search={{ sourceEventId: highlightedEvent.id, copySchedule: true }}>
@@ -139,17 +176,6 @@ export function DetailPage({ kind, id, theme, mode }: { kind: 'event' | 'open-mi
                 </button>
               ) : (
                 <Link className="primary-button" to="/events/$eventId/register" params={{ eventId: event.data?.public_code ?? '' }}>{t('register')}</Link>
-              )
-            )}
-            {kind === 'open-mic' && (
-              isRegisteredForNextEvent ? (
-                <span className="profile-context" role="status">{t('registeredNext')}</span>
-              ) : needsPerformerProfile ? (
-                <button className="primary-button" type="button" onClick={focusProfileSwitcher}>
-                  Switch to a performer profile to register
-                </button>
-              ) : (
-                <Link className="primary-button" to="/open-mics/$openMicId/register" params={{ openMicId: openMic.data?.public_code ?? id }}>{t('viewRegistration')}</Link>
               )
             )}
             {kind === 'profile' && !isOrganizerProfile && <button className="primary-button" type="button">{t('followProfile')}</button>}

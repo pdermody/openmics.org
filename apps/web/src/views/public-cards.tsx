@@ -37,7 +37,7 @@ export function EventCard({ event }: { event: Event }) {
       </div>
       <div className="event-main">
         <div className="event-type">
-          {event.capacity ? t('openMicWithCapacity', { count: event.capacity }) : t('openMicSeries')}
+          {t('openMicSeries')}
         </div>
         <h3>
           <Link className="card-link" to="/events/$eventId" params={{ eventId: event.public_code }}>

@@ -27,6 +27,82 @@ tags:
   - name: Cities
   - name: Discovery
 paths:
+  /open-mics/{id}/public-details:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Open Mics]
+      operationId: getPublicOpenMicDetails
+      summary: Get public-only open-mic details
+      description: Returns an active series, excluding contact fields even for owners.
+      responses:
+        "200":
+          description: Public series details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicOpenMic"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /events/{id}/public-details:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Events]
+      operationId: getPublicEventDetails
+      summary: Get public-only event details
+      description: Returns a published event in an active series, with effective fees and activities. Private notes and attendance numbers are excluded even for owners.
+      responses:
+        "200":
+          description: Public event details
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/Event"
+                  - $ref: "#/components/schemas/ManagementEvent"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /events/{id}/attendance-status:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Events]
+      operationId: getPublicAttendanceStatus
+      summary: Get a public attendance warning status
+      description: Published events in active series only. Status is an estimate, never an admission block or seating guarantee. No counts are disclosed.
+      responses:
+        "200":
+          description: Estimated attendance status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceStatus"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /events/{id}/attendance:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Events]
+      operationId: getOrganizerAttendance
+      summary: Get organizer attendance numbers
+      description: Owner/admin-only attendance estimate. Counts confirmed registrations once plus manually recorded audience guests.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Organizer attendance summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /openapi.json:
     get:
       tags:
@@ -643,7 +719,7 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: "#/components/schemas/Event"
+                      $ref: "#/components/schemas/PublicEvent"
                   pagination:
                     type: object
                     required: [page, page_size, total]
@@ -876,7 +952,7 @@ paths:
         "403":
           $ref: "#/components/responses/KioskTokenInvalid"
         "409":
-          $ref: "#/components/responses/CapacityError"
+          $ref: "#/components/responses/RegistrationConflict"
         "429":
           $ref: "#/components/responses/RateLimited"
   /events/{id}/kiosk-registration-token:
@@ -890,7 +966,7 @@ paths:
       description: >-
         Owner-only. The token is bound to this event and valid until the event ends. A registration
         carrying it (`kiosk_token`) is treated as proof of presence: it bypasses registration mode,
-        publication, phase, capacity, and closure checks, still enforces duplicate-email rules, and is
+        publication, phase, and closure checks, still enforces duplicate-email rules, and is
         verified immediately with `submission_channel` and `verification_method` set to `kiosk_qr`.
       security:
         - bearerAuth: []
@@ -1905,10 +1981,9 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
-    CapacityError:
+    RegistrationConflict:
       description:
-        Capacity exceeded. Never returned for kiosk sign-ups (`organizer_supervised`
-        or a valid `kiosk_token`), which are exempt from capacity but still count toward it.
+        Duplicate registration conflict. Suggested attendance limits never reject registration.
       content:
         application/json:
           schema:
@@ -2360,6 +2435,9 @@ components:
         description:
           type: string
           nullable: true
+        public_information:
+          type: string
+          nullable: true
         activities:
           type: array
           items:
@@ -2477,6 +2555,14 @@ components:
           $ref: "#/components/schemas/Id"
         title:
           type: string
+        public_information:
+          type: string
+          nullable: true
+          description: Creation-time public-information snapshot; never falls back to current series text.
+        open_mic_handle:
+          type: string
+          nullable: true
+          description: Canonical series handle, supplied by public-details reads.
         starts_at:
           $ref: "#/components/schemas/Timestamp"
         ends_at:
@@ -2538,11 +2624,13 @@ components:
           type: array
           items:
             type: string
-        capacity:
-          type: integer
-          minimum: 1
+        entry_fee_amount:
+          type: number
           nullable: true
-        notes:
+        entry_fee_currency:
+          type: string
+          nullable: true
+        entry_fee_note:
           type: string
           nullable: true
         rating_avg:
@@ -2557,6 +2645,68 @@ components:
           $ref: "#/components/schemas/Timestamp"
         updated_at:
           $ref: "#/components/schemas/Timestamp"
+    ManagementEvent:
+      allOf:
+        - $ref: "#/components/schemas/Event"
+        - type: object
+          properties:
+            notes:
+              type: string
+              nullable: true
+              description: Private organizer notes, omitted from public reads.
+            capacity:
+              type: integer
+              nullable: true
+              description: Soft suggested attendance limit; plan configuration caps still apply.
+            audience_guest_count:
+              type: integer
+              minimum: 0
+              nullable: true
+              description: Manually recorded audience, excluding performers. Null means unrecorded.
+    PublicOpenMic:
+      allOf:
+        - $ref: "#/components/schemas/OpenMic"
+      not:
+        required: [contact_email]
+      description: Public details exclude contact_email. Organizer reads retain it.
+    PublicEvent:
+      allOf:
+        - $ref: "#/components/schemas/Event"
+      not:
+        anyOf:
+          - required: [notes]
+          - required: [capacity]
+          - required: [audience_guest_count]
+    AttendanceStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [at_capacity, below_limit, incomplete]
+    AttendanceSummary:
+      allOf:
+        - type: object
+          required: [status, confirmed_performers, audience_guest_count, attendance_estimate, capacity]
+          properties:
+            status:
+              type: string
+              enum: [at_capacity, below_limit, incomplete]
+            confirmed_performers:
+              type: integer
+              minimum: 0
+            audience_guest_count:
+              type: integer
+              minimum: 0
+              nullable: true
+            attendance_estimate:
+              type: integer
+              minimum: 0
+              nullable: true
+            capacity:
+              type: integer
+              nullable: true
     Registration:
       type: object
       required:
@@ -3242,6 +3392,9 @@ components:
           type: string
         description:
           type: string
+        public_information:
+          type: string
+          nullable: true
         handle:
           type: string
         venue_name:
@@ -3346,6 +3499,9 @@ components:
           type: string
         description:
           type: string
+        public_information:
+          type: string
+          nullable: true
         handle:
           type: string
         venue_name:
@@ -3426,6 +3582,10 @@ components:
         - ends_at
         - time_zone
       properties:
+        public_information:
+          type: string
+          nullable: true
+          description: Omitted inherits a series snapshot; null or empty explicitly clears it. New events reset audience count to zero.
         title:
           type: string
         starts_at:
@@ -3447,8 +3607,8 @@ components:
           description:
             Plan-capped. The default plan rejects values above 50 — and
             rejects unlimited capacity (capacity omitted) — with PLAN_LIMIT_EXCEEDED
-            (scope `event_capacity`). Kiosk sign-ups remain exempt from the configured
-            capacity while still counting toward it.
+            (scope `event_capacity`). This is a soft attendance warning threshold;
+            reaching it never blocks registration or confirmation.
         venue_name:
           type: string
           description:
@@ -3503,6 +3663,14 @@ components:
         explicitly cleared or replaced. Updates containing only status and/or
         registrations_closed_at are lifecycle-only and do not require city replacement.
       properties:
+        public_information:
+          type: string
+          nullable: true
+        audience_guest_count:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          description: Owner-maintained audience count excluding performers. An audience-only update is operational and does not require city replacement.
         title:
           type: string
         starts_at:

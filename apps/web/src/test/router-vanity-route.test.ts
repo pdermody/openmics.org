@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { router } from '../App'
 
 describe('vanity handle route matching', () => {
+  it('matches canonical details and event landing routes', () => {
+    for (const path of ['/@MyStage/details', '/@MyStage/events/event-1', '/@MyStage/events/event-1/details']) {
+      const matches = router.matchRoutes(path, undefined, { throwOnError: true })
+      expect(matches.at(-1)?.params).toMatchObject({ handle: 'MyStage' })
+      if (path.includes('/events/')) expect(matches.at(-1)?.params).toMatchObject({ eventId: 'event-1' })
+    }
+  })
   it('matches "/@handle/register" and extracts the handle param', () => {
     const matches = router.matchRoutes('/@some-handle/register', undefined, { throwOnError: true })
     const leaf = matches[matches.length - 1]

@@ -60,6 +60,7 @@ const eventFormSchema = z
     activities: z.array(z.string()).optional(),
     tags: z.string().optional(),
     notes: z.string().trim().optional(),
+    public_information: z.string().trim().optional(),
     entry_fee_amount: z.string().optional(),
     entry_fee_currency: z.string().optional(),
     entry_fee_note: z.string().trim().optional(),
@@ -142,6 +143,7 @@ const DEFAULT_VALUES: EventFormValues = {
   activities: [],
   tags: '',
   notes: '',
+  public_information: '',
   entry_fee_amount: '',
   entry_fee_currency: '',
   entry_fee_note: '',
@@ -152,6 +154,7 @@ const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1000
 function seriesDefaultValues(openMic: OpenMicDetail): EventFormValues {
   return {
     ...DEFAULT_VALUES,
+    public_information: openMic.public_information ?? '',
     time_zone: openMic.time_zone,
     activities: openMic.activities,
     venue_name: openMic.venue_name,
@@ -193,6 +196,7 @@ function copiedEventValues(event: EventDetail): EventFormValues {
     activities: event.activities ?? [],
     tags: (event.tags ?? []).join(', '),
     notes: event.notes ?? '',
+    public_information: event.public_information ?? '',
     entry_fee_amount: event.entry_fee_amount ? String(event.entry_fee_amount) : '',
     entry_fee_currency: event.entry_fee_currency ?? '',
     entry_fee_note: event.entry_fee_note ?? '',
@@ -309,6 +313,7 @@ export function EventFormPage({ seriesId, eventId, sourceEventId: initialSourceE
       activities: existing.data.activities ?? [],
       tags: (existing.data.tags ?? []).join(', '),
       notes: existing.data.notes ?? '',
+      public_information: existing.data.public_information ?? '',
       entry_fee_amount: existing.data.entry_fee_amount ? String(existing.data.entry_fee_amount) : '',
       entry_fee_currency: existing.data.entry_fee_currency ?? '',
       entry_fee_note: existing.data.entry_fee_note ?? '',
@@ -480,6 +485,7 @@ export function EventFormPage({ seriesId, eventId, sourceEventId: initialSourceE
       activities: values.activities && values.activities.length > 0 ? values.activities : undefined,
       tags: (values.tags ?? '').split(',').map((tag) => tag.trim()).filter(Boolean),
       notes: values.notes || undefined,
+      public_information: values.public_information || null,
       entry_fee_amount: values.entry_fee_amount ? Number(values.entry_fee_amount) : undefined,
       entry_fee_currency: values.entry_fee_currency || undefined,
       entry_fee_note: values.entry_fee_note || undefined,
@@ -584,7 +590,7 @@ export function EventFormPage({ seriesId, eventId, sourceEventId: initialSourceE
           {!isEdit && <label>{t('eventPublication')}<select value="draft" disabled><option value="draft">{t('statusDraft')}</option></select></label>}
           {isEdit && <label>{t('eventPublication')}<select {...register('status')}><option value="draft">{t('statusDraft')}</option><option value="published">{t('statusPublished')}</option></select></label>}
           {isEdit && eventPhase && <p className="field-hint">{t('eventPhaseLabel')}: {t(`eventPhase${eventPhase[0].toUpperCase()}${eventPhase.slice(1)}`)}</p>}
-          <label><span>{t('capacity')}<Required /></span><input type="number" min="1" max="50" required {...register('capacity')} /></label>
+          <label><span>{t('suggestedAttendanceLimit')}<Required /></span><input type="number" min="1" max="50" required {...register('capacity')} /></label>
           <p className="field-hint">{t('eventCapacityHint')}</p>
           {errors.capacity && <p className="form-error" role="alert">{errors.capacity.message}</p>}
         </section>
@@ -627,7 +633,9 @@ export function EventFormPage({ seriesId, eventId, sourceEventId: initialSourceE
           <fieldset><legend>{t('activities')}</legend>{ACTIVITIES.map((activity) => <label className="checkbox-label" key={activity}><input type="checkbox" checked={activities.includes(activity)} onChange={() => toggleActivity(activity)} /><span>{t(ACTIVITY_LABEL_KEYS[activity])}</span></label>)}</fieldset>
           <label>{t('tags')}<input {...register('tags')} /></label>
           <p className="field-hint">{t('seriesTagsHint')}</p>
-          <label>{t('notes')}<textarea {...register('notes')} /></label>
+          <label>{t('eventInformation')}<textarea {...register('public_information')} /></label>
+          <p className="field-hint">{t('publicInformationHint')}</p>
+          <label>{t('privateOrganizerNotes')}<textarea {...register('notes')} /></label>
           <p className="field-hint">{t('eventNotesHint')}</p>
           <label>{t('entryFee')}<input type="number" min="0" step="0.01" {...register('entry_fee_amount')} /></label>
           <p className="field-hint">{t('entryFeeFormHint')}</p>

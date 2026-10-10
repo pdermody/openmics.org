@@ -72,6 +72,7 @@ OpenMics
 ├── slug (text — LEGACY; retained for backward-compat, superseded by handles per decisions.md → API Contract)
 ├── name
 ├── description (nullable)
+├── public_information (text, nullable — public visitor instructions; existing rows remain empty)
 ├── activities text[]
 ├── venue_name (NOT NULL)
 ├── address_line1 (NOT NULL), address_line2 (nullable)
@@ -133,7 +134,9 @@ Events
 ├── activities text[]  (nullable — NULL inherits from OpenMics.activities;
 │                       when set, replaces the OpenMic's allowed set for this event)
 ├── tags text[]
-├── capacity (integer, nullable)
+├── capacity (integer, nullable — soft suggested attendance limit, not an admission block; configuration remains plan-capped)
+├── audience_guest_count (integer, nullable, non-negative — organizer-maintained audience excluding performers; legacy NULL means unknown, new events explicitly start at zero)
+├── public_information (text, nullable — creation-time snapshot from series or source event, explicitly clearable; never populated from private notes)
 ├── entry_fee_amount (numeric(10,2), nullable — per-event override; NULL inherits from OpenMics.entry_fee_amount)
 ├── entry_fee_currency (text, nullable — per-event override; NULL inherits from OpenMics.entry_fee_currency)
 ├── entry_fee_note (text, nullable — per-event override; NULL inherits from OpenMics.entry_fee_note)

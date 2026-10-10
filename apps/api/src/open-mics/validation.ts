@@ -8,6 +8,7 @@ const statusSchema = z.enum(['active', 'paused', 'ended', 'draft']);
 const baseFields = {
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  public_information: z.string().nullable().optional(),
   handle: z.string().optional(),
   venue_name: z.string().min(1).optional(),
   address_line1: z.string().min(1).optional(),

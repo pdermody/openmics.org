@@ -9,8 +9,8 @@ import { server } from './server'
 const futureEvent: Event = {
   id: 'future-event', public_code: 'FUTURE1234', open_mic_id: 'series-1', title: 'Next Friday',
   starts_at: '2026-10-09T19:00:00.000Z', ends_at: '2026-10-09T22:00:00.000Z', time_zone: 'Europe/Dublin',
-  venue_name: 'The Lantern', city: 'Dublin', country: 'IE', activities: ['singing'], tags: [], capacity: null,
-  registrations_closed_at: null, status: 'published' as const, phase: 'future' as const, notes: null,
+  venue_name: 'The Lantern', city: 'Dublin', country: 'IE', activities: ['singing'], tags: [],
+  registrations_closed_at: null, status: 'published' as const, phase: 'future' as const,
 }
 
 function renderResolution(currentEvent: Event | null, currentRegistrationOpen: boolean, nextEvent: Event | null, nextRegistrationEvent: Event | null) {

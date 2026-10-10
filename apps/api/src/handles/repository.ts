@@ -45,7 +45,8 @@ export type HandleResolution = {
 // this instead of matching an entity table's denormalized current_handle column directly.
 export async function resolveCurrentHandle(pool: Pool, handle: string): Promise<HandleResolution | null> {
   const result = await pool.query<{ entity_type: 'profile' | 'open_mic' | null; profile_id: string | null; open_mic_id: string | null }>(
-    "SELECT entity_type, profile_id, open_mic_id FROM handles WHERE lower(handle) = lower($1) AND status = 'current'",
+    `SELECT entity_type, profile_id, open_mic_id FROM handles WHERE lower(handle) = lower($1)
+     AND (status = 'current' OR (status = 'redirect' AND redirect_expires_at > now()))`,
     [handle],
   );
   const row = result.rows[0];

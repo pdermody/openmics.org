@@ -38,6 +38,8 @@ const sourceDetail = {
   activities: ['singing'],
   tags: ['acoustic'],
   notes: 'Doors open early',
+  public_information: 'Visitors should bring instruments',
+  audience_guest_count: 12,
   entry_fee_amount: 5,
   entry_fee_currency: 'EUR',
   entry_fee_note: 'Cash only',
@@ -57,11 +59,9 @@ function makeListedEvent(id: string, startsAt: string): Event {
     country: 'IE',
     activities: ['singing'],
     tags: [],
-    capacity: null,
     registrations_closed_at: null,
     status: 'published',
     phase: new Date(startsAt).getTime() < Date.now() ? 'past' : 'future',
-    notes: null,
   }
 }
 
@@ -127,8 +127,8 @@ describe('event copy creation', () => {
     expect(await screen.findByDisplayValue('Friday Showcase')).toBeInTheDocument()
     expect(screen.getByLabelText(/Starts at/)).toHaveValue('2026-10-10T19:00')
     expect(screen.getByLabelText(/Ends at/)).toHaveValue('2026-10-10T22:00')
-    expect(screen.getByLabelText(/Capacity/)).toHaveValue(24)
-    expect(screen.getByLabelText(/Capacity/).closest('label')?.querySelector('.required-mark')).toHaveTextContent('*')
+    expect(screen.getByLabelText(/Suggested attendance limit/)).toHaveValue(24)
+    expect(screen.getByLabelText(/Suggested attendance limit/).closest('label')?.querySelector('.required-mark')).toHaveTextContent('*')
     expect(screen.getByLabelText('Publication')).toHaveValue('draft')
     expect(screen.queryByLabelText('Registrations close at')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Copy settings from an event (optional)')).toHaveValue('source-1')
@@ -184,8 +184,10 @@ describe('event copy creation', () => {
       ends_at: '2026-10-18T01:00:00.000Z',
       time_zone: 'Europe/Dublin',
       status: 'draft',
+      public_information: 'Visitors should bring instruments',
     })))
     expect(create.mock.calls[0][0]).not.toHaveProperty('copy_date')
+    expect(create.mock.calls[0][0]).not.toHaveProperty('audience_guest_count')
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({
       to: '/events/$eventId',
       params: { eventId: 'NEW1' },

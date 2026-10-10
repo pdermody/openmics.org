@@ -61,7 +61,7 @@ describe('HomePage', () => {
         city: 'Dublin', country: 'IE', activities: ['singing'], tags: [], capacity: null,
         registrations_closed_at: null, notes: null,
       }])),
-      http.get('/api/open-mics/series-1', () => HttpResponse.json({
+      http.get('/api/open-mics/series-1/public-details', () => HttpResponse.json({
         id: 'series-1', public_code: 'STAGE', current_handle: null, name: 'Friday Stage',
         description: 'A welcoming room for new voices.', venue_name: 'The Lantern', city: 'Dublin',
         country: 'IE', activities: ['singing'], tags: [], registration_mode: 'both',

@@ -28,6 +28,8 @@ export interface EventRow {
   tags: string[];
   capacity: string | null;
   notes: string | null;
+  public_information?: string | null;
+  audience_guest_count?: number | null;
   entry_fee_amount: string | null;
   entry_fee_currency: string | null;
   entry_fee_note: string | null;
@@ -60,6 +62,8 @@ export interface InsertEventInput {
   tags?: string[];
   capacity?: number | null;
   notes?: string | null;
+  publicInformation?: string | null;
+  audienceGuestCount?: number | null;
   entryFeeAmount?: number | null;
   entryFeeCurrency?: string | null;
   entryFeeNote?: string | null;
@@ -70,11 +74,12 @@ export async function insertEvent(client: PoolClient, input: InsertEventInput): 
     `INSERT INTO events (
       open_mic_id, title, starts_at, ends_at, time_zone, status, registrations_closed_at,
       venue_name, address_line1, address_line2, postcode, city, country, city_id, lat, lng,
-      activities, tags, capacity, notes, entry_fee_amount, entry_fee_currency, entry_fee_note
+      activities, tags, capacity, notes, entry_fee_amount, entry_fee_currency, entry_fee_note,
+      public_information, audience_guest_count
     ) VALUES (
       $1, $2, $3, $4, $5, $6, $7,
       $8, $9, $10, $11, $12, $13, $14, $15, $16,
-      $17, COALESCE($18, '{}'::text[]), $19, $20, $21, $22, $23
+      $17, COALESCE($18, '{}'::text[]), $19, $20, $21, $22, $23, $24, 0
     ) RETURNING *`,
     [
       input.openMicId,
@@ -100,6 +105,7 @@ export async function insertEvent(client: PoolClient, input: InsertEventInput): 
       input.entryFeeAmount ?? null,
       input.entryFeeCurrency ?? null,
       input.entryFeeNote ?? null,
+      input.publicInformation ?? null,
     ],
   );
 
@@ -307,6 +313,8 @@ export async function updateEvent(pool: Queryable, id: string, changes: Partial<
     tags: 'tags',
     capacity: 'capacity',
     notes: 'notes',
+    publicInformation: 'public_information',
+    audienceGuestCount: 'audience_guest_count',
     entryFeeAmount: 'entry_fee_amount',
     entryFeeCurrency: 'entry_fee_currency',
     entryFeeNote: 'entry_fee_note',
@@ -342,7 +350,7 @@ export async function updateEvent(pool: Queryable, id: string, changes: Partial<
   return result.rows[0] ?? null;
 }
 
-export function serializeEvent(row: EventRow, now = new Date()): Record<string, unknown> {
+export function serializeEvent(row: EventRow, now = new Date(), management = false): Record<string, unknown> {
   return {
     id: row.id,
     public_code: row.public_code,
@@ -361,12 +369,16 @@ export function serializeEvent(row: EventRow, now = new Date()): Record<string, 
     city: row.city,
     city_id: row.city_id ?? null,
     country: row.country,
-    lat: row.lat ? Number(row.lat) : null,
-    lng: row.lng ? Number(row.lng) : null,
+    lat: row.lat === null ? null : Number(row.lat),
+    lng: row.lng === null ? null : Number(row.lng),
     activities: row.activities,
     tags: row.tags,
-    capacity: row.capacity ? Number(row.capacity) : null,
-    notes: row.notes,
+    public_information: row.public_information ?? null,
+    ...(management ? {
+      capacity: row.capacity ? Number(row.capacity) : null,
+      notes: row.notes,
+      audience_guest_count: row.audience_guest_count ?? null,
+    } : {}),
     entry_fee_amount: row.entry_fee_amount ? Number(row.entry_fee_amount) : null,
     entry_fee_currency: row.entry_fee_currency,
     entry_fee_note: row.entry_fee_note,
@@ -374,6 +386,27 @@ export function serializeEvent(row: EventRow, now = new Date()): Record<string, 
     updated_at: row.updated_at,
     ...(row.distance_km === undefined ? {} : { distance_km: Number(row.distance_km) }),
   };
+}
+
+export async function eventAttendance(client: Queryable, event: EventRow) {
+  const result = await client.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM registrations r
+     WHERE r.event_id = $1 AND r.deleted_at IS NULL AND r.email_verified_at IS NOT NULL
+       AND (
+         NOT EXISTS (SELECT 1 FROM performances p WHERE p.registration_id = r.id AND p.deleted_at IS NULL)
+         OR EXISTS (SELECT 1 FROM performances p WHERE p.registration_id = r.id AND p.deleted_at IS NULL
+           AND p.status NOT IN ('cancelled', 'no_show'))
+       )`,
+    [event.id],
+  );
+  const performers = Number(result.rows[0].count);
+  const guests = event.audience_guest_count ?? null;
+  const limit = event.capacity === null ? null : Number(event.capacity);
+  const estimate = performers + (guests ?? 0);
+  const status = limit !== null && estimate >= limit
+    ? 'at_capacity' : guests === null || limit === null ? 'incomplete' : 'below_limit';
+  return { status, confirmed_performers: performers, audience_guest_count: guests,
+    attendance_estimate: guests === null ? null : estimate, capacity: limit };
 }
 
 export function eventPhase(event: Pick<EventRow, 'starts_at' | 'ends_at'>, now = new Date()): EventPhase {

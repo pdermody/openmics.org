@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
-import { CalendarDays, Clock3, MapPin, Users } from 'lucide-react'
+import { CalendarDays, Clock3, MapPin } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { ApiError, api, friendlyApiErrorMessage } from '../api/client'
 import { useAccountContext } from '../features/account'
+import { AttendanceWarning } from '../components/AttendanceWarning'
+import { useAttendanceStatus } from '../features/publicReads'
 import { CityAutocomplete } from '../components/location/CityAutocomplete'
 import { useCity } from '../features/cities'
 import { registrationFormSchema, type RegistrationFormValues } from '../features/registration-form'
@@ -89,6 +91,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
   const [kioskToken] = useState(() => takeKioskToken(eventCode))
   const kioskMode = Boolean(kioskToken)
   const event = usePublicEvent(eventCode, kioskToken)
+  const attendance = useAttendanceStatus(event.data?.id, !kioskMode && event.data?.phase !== 'past')
   const parentOpenMic = usePublicOpenMic(event.data?.open_mic_id)
   const accountContext = useAccountContext()
   const activeProfile = accountContext.profiles.data?.items.find((profile) => profile.id === accountContext.account.data?.current_profile_id)
@@ -208,6 +211,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
     }
     setState('submitting')
     try {
+      if (!kioskMode) await attendance.refetch()
       if (editRegistration) {
         await api(`/registrations/${editRegistration.id}`, {
           method: 'PATCH',
@@ -268,7 +272,7 @@ export function RegistrationPage({ eventCode, theme, mode }: { eventCode: string
             {parentOpenMic.data && <p className="registration-series-name">{parentOpenMic.data.name}</p>}
             <p className="registration-event-fact"><CalendarDays size={17} aria-hidden="true" /><strong>{formatEventDateTime(event.data.starts_at, event.data.time_zone, i18n.language)}</strong></p>
             <p className="registration-event-fact"><MapPin size={17} aria-hidden="true" /><span>{event.data.venue_name}, {event.data.city}, {event.data.country}</span></p>
-            {event.data.capacity && <p className="registration-event-fact"><Users size={17} aria-hidden="true" /><span>{t('eventCapacity', { count: event.data.capacity })}</span></p>}
+            {!kioskMode && <AttendanceWarning eventId={event.data.id} phase={event.data.phase} />}
             <p className="registration-event-fact"><Clock3 size={17} aria-hidden="true" /><span>{kioskMode ? t('registrationOpen') : eventRegistrationClosed ? t('registrationClosed') : registrationMode === 'on_night_only' ? t('onNightRegistration') : t('registrationOpen')}</span></p>
           </div>
           <p className="detail-lede">{kioskMode ? t('kioskQrIntro') : t('registrationLead')}</p>

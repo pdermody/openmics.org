@@ -33,6 +33,8 @@ The `/ask` design conversation that produced this decision is in commit history.
 | Performer profile | `openmics.org/@:handle` |
 | Open-mic series | `openmics.org/@:handle` |
 | Event under a series | `openmics.org/@:handle/events/:eventId` |
+| Open-mic More details | `openmics.org/@:handle/details` |
+| Event More details | `openmics.org/@:handle/events/:eventId/details` |
 | Next-scheduled-event registration (durable link/QR) | `openmics.org/@:handle/register` — resolves server-side to the soonest upcoming event's register page, or shows the series' schedule summary if none is open |
 | Individual media item | `openmics.org/media/:mediaId` *(one canonical URL regardless of gallery context; no handle)* |
 
@@ -45,6 +47,8 @@ The `/ask` design conversation that produced this decision is in commit history.
 | `openmics.org/@:retired_handle` | `openmics.org/@:current_handle` |
 | Case variant `@:Handle` | Canonical stored casing `@:handle` |
 | Trailing slash `@:handle/` | No trailing slash `@:handle` |
+
+More details alternate URLs (`/open-mics/:id/details`, `/events/:eventId/details`) redirect to the corresponding canonical details URL. Case/retired-handle redirects preserve the details suffix, query and browser section fragment; `#location` is the shared Location shortcut. Details reads enforce the same public visibility as their landing pages, including for owners.
 
 ### What's **not** getting a handle in v1
 

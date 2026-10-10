@@ -1,8 +1,9 @@
 import { createContext, Suspense, useContext, useEffect, useState, type ReactNode } from 'react'
-import { createBrowserHistory, createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet, RouterProvider, useNavigate } from '@tanstack/react-router'
+import { createBrowserHistory, createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet, RouterProvider, useLocation, useNavigate } from '@tanstack/react-router'
 import './App.css'
 import { HomePage } from './views/HomePage'
 import { discoverySearchSchema } from './features/discoverySearch'
+import { gallerySearchSchema } from './features/gallerySearch'
 import { ThemePage } from './views/ThemePage'
 import { EventPage } from './views/EventPage'
 import { OpenMicPage } from './views/OpenMicPage'
@@ -13,7 +14,7 @@ import { AuthPage } from './views/AuthPage'
 import { OnboardingPage } from './views/OnboardingPage'
 import { useAccountContext } from './features/account'
 import { useOrganizerProfile } from './features/organizer'
-import { useResolveHandle } from './features/publicReads'
+import { usePublicEvent, useResolveHandle } from './features/publicReads'
 import { consumePendingSignInRedirect } from './auth/session'
 import { ReadState, SiteFooter } from './views/shared'
 import { i18n } from './i18n'
@@ -33,6 +34,7 @@ const ProfileManagement = lazyRouteComponent(() => import('./views/ProfileManage
 const MediaDeepLink = lazyRouteComponent(() => import('./views/MediaDeepLinkPage'), 'MediaDeepLinkPage')
 const EventMediaManage = lazyRouteComponent(() => import('./views/EventMediaManagePage'), 'EventMediaManagePage')
 const SeriesMediaManage = lazyRouteComponent(() => import('./views/SeriesMediaManagePage'), 'SeriesMediaManagePage')
+const PublicDetails = lazyRouteComponent(() => import('./views/PublicDetailsPage'), 'PublicDetailsPage')
 
 const AUTH_MODES = ['sign-in', 'sign-up', 'confirm-sign-up', 'forgot-password', 'reset-password'] as const
 type AuthMode = (typeof AUTH_MODES)[number]
@@ -58,27 +60,6 @@ function RoutedView({ children, theme, mode }: { children: ReactNode; theme: The
 // Gallery query params shared by the event / series / profile detail routes: `media`
 // (deep-link anchor opened in the lightbox), `mediaUnavailable` (stale deep-link toast),
 // plus the type filter and sort which persist via URL + localStorage (design §11.1).
-function gallerySearchSchema(search: Record<string, unknown>): {
-  media?: string; mediaUnavailable?: string; type?: string; sort?: string;
-  tab?: 'events' | 'photos' | 'videos'; period?: 'upcoming' | 'past'; page?: number; year?: number; month?: number;
-} {
-  const integer = (value: unknown, max: number) => {
-    const parsed = Number(value)
-    return Number.isInteger(parsed) && parsed > 0 && parsed <= max ? parsed : undefined
-  }
-  const year = integer(search.year, 9999)
-  return {
-    media: typeof search.media === 'string' ? search.media : undefined,
-    mediaUnavailable: typeof search.mediaUnavailable === 'string' ? search.mediaUnavailable : undefined,
-    type: typeof search.type === 'string' ? search.type : undefined,
-    sort: typeof search.sort === 'string' ? search.sort : undefined,
-    tab: search.tab === 'events' || search.tab === 'photos' || search.tab === 'videos' ? search.tab : undefined,
-    period: search.period === 'past' || search.period === 'upcoming' ? search.period : undefined,
-    page: integer(search.page, 100000),
-    year,
-    month: year ? integer(search.month, 12) : undefined,
-  }
-}
 
 // Theme/mode live on the root route (so every route can read them) rather than being threaded
 // through the router's own context API, since every view already takes them as plain props —
@@ -416,6 +397,60 @@ const vanityOpenMicRoute = createRoute({
   },
 })
 
+function PublicDetailsRouteView({ kind, id, handle }: { kind: 'event' | 'open-mic'; id?: string; handle?: string }) {
+  const { theme, mode } = useThemeMode()
+  const resolved = useResolveHandle(handle)
+  if (handle && resolved.isPending) return <ReadState message={i18n.t('loading')} />
+  if (handle && (resolved.isError || resolved.data?.type !== 'open_mic')) return <ReadState message={i18n.t('publicDetailsUnavailable')} />
+  return <RoutedView theme={theme} mode={mode}><LazyView><PublicDetails kind={kind} id={id ?? resolved.data!.id}
+    expectedSeriesId={handle ? resolved.data?.id : undefined} theme={theme} mode={mode} /></LazyView></RoutedView>
+}
+
+const seriesDetailsRoute = createRoute({
+  getParentRoute: () => rootRoute, path: '/open-mics/$openMicId/details',
+  component: () => <PublicDetailsRouteView kind="open-mic" id={seriesDetailsRoute.useParams().openMicId} />,
+})
+const eventDetailsRoute = createRoute({
+  getParentRoute: () => rootRoute, path: '/events/$eventId/details',
+  component: () => <PublicDetailsRouteView kind="event" id={eventDetailsRoute.useParams().eventId} />,
+})
+const vanitySeriesDetailsRoute = createRoute({
+  getParentRoute: () => rootRoute, path: '/@{$handle}/details',
+  component: () => <PublicDetailsRouteView kind="open-mic" handle={vanitySeriesDetailsRoute.useParams().handle} />,
+})
+const vanityEventDetailsRoute = createRoute({
+  getParentRoute: () => rootRoute, path: '/@{$handle}/events/$eventId/details',
+  component: () => {
+    const { handle, eventId } = vanityEventDetailsRoute.useParams()
+    return <PublicDetailsRouteView kind="event" id={eventId} handle={handle} />
+  },
+})
+
+function CanonicalEventView() {
+  const { theme, mode } = useThemeMode()
+  const { handle, eventId } = vanityEventLandingRoute.useParams()
+  const resolved = useResolveHandle(handle)
+  const event = usePublicEvent(eventId)
+  const location = useLocation()
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (location.pathname !== `/@${handle}/events/${eventId}`) return
+    if (resolved.data?.type !== 'open_mic' || event.data?.open_mic_id !== resolved.data.id || !event.data.open_mic_handle) return
+    const canonical = `/@${event.data.open_mic_handle}/events/${event.data.id}`
+    if (location.pathname !== canonical) void navigate({
+      to: '/@{$handle}/events/$eventId', params: { handle: event.data.open_mic_handle, eventId: event.data.id },
+      search: gallerySearchSchema(location.search), hash: location.hash, state: location.state, replace: true,
+    })
+  }, [handle, eventId, resolved.data, event.data, location.pathname, location.search, location.hash, location.state, navigate])
+  if (resolved.isPending || event.isPending) return <ReadState message={i18n.t('loading')} />
+  if (resolved.isError || event.isError || resolved.data?.type !== 'open_mic' || event.data?.open_mic_id !== resolved.data.id) return <ReadState message={i18n.t('publicDetailsUnavailable')} />
+  return <RoutedView theme={theme} mode={mode}><EventPage id={eventId} theme={theme} mode={mode} /></RoutedView>
+}
+const vanityEventLandingRoute = createRoute({
+  getParentRoute: () => rootRoute, path: '/@{$handle}/events/$eventId',
+  validateSearch: gallerySearchSchema, component: CanonicalEventView,
+})
+
 const routeTree = rootRoute.addChildren([
   discoveryRoute,
   homeRoute,
@@ -444,6 +479,11 @@ const routeTree = rootRoute.addChildren([
   openMicRegistrationRoute,
   vanityRegistrationRoute,
   vanityOpenMicRoute,
+  seriesDetailsRoute,
+  eventDetailsRoute,
+  vanitySeriesDetailsRoute,
+  vanityEventDetailsRoute,
+  vanityEventLandingRoute,
 ])
 
 const history = createBrowserHistory()

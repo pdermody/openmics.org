@@ -6,9 +6,13 @@ import type { Pool } from 'pg';
 import type { AppConfig } from './config.js';
 import { resolveAltText, type MediaDisplayContext } from './media/captions.js';
 import { findMediaById, isMediaPubliclyVisible, type MediaListRow } from './media/repository.js';
+import { resolveCurrentHandle } from './handles/repository.js';
+import { findOpenMicByIdOrPublicCode } from './open-mics/repository.js';
+import { findEventByIdOrPublicCode } from './events/repository.js';
 
 export type SpaRoutesOptions = {
   entryPoint?: string;
+  resolveHandle?: (handle: string) => ReturnType<typeof resolveCurrentHandle>;
   /** When present, GET /media/:mediaId serves OG-stamped HTML (design §12.4). */
   pool?: Pool;
   config?: Pick<AppConfig, 'appBaseUrl' | 'spaIndexHtmlPath'>;
@@ -128,6 +132,39 @@ export const spaRoutes: FastifyPluginAsync<SpaRoutesOptions> = async (app, optio
 
   if (options.pool && options.config) {
     const { pool, config } = options;
+    async function publicCanonicalPath(identifier: string, eventIdentifier?: string) {
+      const parent = await findOpenMicByIdOrPublicCode(pool, identifier);
+      if (!parent || parent.status !== 'active' || !parent.current_handle) return null;
+      if (!eventIdentifier) return `/@${parent.current_handle}`;
+      const event = await findEventByIdOrPublicCode(pool, eventIdentifier);
+      if (!event || event.open_mic_id !== parent.id || event.status !== 'published') return null;
+      return `/@${parent.current_handle}/events/${event.id}`;
+    }
+    for (const suffix of ['/details', '/events/:eventId', '/events/:eventId/details']) {
+      app.get<{ Params: { handle: string; eventId?: string } }>(`/@:handle${suffix}`, async (request, reply) => {
+        const resolution = await (options.resolveHandle ?? ((handle: string) => resolveCurrentHandle(pool, handle)))(request.params.handle);
+        const base = resolution?.entityType === 'open_mic' && resolution.openMicId
+          ? await publicCanonicalPath(resolution.openMicId, request.params.eventId) : null;
+        if (!base) return reply.code(404).type('text/html; charset=utf-8').send(entryPoint);
+        const canonical = base + (suffix.endsWith('/details') ? '/details' : '');
+        const query = request.url.includes('?') ? request.url.slice(request.url.indexOf('?')) : '';
+        if (request.url.split('?')[0] !== canonical) return reply.redirect(`${canonical}${query}`, 301);
+        return reply.type('text/html; charset=utf-8').send(entryPoint);
+      });
+    }
+    app.get<{ Params: { id: string } }>('/open-mics/:id/details', async (request, reply) => {
+      const base = await publicCanonicalPath(request.params.id);
+      if (!base) return reply.code(404).type('text/html; charset=utf-8').send(entryPoint);
+      const query = request.url.includes('?') ? request.url.slice(request.url.indexOf('?')) : '';
+      return reply.redirect(`${base}/details${query}`, 301);
+    });
+    app.get<{ Params: { id: string } }>('/events/:id/details', async (request, reply) => {
+      const event = await findEventByIdOrPublicCode(pool, request.params.id);
+      const base = event ? await publicCanonicalPath(event.open_mic_id, event.id) : null;
+      if (!base) return reply.code(404).type('text/html; charset=utf-8').send(entryPoint);
+      const query = request.url.includes('?') ? request.url.slice(request.url.indexOf('?')) : '';
+      return reply.redirect(`${base}/details${query}`, 301);
+    });
     // Registered BEFORE the catch-all. Social scrapers get server-stamped OG tags; the
     // route always returns 200 HTML — a scraper never sees a 404 (design §12.4).
     app.get<{ Params: { mediaId: string } }>('/media/:mediaId', async (request, reply) => {

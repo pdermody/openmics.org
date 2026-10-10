@@ -42,6 +42,7 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
         ownerProfileId: ownerProfile.id,
         name: input.name,
         description: input.description,
+        publicInformation: input.public_information,
         activities: input.activities,
         tags: input.tags,
         venueName: input.venue_name,
@@ -132,6 +133,13 @@ export const openMicsRoutes: FastifyPluginAsync<OpenMicsPluginOptions> = async (
       }
     }
     reply.send(serializeOpenMic(openMic));
+  });
+
+  app.get<{ Params: { id: string } }>('/open-mics/:id/public-details', async (request) => {
+    const openMic = await findOpenMicByIdOrPublicCode(pool, request.params.id);
+    if (!openMic || openMic.status !== 'active') throw new NotFoundError('Open mic not found');
+    const { contact_email: _contactEmail, ...publicDetails } = serializeOpenMic(openMic);
+    return publicDetails;
   });
 
   app.patch<{ Params: { id: string } }>('/open-mics/:id', { preHandler: app.authenticate }, async (request, reply) => {

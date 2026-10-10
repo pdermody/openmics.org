@@ -10,6 +10,8 @@
 
 ### Public detail browsing
 
+Public landing summaries link to separate More details pages, with Location shortcuts targeting `#location`. Dedicated public-only query responses are distinct from organizer data even when an owner is signed in. The details page has a resource-specific back link and restores saved landing search/tab/filter, scroll and focus state. Maps lazy-load only on Show map; driving links open external Google Maps/Apple Maps without browser geolocation. See [the design](../PUBLIC-LANDING-PAGE-DESIGN.md) and [settled decisions](decisions.md#public-landing-page-details-and-attendance).
+
 Series pages use Events / Photos / Videos tabs (Events default); event and performer galleries use Photos / Videos (Photos default). Shareable tab/event-filter/page state lives in router search; history retains scroll/focus and shuffle state. Existing media deep links select the matching media tab. Series-only featured viewers leave the active tab unchanged. Events fetch a separate public-only paginated operation with 10-item Previous/Next, Upcoming/Past, and venue-local Year/Month filters. Media retains cursor loading and Newest/Shuffle; no public All control.
 
 A **React 18 + TypeScript + Vite** single-page application, hosted as static assets on S3, fed by the Fastify API described in [API Design](architecture/api-design.md). The frontend is designed around four fixed priorities:
@@ -144,6 +146,9 @@ City autocomplete searches the packaged JSON catalogue through `GET /cities/sear
 
 Open-mic series:
 - `/open-mics/:id` — Series details. Active owner-organizers can create an event from series defaults or copy a displayed event, editing its date/time directly in the create form's “Starts at” and “Ends at” fields.
+- `/@:handle/details` — Public series More details page; `/open-mics/:id/details` redirects to the canonical handle page. Includes full information and Location; `#location` targets the address/map/directions section.
+- `/@:handle/events/:eventId` — Canonical event landing page. The event must belong to the resolved series.
+- `/@:handle/events/:eventId/details` — Public event More details page; `/events/:eventId/details` redirects here. Uses the event venue snapshot and links back to its landing page.
 - `/open-mics/new` — Create series (requires `open_mics:create` and an active organizer profile; non-organizers are directed to create or switch to an organizer profile — the page never creates one implicitly)
 - `/open-mics/:id/edit` — Edit series (requires `open_mics:edit` on the owning organizer profile)
 

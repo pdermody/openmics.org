@@ -21,6 +21,7 @@ import {
   insertEvent,
   restoreEvent,
   serializeEvent,
+  eventAttendance,
   softDeleteEvent,
   updateEvent,
 } from './repository.js';
@@ -102,13 +103,14 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
           tags: input.tags,
           capacity: input.capacity,
           notes: input.notes,
+          publicInformation: input.public_information === undefined ? openMic.public_information : input.public_information,
           entryFeeAmount: input.entry_fee_amount,
           entryFeeCurrency: input.entry_fee_currency,
           entryFeeNote: input.entry_fee_note,
         });
       });
 
-      reply.status(201).send(serializeEvent(created));
+      reply.status(201).send(serializeEvent(created, new Date(), true));
     },
   );
 
@@ -122,7 +124,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     }
 
     const events = await findEventsByOpenMicId(pool, openMic.id);
-    reply.send((canManage ? events : events.filter((event) => event.status === 'published')).map((row) => serializeEvent(row)));
+    reply.send((canManage ? events : events.filter((event) => event.status === 'published')).map((row) => serializeEvent(row, new Date(), canManage)));
   });
 
   app.get<{ Params: { id: string } }>('/open-mics/:id/public-events', async (request, reply) => {
@@ -220,7 +222,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     if (!openMic || (!canManage && !hasKioskAccess && (openMic.status !== 'active' || event.status !== 'published'))) {
       throw new NotFoundError('Event not found');
     }
-    reply.send(serializeEvent(event));
+    reply.send(serializeEvent(event, new Date(), Boolean(canManage)));
   });
 
   app.get<{ Params: { id: string; eventId: string } }>('/open-mics/:id/events/:eventId', { preHandler: app.authenticateOptional }, async (request, reply) => {
@@ -229,7 +231,45 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
     const event = await findEventByIdOrPublicCode(pool, request.params.eventId);
     const canManage = await isOpenMicOwnerOrAdmin(pool, openMic.owner_profile_id, request.account);
     if (!event || event.open_mic_id !== openMic.id || (!canManage && (openMic.status !== 'active' || event.status !== 'published'))) throw new NotFoundError('Event not found');
-    reply.send(serializeEvent(event));
+    reply.send(serializeEvent(event, new Date(), canManage));
+  });
+
+  app.get<{ Params: { id: string } }>('/events/:id/public-details', async (request) => {
+    const event = await requirePublicEvent(request.params.id);
+    const parent = await findOpenMicByIdOrPublicCode(pool, event.open_mic_id);
+    if (!parent) throw new NotFoundError('Open mic not found');
+    return {
+      ...serializeEvent(event),
+      open_mic_handle: parent.current_handle,
+      activities: event.activities ?? parent.activities,
+      entry_fee_amount: Number(event.entry_fee_amount ?? parent.entry_fee_amount),
+      entry_fee_currency: event.entry_fee_currency ?? parent.entry_fee_currency,
+      entry_fee_note: event.entry_fee_note ?? parent.entry_fee_note,
+    };
+  });
+
+  app.get<{ Params: { id: string } }>('/events/:id/attendance-status', async (request) => {
+    const event = await requirePublicEvent(request.params.id);
+    const { status } = await eventAttendance(pool, event);
+    return { status };
+  });
+
+  async function requirePublicEvent(identifier: string) {
+    const event = await findEventByIdOrPublicCode(pool, identifier);
+    if (!event) throw new NotFoundError('Event not found');
+    const parent = await findOpenMicByIdOrPublicCode(pool, event.open_mic_id);
+    if (!parent || parent.status !== 'active' || event.status !== 'published') throw new NotFoundError('Event not found');
+    return event;
+  }
+
+  app.get<{ Params: { id: string } }>('/events/:id/attendance', { preHandler: app.authenticate }, async (request) => {
+    const event = await findEventByIdOrPublicCode(pool, request.params.id);
+    if (!event) throw new NotFoundError('Event not found');
+    const parent = await findOpenMicByIdOrPublicCode(pool, event.open_mic_id);
+    if (!parent || !await isOpenMicOwnerOrAdmin(pool, parent.owner_profile_id, request.account)) {
+      throw new ForbiddenError('Only the event organizer can view attendance');
+    }
+    return eventAttendance(pool, event);
   });
 
   app.patch<{ Params: { id: string } }>(
@@ -277,10 +317,12 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       if (parsed.data.tags !== undefined) changes.tags = parsed.data.tags;
       if (parsed.data.capacity !== undefined) changes.capacity = parsed.data.capacity;
       if (parsed.data.notes !== undefined) changes.notes = parsed.data.notes;
+      if (parsed.data.public_information !== undefined) changes.publicInformation = parsed.data.public_information;
+      if (parsed.data.audience_guest_count !== undefined) changes.audienceGuestCount = parsed.data.audience_guest_count;
       if (parsed.data.entry_fee_amount !== undefined) changes.entryFeeAmount = parsed.data.entry_fee_amount;
       if (parsed.data.entry_fee_currency !== undefined) changes.entryFeeCurrency = parsed.data.entry_fee_currency;
       if (parsed.data.entry_fee_note !== undefined) changes.entryFeeNote = parsed.data.entry_fee_note;
-      const lifecycleOnly = Object.keys(parsed.data).every((field) => field === 'status' || field === 'registrations_closed_at');
+      const lifecycleOnly = Object.keys(parsed.data).every((field) => ['status', 'registrations_closed_at', 'audience_guest_count'].includes(field));
       if (parsed.data.city_id) {
         const selected = await requireActiveCityById(pool, parsed.data.city_id, 'city_id');
         if ((parsed.data.city && !matchesCityName(selected, parsed.data.city))
@@ -299,13 +341,14 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
       const effectiveStartsAt = parsed.data.starts_at ?? existing.starts_at;
       const effectiveEndsAt = parsed.data.ends_at ?? existing.ends_at;
       const effectiveStatus = parsed.data.status ?? existing.status;
-      if (effectiveStatus === 'published' && (!effectiveEndsAt || new Date(effectiveEndsAt) <= new Date(effectiveStartsAt))) {
+      const audienceOnly = Object.keys(parsed.data).every((field) => field === 'audience_guest_count');
+      if (!audienceOnly && effectiveStatus === 'published' && (!effectiveEndsAt || new Date(effectiveEndsAt) <= new Date(effectiveStartsAt))) {
         throw new ValidationError('A published event requires an end time after its start time', { field: 'ends_at' });
       }
       const updated = await updateEvent(pool, existing.id, changes as Parameters<typeof updateEvent>[2]);
       if (!updated) throw new NotFoundError('Event not found after update');
 
-      reply.send(serializeEvent(updated));
+      reply.send(serializeEvent(updated, new Date(), true));
       void notifyRoster(pool, existing.id, 'event.updated', { event_id: existing.id }).catch((error) =>
         app.log.error({ error }, 'Failed to publish roster notification'),
       );
@@ -352,7 +395,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsPluginOptions> = async (app,
 
       const restored = await restoreEvent(pool, existing.id);
       if (!restored) throw new NotFoundError('Event not found, already active, or past its 30-day recovery window');
-      reply.send(serializeEvent(restored));
+      reply.send(serializeEvent(restored, new Date(), true));
     },
   );
 
